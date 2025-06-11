@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-01-06
+
+### Added
+- ✅ First MuJoCo control tool: `load_model`
+- ✅ Model management system with UUID tracking
+- ✅ `get_loaded_models` tool to list loaded models
+- ✅ Model information in load response (nq, nv, nbody, etc.)
+- ✅ Support for multiple simultaneous models
+- ✅ Parameter validation for load_model tool
+
+### Changed
+- Enhanced error handling in call_tool method
+- Improved parameter validation messages
+- Updated version to 0.1.2
+
+### Testing
+- Created comprehensive test suite (test_v0_1_2.py)
+- All 12 tests passing
+- Validated model loading and management
+
 ## [0.1.1] - 2025-01-06
 
 ### Added
