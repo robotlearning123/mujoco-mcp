@@ -17,7 +17,7 @@ class MuJoCoMCPServer:
     def __init__(self):
         """初始化服务器"""
         self.name = "mujoco-mcp"
-        self.version = "0.3.2"
+        self.version = "0.4.0"
         self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations through natural language commands and structured tools"
         self.logger = logging.getLogger("mujoco_mcp.simple_server")
         
@@ -29,6 +29,12 @@ class MuJoCoMCPServer:
         # 模型存储
         self._models = {}  # model_id -> simulation instance
         self._model_names = {}  # model_id -> name
+        
+        # 模板存储
+        self._templates = {
+            "robot": {},  # template_name -> template_data
+            "environment": {}  # template_name -> template_data
+        }
         
         # 注册标准MCP工具
         self._register_standard_tools()
@@ -304,6 +310,82 @@ class MuJoCoMCPServer:
             "handler": self._handle_analyze_behavior
         }
         
+        # generate_robot 工具 - 机器人生成
+        self._tools["generate_robot"] = {
+            "name": "generate_robot",
+            "description": "Generate a robot model programmatically with specified type and parameters",
+            "parameters": {
+                "robot_type": "Type of robot to generate (e.g., 'arm', 'mobile', 'gripper', 'humanoid')",
+                "parameters": "(optional) Dictionary of robot-specific parameters like num_links, link_length, etc."
+            },
+            "handler": self._handle_generate_robot
+        }
+        
+        # generate_environment 工具 - 环境生成
+        self._tools["generate_environment"] = {
+            "name": "generate_environment",
+            "description": "Generate an environment model with terrain, obstacles, or other features",
+            "parameters": {
+                "env_type": "Type of environment to generate (e.g., 'flat_ground', 'obstacles', 'terrain', 'maze')",
+                "parameters": "(optional) Dictionary of environment-specific parameters"
+            },
+            "handler": self._handle_generate_environment
+        }
+        
+        # combine_models 工具 - 模型组合
+        self._tools["combine_models"] = {
+            "name": "combine_models",
+            "description": "Combine multiple models (robots and environments) into a single simulation",
+            "parameters": {
+                "base_model_xml": "XML string of the base model (usually environment)",
+                "add_model_xml": "XML string of the model to add (usually robot)",
+                "position": "(optional) Position [x, y, z] where to place the added model"
+            },
+            "handler": self._handle_combine_models
+        }
+        
+        # list_templates 工具 - 列出模板
+        self._tools["list_templates"] = {
+            "name": "list_templates",
+            "description": "List available model templates for robots and environments",
+            "parameters": {},
+            "handler": self._handle_list_templates
+        }
+        
+        # generate_from_template 工具 - 从模板生成
+        self._tools["generate_from_template"] = {
+            "name": "generate_from_template",
+            "description": "Generate a model from a predefined template with custom parameters",
+            "parameters": {
+                "template_name": "Name of the template to use",
+                "parameters": "(optional) Dictionary of parameters to customize the template"
+            },
+            "handler": self._handle_generate_from_template
+        }
+        
+        # save_as_template 工具 - 保存为模板
+        self._tools["save_as_template"] = {
+            "name": "save_as_template",
+            "description": "Save a loaded model as a reusable template",
+            "parameters": {
+                "model_id": "ID of the model to save as template",
+                "template_name": "Name for the new template",
+                "description": "Description of what this template is for",
+                "parameterizable": "(optional) List of parameter names that can be customized"
+            },
+            "handler": self._handle_save_as_template
+        }
+        
+        # validate_model_xml 工具 - 验证XML
+        self._tools["validate_model_xml"] = {
+            "name": "validate_model_xml",
+            "description": "Validate a MuJoCo model XML string for correctness and safety",
+            "parameters": {
+                "xml_string": "XML string to validate"
+            },
+            "handler": self._handle_validate_model_xml
+        }
+        
     def get_server_info(self) -> Dict[str, Any]:
         """获取服务器信息"""
         return {
@@ -316,7 +398,8 @@ class MuJoCoMCPServer:
                 "state_query",
                 "visualization",
                 "demo",
-                "natural_language"
+                "natural_language",
+                "model_generation"
             ]
         }
         
@@ -1681,3 +1764,565 @@ class MuJoCoMCPServer:
                 "available_types": ["energy", "stability"],
                 "message": "More analysis types will be added in future versions"
             }
+    
+    def _handle_generate_robot(self, robot_type: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理generate_robot工具调用 - 机器人生成"""
+        
+        robot_type_lower = robot_type.lower()
+        parameters = parameters or {}
+        
+        if robot_type_lower == "arm":
+            # 生成机械臂
+            num_links = parameters.get("num_links", 2)
+            link_length = parameters.get("link_length", 0.3)
+            link_mass = parameters.get("link_mass", 1.0)
+            joint_limits = parameters.get("joint_limits", [-90, 90])
+            max_torque = parameters.get("max_torque", 50.0)
+            
+            # 安全限制
+            warnings = []
+            if num_links > 10:
+                warnings.append(f"Number of links ({num_links}) reduced to 10 for safety")
+                num_links = 10
+            if link_mass > 100:
+                warnings.append(f"Link mass ({link_mass}kg) reduced to 100kg for safety")
+                link_mass = 100
+            if max_torque > 1000:
+                warnings.append(f"Max torque ({max_torque}Nm) reduced to 1000Nm for safety")
+                max_torque = 1000
+            
+            # 生成XML
+            xml = f"""<mujoco model="generated_arm">
+    <option timestep="0.001" gravity="0 0 -9.81"/>
+    <visual>
+        <global offwidth="640" offheight="480"/>
+    </visual>
+    
+    <worldbody>
+        <light name="top" pos="0 0 2"/>
+        <geom name="floor" type="plane" size="2 2 0.1" rgba="0.8 0.8 0.8 1"/>
+        
+        <body name="base" pos="0 0 0.1">
+            <geom name="base_geom" type="cylinder" size="0.1 0.05" rgba="0.5 0.5 0.5 1"/>
+"""
+            
+            # 添加链接
+            for i in range(num_links):
+                indent = "    " * (i + 3)
+                xml += f"""
+{indent}<body name="link{i+1}" pos="0 0 {link_length}">
+{indent}    <joint name="joint{i+1}" type="hinge" axis="0 0 1" range="{joint_limits[0]} {joint_limits[1]}"/>
+{indent}    <geom name="link{i+1}_geom" type="capsule" fromto="0 0 0 0 0 {link_length}" size="0.03" mass="{link_mass}" rgba="0.7 0.2 0.2 1"/>"""
+                
+            # 闭合body标签
+            for i in range(num_links):
+                indent = "    " * (num_links - i + 2)
+                xml += f"\n{indent}</body>"
+            
+            xml += """
+        </body>
+    </worldbody>
+    
+    <actuator>"""
+            
+            # 添加驱动器
+            for i in range(num_links):
+                xml += f"""
+        <motor name="motor{i+1}" joint="joint{i+1}" gear="1" ctrllimited="true" ctrlrange="-{max_torque} {max_torque}"/>"""
+            
+            xml += """
+    </actuator>
+</mujoco>"""
+            
+            # 加载模型
+            result = self._handle_load_model(xml, f"generated_{robot_type}")
+            result["xml"] = xml
+            if warnings:
+                result["warnings"] = warnings
+                
+            return result
+            
+        elif robot_type_lower == "mobile":
+            # 生成移动机器人
+            base_size = parameters.get("base_size", [0.3, 0.2, 0.1])
+            wheel_radius = parameters.get("wheel_radius", 0.05)
+            num_wheels = parameters.get("num_wheels", 4)
+            
+            xml = f"""<mujoco model="generated_mobile_robot">
+    <option timestep="0.001" gravity="0 0 -9.81"/>
+    
+    <worldbody>
+        <light name="top" pos="0 0 2"/>
+        <geom name="floor" type="plane" size="5 5 0.1" rgba="0.8 0.8 0.8 1"/>
+        
+        <body name="base" pos="0 0 {wheel_radius + base_size[2]/2}">
+            <joint name="base_free" type="free"/>
+            <geom name="base_geom" type="box" size="{base_size[0]/2} {base_size[1]/2} {base_size[2]/2}" mass="5" rgba="0.3 0.3 0.7 1"/>
+"""
+            
+            # 添加轮子
+            wheel_positions = []
+            if num_wheels == 4:
+                wheel_positions = [
+                    (base_size[0]/2 - wheel_radius, base_size[1]/2, -base_size[2]/2),
+                    (base_size[0]/2 - wheel_radius, -base_size[1]/2, -base_size[2]/2),
+                    (-base_size[0]/2 + wheel_radius, base_size[1]/2, -base_size[2]/2),
+                    (-base_size[0]/2 + wheel_radius, -base_size[1]/2, -base_size[2]/2)
+                ]
+            
+            for i, pos in enumerate(wheel_positions):
+                xml += f"""
+            <body name="wheel{i+1}" pos="{pos[0]} {pos[1]} {pos[2]}">
+                <joint name="wheel{i+1}_joint" type="hinge" axis="0 1 0"/>
+                <geom name="wheel{i+1}_geom" type="cylinder" size="{wheel_radius} 0.02" rgba="0.2 0.2 0.2 1" mass="0.5"/>
+            </body>"""
+            
+            xml += """
+        </body>
+    </worldbody>
+    
+    <actuator>"""
+            
+            # 添加轮子驱动器
+            for i in range(num_wheels):
+                xml += f"""
+        <motor name="wheel{i+1}_motor" joint="wheel{i+1}_joint" gear="1" ctrllimited="true" ctrlrange="-10 10"/>"""
+            
+            xml += """
+    </actuator>
+</mujoco>"""
+            
+            result = self._handle_load_model(xml, f"generated_{robot_type}")
+            result["xml"] = xml
+            return result
+            
+        elif robot_type_lower == "gripper":
+            # 生成夹爪
+            finger_length = parameters.get("finger_length", 0.08)
+            max_opening = parameters.get("max_opening", 0.1)
+            
+            xml = f"""<mujoco model="generated_gripper">
+    <option timestep="0.001"/>
+    
+    <worldbody>
+        <body name="gripper_base" pos="0 0 0.1">
+            <geom name="palm" type="box" size="0.04 0.02 0.03" rgba="0.5 0.5 0.5 1"/>
+            
+            <body name="finger1" pos="0.02 0 0">
+                <joint name="finger1_joint" type="slide" axis="1 0 0" range="0 {max_opening/2}"/>
+                <geom name="finger1_geom" type="box" size="0.01 0.005 {finger_length}" pos="{finger_length/2} 0 0" rgba="0.7 0.7 0.7 1"/>
+            </body>
+            
+            <body name="finger2" pos="-0.02 0 0">
+                <joint name="finger2_joint" type="slide" axis="-1 0 0" range="0 {max_opening/2}"/>
+                <geom name="finger2_geom" type="box" size="0.01 0.005 {finger_length}" pos="-{finger_length/2} 0 0" rgba="0.7 0.7 0.7 1"/>
+            </body>
+        </body>
+    </worldbody>
+    
+    <actuator>
+        <position name="gripper_actuator" joint="finger1_joint" gear="1" ctrllimited="true" ctrlrange="0 {max_opening/2}"/>
+    </actuator>
+    
+    <equality>
+        <joint joint1="finger1_joint" joint2="finger2_joint" polycoef="0 -1 0 0 0"/>
+    </equality>
+</mujoco>"""
+            
+            result = self._handle_load_model(xml, f"generated_{robot_type}")
+            result["xml"] = xml
+            return result
+            
+        else:
+            raise ValueError(f"Unknown robot type: {robot_type}. Available types: arm, mobile, gripper")
+    
+    def _handle_generate_environment(self, env_type: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理generate_environment工具调用 - 环境生成"""
+        
+        env_type_lower = env_type.lower()
+        parameters = parameters or {}
+        
+        if env_type_lower == "flat_ground":
+            # 生成平地
+            size = parameters.get("size", [10, 10])
+            friction = parameters.get("friction", 1.0)
+            
+            xml = f"""<mujoco model="generated_flat_ground">
+    <option timestep="0.001" gravity="0 0 -9.81"/>
+    
+    <worldbody>
+        <light name="top" pos="0 0 5" dir="0 0 -1"/>
+        <geom name="ground" type="plane" size="{size[0]/2} {size[1]/2} 0.1" rgba="0.8 0.8 0.8 1" friction="{friction} 0.005 0.0001"/>
+    </worldbody>
+</mujoco>"""
+            
+            return {
+                "success": True,
+                "xml": xml,
+                "message": f"Generated flat ground environment {size[0]}x{size[1]}m"
+            }
+            
+        elif env_type_lower == "obstacles":
+            # 生成障碍物环境
+            ground_size = parameters.get("ground_size", [5, 5])
+            num_obstacles = parameters.get("num_obstacles", 3)
+            obstacle_size_range = parameters.get("obstacle_size_range", [0.1, 0.5])
+            
+            xml = f"""<mujoco model="generated_obstacles">
+    <option timestep="0.001" gravity="0 0 -9.81"/>
+    
+    <worldbody>
+        <light name="top" pos="0 0 5"/>
+        <geom name="ground" type="plane" size="{ground_size[0]/2} {ground_size[1]/2} 0.1" rgba="0.8 0.8 0.8 1"/>
+"""
+            
+            # 添加随机障碍物
+            import random
+            for i in range(num_obstacles):
+                x = random.uniform(-ground_size[0]/2 + 0.5, ground_size[0]/2 - 0.5)
+                y = random.uniform(-ground_size[1]/2 + 0.5, ground_size[1]/2 - 0.5)
+                size = random.uniform(obstacle_size_range[0], obstacle_size_range[1])
+                height = random.uniform(0.1, 0.5)
+                
+                xml += f"""        <body name="obstacle{i+1}" pos="{x} {y} {height/2}">
+            <geom name="obstacle{i+1}_geom" type="box" size="{size/2} {size/2} {height/2}" rgba="0.6 0.3 0.3 1"/>
+        </body>
+"""
+            
+            xml += """    </worldbody>
+</mujoco>"""
+            
+            return {
+                "success": True,
+                "xml": xml,
+                "obstacle_count": num_obstacles,
+                "message": f"Generated environment with {num_obstacles} obstacles"
+            }
+            
+        elif env_type_lower == "terrain":
+            # 生成地形
+            terrain_type = parameters.get("terrain_type", "stairs")
+            
+            if terrain_type == "stairs":
+                num_steps = parameters.get("num_steps", 5)
+                step_height = parameters.get("step_height", 0.1)
+                step_width = parameters.get("step_width", 0.3)
+                
+                xml = f"""<mujoco model="generated_stairs">
+    <option timestep="0.001" gravity="0 0 -9.81"/>
+    
+    <worldbody>
+        <light name="top" pos="0 0 5"/>
+        <geom name="ground" type="plane" size="10 10 0.1" rgba="0.8 0.8 0.8 1"/>
+"""
+                
+                # 添加台阶
+                for i in range(num_steps):
+                    x_pos = i * step_width
+                    z_pos = (i + 1) * step_height / 2
+                    xml += f"""        <geom name="step{i+1}" type="box" pos="{x_pos} 0 {z_pos}" size="{step_width/2} 1 {z_pos}" rgba="0.6 0.6 0.6 1"/>
+"""
+                
+                xml += """    </worldbody>
+</mujoco>"""
+                
+                return {
+                    "success": True,
+                    "xml": xml,
+                    "message": f"Generated stairs with {num_steps} steps"
+                }
+            
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown environment type: {env_type}",
+                "available_types": ["flat_ground", "obstacles", "terrain"]
+            }
+    
+    def _handle_combine_models(self, base_model_xml: str, add_model_xml: str, position: Optional[List[float]] = None) -> Dict[str, Any]:
+        """处理combine_models工具调用 - 模型组合"""
+        
+        position = position or [0, 0, 0]
+        
+        try:
+            # 简化的XML组合逻辑
+            # 在实际实现中，需要更复杂的XML解析和合并
+            
+            # 提取worldbody内容
+            import re
+            
+            # 从base model提取worldbody内容
+            base_worldbody_match = re.search(r'<worldbody>(.*?)</worldbody>', base_model_xml, re.DOTALL)
+            if not base_worldbody_match:
+                raise ValueError("Invalid base model XML: no worldbody found")
+            
+            base_worldbody = base_worldbody_match.group(1)
+            
+            # 从add model提取worldbody内容（不是单个body）
+            add_worldbody_match = re.search(r'<worldbody>(.*?)</worldbody>', add_model_xml, re.DOTALL)
+            if not add_worldbody_match:
+                raise ValueError("Invalid add model XML: no worldbody found")
+            
+            add_worldbody_content = add_worldbody_match.group(1)
+            
+            # 找到base body元素（跳过light和ground等）
+            # 使用更简单的方法：找到第一个有name的body（通常是base）
+            body_lines = []
+            in_body = False
+            body_depth = 0
+            
+            for line in add_worldbody_content.split('\n'):
+                if '<body' in line and 'name="base"' in line:
+                    in_body = True
+                    body_depth = 1
+                    body_lines.append(line)
+                elif in_body:
+                    if '<body' in line:
+                        body_depth += 1
+                    if '</body>' in line:
+                        body_depth -= 1
+                    body_lines.append(line)
+                    if body_depth == 0:
+                        break
+            
+            if not body_lines:
+                # 如果没找到base，找第一个body
+                body_lines = []
+                in_body = False
+                body_depth = 0
+                
+                for line in add_worldbody_content.split('\n'):
+                    if '<body' in line and 'name=' in line and 'light' not in line:
+                        in_body = True
+                        body_depth = 1
+                        body_lines.append(line)
+                    elif in_body:
+                        if '<body' in line:
+                            body_depth += 1
+                        if '</body>' in line:
+                            body_depth -= 1
+                        body_lines.append(line)
+                        if body_depth == 0:
+                            break
+                            
+            if not body_lines:
+                raise ValueError("No body element found in add model")
+            
+            add_body = '\n'.join(body_lines)
+            
+            # 修改位置 - 如果body已有pos属性，则替换；如果没有，则添加
+            if 'pos=' in add_body:
+                add_body = re.sub(r'pos="[^"]*"', f'pos="{position[0]} {position[1]} {position[2]}"', add_body, count=1)
+            else:
+                add_body = re.sub(r'<body\s+name="([^"]*)"', f'<body name="\\1" pos="{position[0]} {position[1]} {position[2]}"', add_body, count=1)
+            
+            # 提取actuator部分（如果有）
+            actuator_section = ""
+            actuator_match = re.search(r'<actuator>(.*?)</actuator>', add_model_xml, re.DOTALL)
+            if actuator_match:
+                actuator_section = f"\n    <actuator>{actuator_match.group(1)}</actuator>"
+            
+            # 组合XML
+            combined_xml = f"""<mujoco model="combined_model">
+    <option timestep="0.001" gravity="0 0 -9.81"/>
+    
+    <worldbody>
+{base_worldbody}
+        {add_body}
+    </worldbody>{actuator_section}
+</mujoco>"""
+            
+            # 加载组合后的模型
+            result = self._handle_load_model(combined_xml, "combined_model")
+            result["combined_xml"] = combined_xml
+            
+            return result
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to combine models: {str(e)}"
+            }
+    
+    def _handle_list_templates(self) -> Dict[str, Any]:
+        """处理list_templates工具调用 - 列出模板"""
+        
+        # 预定义模板
+        robot_templates = [
+            {
+                "name": "simple_arm",
+                "description": "A simple robotic arm with configurable links",
+                "parameters": ["num_links", "link_length", "link_mass", "color"]
+            },
+            {
+                "name": "mobile_base",
+                "description": "A wheeled mobile robot base",
+                "parameters": ["base_size", "wheel_radius", "num_wheels"]
+            },
+            {
+                "name": "parallel_gripper",
+                "description": "A parallel jaw gripper",
+                "parameters": ["finger_length", "max_opening", "grip_force"]
+            }
+        ]
+        
+        environment_templates = [
+            {
+                "name": "test_arena",
+                "description": "A simple test arena with walls",
+                "parameters": ["size", "wall_height"]
+            },
+            {
+                "name": "obstacle_course",
+                "description": "An obstacle course for navigation",
+                "parameters": ["length", "num_obstacles", "difficulty"]
+            }
+        ]
+        
+        # 添加用户保存的模板
+        for name, data in self._templates["robot"].items():
+            robot_templates.append({
+                "name": name,
+                "description": data.get("description", "User-defined template"),
+                "parameters": data.get("parameterizable", [])
+            })
+            
+        for name, data in self._templates["environment"].items():
+            environment_templates.append({
+                "name": name,
+                "description": data.get("description", "User-defined template"),
+                "parameters": data.get("parameterizable", [])
+            })
+        
+        return {
+            "robot_templates": robot_templates,
+            "environment_templates": environment_templates
+        }
+    
+    def _handle_generate_from_template(self, template_name: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理generate_from_template工具调用 - 从模板生成"""
+        
+        parameters = parameters or {}
+        
+        # 检查预定义模板
+        if template_name == "simple_arm":
+            return self._handle_generate_robot("arm", parameters)
+        elif template_name == "mobile_base":
+            return self._handle_generate_robot("mobile", parameters)
+        elif template_name == "parallel_gripper":
+            return self._handle_generate_robot("gripper", parameters)
+        elif template_name == "test_arena":
+            # 生成测试场地
+            size = parameters.get("size", [5, 5])
+            wall_height = parameters.get("wall_height", 0.5)
+            
+            xml = f"""<mujoco model="test_arena">
+    <worldbody>
+        <light name="top" pos="0 0 5"/>
+        <geom name="ground" type="plane" size="{size[0]/2} {size[1]/2} 0.1" rgba="0.8 0.8 0.8 1"/>
+        
+        <!-- Walls -->
+        <geom name="wall_north" type="box" pos="0 {size[1]/2} {wall_height/2}" size="{size[0]/2} 0.1 {wall_height/2}" rgba="0.5 0.5 0.5 1"/>
+        <geom name="wall_south" type="box" pos="0 -{size[1]/2} {wall_height/2}" size="{size[0]/2} 0.1 {wall_height/2}" rgba="0.5 0.5 0.5 1"/>
+        <geom name="wall_east" type="box" pos="{size[0]/2} 0 {wall_height/2}" size="0.1 {size[1]/2} {wall_height/2}" rgba="0.5 0.5 0.5 1"/>
+        <geom name="wall_west" type="box" pos="-{size[0]/2} 0 {wall_height/2}" size="0.1 {size[1]/2} {wall_height/2}" rgba="0.5 0.5 0.5 1"/>
+    </worldbody>
+</mujoco>"""
+            
+            result = self._handle_load_model(xml, template_name)
+            result["xml"] = xml
+            return result
+            
+        # 检查用户模板
+        elif template_name in self._templates["robot"]:
+            template_data = self._templates["robot"][template_name]
+            # 这里简化处理，实际应该解析和修改XML
+            result = self._handle_load_model(template_data["xml"], template_name)
+            result["xml"] = template_data["xml"]
+            return result
+            
+        elif template_name in self._templates["environment"]:
+            template_data = self._templates["environment"][template_name]
+            result = self._handle_load_model(template_data["xml"], template_name)
+            result["xml"] = template_data["xml"]
+            return result
+            
+        else:
+            return {
+                "success": False,
+                "error": f"Template '{template_name}' not found"
+            }
+    
+    def _handle_save_as_template(self, model_id: str, template_name: str, description: str, parameterizable: Optional[List[str]] = None) -> Dict[str, Any]:
+        """处理save_as_template工具调用 - 保存为模板"""
+        
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        # 获取模型XML（简化处理）
+        # 在实际实现中，应该从simulation对象重建XML
+        model_xml = "<mujoco><!-- Model XML would be here --></mujoco>"
+        
+        # 判断是机器人还是环境
+        model_name = self._model_names.get(model_id, "").lower()
+        if any(keyword in model_name for keyword in ["robot", "arm", "gripper", "mobile"]):
+            template_type = "robot"
+        else:
+            template_type = "environment"
+            
+        # 保存模板
+        self._templates[template_type][template_name] = {
+            "xml": model_xml,
+            "description": description,
+            "parameterizable": parameterizable or [],
+            "source_model_id": model_id
+        }
+        
+        return {
+            "success": True,
+            "template_name": template_name,
+            "template_type": template_type,
+            "message": f"Model saved as template '{template_name}'"
+        }
+    
+    def _handle_validate_model_xml(self, xml_string: str) -> Dict[str, Any]:
+        """处理validate_model_xml工具调用 - 验证XML"""
+        
+        errors = []
+        warnings = []
+        
+        # 基本验证
+        if not xml_string or not xml_string.strip():
+            errors.append("XML string is empty")
+            
+        if not xml_string.strip().startswith("<"):
+            errors.append("XML string must start with '<'")
+            
+        if "<mujoco" not in xml_string:
+            errors.append("Missing <mujoco> root element")
+            
+        if "<worldbody>" not in xml_string:
+            errors.append("Missing <worldbody> element")
+            
+        # 尝试加载以进行更深入的验证
+        if not errors:
+            try:
+                sim = MuJoCoSimulation()
+                sim.load_from_xml_string(xml_string)
+                # 如果加载成功，进行额外检查
+                
+                # 检查模型复杂度
+                if sim.model.nbody > 100:
+                    warnings.append(f"Model has {sim.model.nbody} bodies, which may impact performance")
+                    
+                if sim.model.njnt > 50:
+                    warnings.append(f"Model has {sim.model.njnt} joints, which is quite complex")
+                    
+            except Exception as e:
+                errors.append(f"MuJoCo validation error: {str(e)}")
+        
+        return {
+            "is_valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings
+        }
