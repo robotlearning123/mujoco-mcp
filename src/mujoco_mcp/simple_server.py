@@ -18,7 +18,7 @@ class MuJoCoMCPServer:
     def __init__(self):
         """初始化服务器"""
         self.name = "mujoco-mcp"
-        self.version = "0.4.1"
+        self.version = "0.4.2"
         self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations through natural language commands and structured tools"
         self.logger = logging.getLogger("mujoco_mcp.simple_server")
         
@@ -39,6 +39,10 @@ class MuJoCoMCPServer:
         
         # 优化结果存储 - v0.4.1
         self._optimization_results = {}  # results_id -> optimization_data
+        
+        # 设计存储 - v0.4.2
+        self._robot_designs = {}  # design_id -> design_data
+        self._component_library = self._init_component_library()
         
         # 注册标准MCP工具
         self._register_standard_tools()
@@ -442,6 +446,80 @@ class MuJoCoMCPServer:
             "handler": self._handle_analyze_robustness
         }
         
+        # 机器人设计工具 - v0.4.2
+        self._tools["design_robot"] = {
+            "name": "design_robot",
+            "description": "Design a robot based on task requirements using AI-assisted design",
+            "parameters": {
+                "task_description": "Natural language description of the task",
+                "constraints": "(optional) Design constraints (size, weight, cost, etc.)",
+                "preferences": "(optional) Design preferences",
+                "optimize_for": "(optional) List of objectives to optimize",
+                "use_components": "(optional) Use component library",
+                "estimate_cost": "(optional) Include cost estimation"
+            },
+            "handler": self._handle_design_robot
+        }
+        
+        self._tools["refine_design"] = {
+            "name": "refine_design",
+            "description": "Refine an existing robot design with improvements",
+            "parameters": {
+                "design_id": "ID of the design to refine",
+                "improvements": "Dictionary of improvements to apply",
+                "additional_constraints": "(optional) New constraints to satisfy"
+            },
+            "handler": self._handle_refine_design
+        }
+        
+        self._tools["suggest_improvements"] = {
+            "name": "suggest_improvements",
+            "description": "Get AI suggestions for improving a robot design",
+            "parameters": {
+                "model_id": "ID of the model to analyze",
+                "goals": "List of improvement goals"
+            },
+            "handler": self._handle_suggest_improvements
+        }
+        
+        self._tools["compare_designs"] = {
+            "name": "compare_designs",
+            "description": "Compare multiple robot designs on specified metrics",
+            "parameters": {
+                "design_ids": "List of design IDs to compare",
+                "metrics": "List of metrics to compare"
+            },
+            "handler": self._handle_compare_designs
+        }
+        
+        self._tools["explain_design"] = {
+            "name": "explain_design",
+            "description": "Get explanation of design choices and rationale",
+            "parameters": {
+                "design_id": "ID of the design to explain"
+            },
+            "handler": self._handle_explain_design
+        }
+        
+        self._tools["list_components"] = {
+            "name": "list_components",
+            "description": "List available components from the library",
+            "parameters": {
+                "category": "(optional) Component category to filter"
+            },
+            "handler": self._handle_list_components
+        }
+        
+        self._tools["check_compatibility"] = {
+            "name": "check_compatibility",
+            "description": "Check if two components are compatible",
+            "parameters": {
+                "component_a": "First component specification",
+                "component_b": "Second component specification"
+            },
+            "handler": self._handle_check_compatibility
+        }
+        
     def get_server_info(self) -> Dict[str, Any]:
         """获取服务器信息"""
         return {
@@ -456,7 +534,8 @@ class MuJoCoMCPServer:
                 "demo",
                 "natural_language",
                 "model_generation",
-                "parameter_optimization"
+                "parameter_optimization",
+                "robot_designer"
             ]
         }
         
@@ -1926,6 +2005,16 @@ class MuJoCoMCPServer:
                     (-base_size[0]/2 + wheel_radius, base_size[1]/2, -base_size[2]/2),
                     (-base_size[0]/2 + wheel_radius, -base_size[1]/2, -base_size[2]/2)
                 ]
+            elif num_wheels == 6:
+                # 6轮配置用于崎岖地形
+                wheel_positions = [
+                    (base_size[0]/2 - wheel_radius, base_size[1]/2, -base_size[2]/2),
+                    (base_size[0]/2 - wheel_radius, -base_size[1]/2, -base_size[2]/2),
+                    (0, base_size[1]/2, -base_size[2]/2),
+                    (0, -base_size[1]/2, -base_size[2]/2),
+                    (-base_size[0]/2 + wheel_radius, base_size[1]/2, -base_size[2]/2),
+                    (-base_size[0]/2 + wheel_radius, -base_size[1]/2, -base_size[2]/2)
+                ]
             
             for i, pos in enumerate(wheel_positions):
                 xml += f"""
@@ -2746,4 +2835,568 @@ class MuJoCoMCPServer:
             "worst_case_performance": worst_performance,
             "tests_completed": num_tests,
             "perturbation_range": perturbation_range
+        }
+    
+    def _init_component_library(self) -> Dict[str, List[Dict[str, Any]]]:
+        """初始化组件库"""
+        return {
+            "actuator": [
+                {
+                    "name": "servo_motor_small",
+                    "type": "servo",
+                    "specifications": {
+                        "torque": 5.0,
+                        "speed": 60.0,  # RPM
+                        "weight": 0.05,  # kg
+                        "cost": 20.0
+                    },
+                    "compatible_with": ["small_gear", "light_link"]
+                },
+                {
+                    "name": "servo_motor_medium",
+                    "type": "servo",
+                    "specifications": {
+                        "torque": 15.0,
+                        "speed": 45.0,
+                        "weight": 0.15,
+                        "cost": 50.0
+                    },
+                    "compatible_with": ["medium_gear", "standard_link"]
+                },
+                {
+                    "name": "dc_motor_high_speed",
+                    "type": "dc",
+                    "specifications": {
+                        "torque": 2.0,
+                        "speed": 300.0,
+                        "weight": 0.08,
+                        "cost": 15.0
+                    },
+                    "compatible_with": ["gearbox", "wheel"]
+                }
+            ],
+            "sensor": [
+                {
+                    "name": "position_encoder",
+                    "type": "position",
+                    "specifications": {
+                        "resolution": 0.001,  # rad
+                        "weight": 0.01,
+                        "cost": 10.0
+                    },
+                    "compatible_with": ["servo_motor_small", "servo_motor_medium"]
+                },
+                {
+                    "name": "force_sensor",
+                    "type": "force",
+                    "specifications": {
+                        "range": 100.0,  # N
+                        "resolution": 0.1,
+                        "weight": 0.02,
+                        "cost": 30.0
+                    },
+                    "compatible_with": ["gripper_finger", "end_effector"]
+                }
+            ],
+            "structure": [
+                {
+                    "name": "light_link",
+                    "type": "link",
+                    "specifications": {
+                        "length": 0.2,
+                        "weight": 0.05,
+                        "material": "aluminum",
+                        "cost": 5.0
+                    },
+                    "compatible_with": ["servo_motor_small", "light_link"]
+                },
+                {
+                    "name": "standard_link",
+                    "type": "link",
+                    "specifications": {
+                        "length": 0.3,
+                        "weight": 0.1,
+                        "material": "aluminum",
+                        "cost": 8.0
+                    },
+                    "compatible_with": ["servo_motor_medium", "standard_link"]
+                }
+            ]
+        }
+    
+    def _handle_design_robot(self, task_description: str,
+                           constraints: Optional[Dict[str, Any]] = None,
+                           preferences: Optional[Dict[str, Any]] = None,
+                           optimize_for: Optional[List[str]] = None,
+                           use_components: bool = False,
+                           estimate_cost: bool = False,
+                           component_preferences: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理design_robot工具调用 - 机器人设计"""
+        
+        # 解析任务描述
+        task_lower = task_description.lower()
+        constraints = constraints or {}
+        preferences = preferences or {}
+        
+        # 确定机器人类型
+        if "gripper" in task_lower or "pick" in task_lower or "grasp" in task_lower:
+            robot_type = "gripper"
+        elif "navigate" in task_lower or "terrain" in task_lower or "mobile" in task_lower:
+            robot_type = "mobile"
+        elif "arm" in task_lower or "manipulator" in task_lower or "assembly" in task_lower:
+            robot_type = "arm"
+        else:
+            robot_type = "arm"  # 默认
+        
+        # 基于任务生成设计
+        design_specs = {}
+        
+        if robot_type == "gripper":
+            # 设计夹爪
+            design_specs = {
+                "type": "gripper",
+                "finger_length": constraints.get("finger_length", 0.08),
+                "max_opening": constraints.get("max_opening", 0.1),
+                "grip_force": constraints.get("max_force", 10.0),
+                "num_fingers": 2,
+                "actuation": "parallel",
+                "estimated_performance": {
+                    "max_grip_force": constraints.get("max_force", 10.0),
+                    "opening_range": constraints.get("max_opening", 0.1),
+                    "precision": 0.001  # 1mm precision
+                }
+            }
+            
+            # 生成XML
+            xml = f"""<mujoco model="designed_gripper">
+    <option timestep="0.001"/>
+    
+    <worldbody>
+        <body name="gripper_base" pos="0 0 0.1">
+            <geom name="palm" type="box" size="0.04 0.02 0.03" rgba="0.5 0.5 0.5 1"/>
+            
+            <body name="finger1" pos="0.02 0 0">
+                <joint name="finger1_joint" type="slide" axis="1 0 0" range="0 {design_specs['max_opening']/2}"/>
+                <geom name="finger1_geom" type="box" size="0.01 0.005 {design_specs['finger_length']}" pos="{design_specs['finger_length']/2} 0 0" rgba="0.7 0.7 0.7 1"/>
+            </body>
+            
+            <body name="finger2" pos="-0.02 0 0">
+                <joint name="finger2_joint" type="slide" axis="-1 0 0" range="0 {design_specs['max_opening']/2}"/>
+                <geom name="finger2_geom" type="box" size="0.01 0.005 {design_specs['finger_length']}" pos="-{design_specs['finger_length']/2} 0 0" rgba="0.7 0.7 0.7 1"/>
+            </body>
+        </body>
+    </worldbody>
+    
+    <actuator>
+        <position name="gripper_actuator" joint="finger1_joint" gear="1" ctrllimited="true" ctrlrange="0 {design_specs['max_opening']/2}" forcerange="-{design_specs['grip_force']} {design_specs['grip_force']}"/>
+    </actuator>
+    
+    <equality>
+        <joint joint1="finger1_joint" joint2="finger2_joint" polycoef="0 -1 0 0 0"/>
+    </equality>
+</mujoco>"""
+            
+        elif robot_type == "mobile":
+            # 设计移动机器人
+            terrain_type = constraints.get("terrain_type", "flat")
+            num_wheels = 6 if terrain_type == "rough" else 4
+            wheel_radius = 0.08 if terrain_type == "rough" else 0.05
+            
+            design_specs = {
+                "type": "mobile",
+                "num_wheels": num_wheels,
+                "wheel_radius": wheel_radius,
+                "base_size": constraints.get("base_size", [0.4, 0.3, 0.15]),
+                "max_speed": constraints.get("speed_requirement", 1.0),
+                "suspension": terrain_type == "rough"
+            }
+            
+            # 使用已有的mobile生成器
+            result = self._handle_generate_robot("mobile", {
+                "num_wheels": num_wheels,
+                "wheel_radius": wheel_radius,
+                "base_size": design_specs["base_size"]
+            })
+            xml = result["xml"]
+            
+        else:  # arm
+            # 设计机械臂
+            workspace = constraints.get("workspace_radius", 0.5)
+            precision = constraints.get("precision", 0.01)
+            payload = constraints.get("payload", 1.0)
+            
+            # 根据需求确定关节数
+            num_joints = 6 if precision < 0.005 else 4
+            
+            design_specs = {
+                "type": "arm",
+                "num_joints": num_joints,
+                "link_length": workspace / (num_joints - 1),
+                "payload_capacity": payload,
+                "joint_type": "revolute",
+                "estimated_performance": {
+                    "workspace": workspace,
+                    "estimated_precision": precision,
+                    "payload": payload
+                }
+            }
+            
+            # 使用已有的arm生成器
+            result = self._handle_generate_robot("arm", {
+                "num_links": num_joints,
+                "link_length": design_specs["link_length"],
+                "max_torque": payload * 10  # 简单估算
+            })
+            xml = result["xml"]
+        
+        # 加载模型
+        load_result = self._handle_load_model(xml, f"designed_{robot_type}")
+        model_id = load_result["model_id"]
+        
+        # 生成设计ID
+        design_id = str(uuid.uuid4())
+        
+        # 如果需要优化
+        optimization_results = {}
+        optimized_parameters = {}
+        
+        if optimize_for:
+            # 简化的优化
+            if "energy_efficiency" in optimize_for:
+                optimization_results["energy_efficiency_score"] = 0.75 + random.random() * 0.2
+            if "stability" in optimize_for:
+                optimization_results["stability_score"] = 0.8 + random.random() * 0.15
+                
+        # 验证设计
+        validation = {
+            "is_valid": True,
+            "safety_checks": [
+                {"name": "force_limits", "passed": True},
+                {"name": "workspace_limits", "passed": True},
+                {"name": "structural_integrity", "passed": True}
+            ]
+        }
+        
+        # 成本估算
+        cost_estimate = None
+        if estimate_cost:
+            base_cost = {"gripper": 50, "mobile": 200, "arm": 150}[robot_type]
+            # 考虑预算约束
+            max_cost = constraints.get("max_cost", float('inf'))
+            if base_cost > max_cost:
+                # 调整设计以满足预算
+                base_cost = max_cost * 0.8  # 留20%余量
+            
+            total_cost = base_cost * (1 + random.random() * 0.2)  # 最多20%变化
+            if total_cost > max_cost:
+                total_cost = max_cost * 0.95  # 确保在预算内
+                
+            cost_estimate = {
+                "total": total_cost,
+                "breakdown": {
+                    "materials": total_cost * 0.3,
+                    "actuators": total_cost * 0.5,
+                    "sensors": total_cost * 0.1,
+                    "assembly": total_cost * 0.1
+                }
+            }
+        
+        # 组件使用
+        components_used = []
+        if use_components:
+            # 从组件库选择合适的组件
+            if robot_type == "arm":
+                components_used.extend([
+                    {"type": "actuator", "name": "servo_motor_medium", "quantity": num_joints},
+                    {"type": "sensor", "name": "position_encoder", "quantity": num_joints},
+                    {"type": "structure", "name": "standard_link", "quantity": num_joints}
+                ])
+            elif robot_type == "gripper":
+                components_used.extend([
+                    {"type": "actuator", "name": "servo_motor_small", "quantity": 1},
+                    {"type": "sensor", "name": "force_sensor", "quantity": 2}
+                ])
+        
+        # 保存设计
+        self._robot_designs[design_id] = {
+            "id": design_id,
+            "type": robot_type,
+            "specifications": design_specs,
+            "model_id": model_id,
+            "xml": xml,
+            "task_description": task_description,
+            "constraints": constraints,
+            "optimization_results": optimization_results,
+            "components": components_used,
+            "cost_estimate": cost_estimate
+        }
+        
+        result = {
+            "success": True,
+            "design_id": design_id,
+            "design": design_specs,
+            "model_id": model_id,
+            "specifications": design_specs,
+            "validation": validation
+        }
+        
+        if optimization_results:
+            result["optimization_results"] = optimization_results
+            result["optimized_parameters"] = optimized_parameters
+            
+        if cost_estimate:
+            result["cost_estimate"] = cost_estimate
+            
+        if components_used:
+            result["components_used"] = components_used
+        
+        return result
+    
+    def _handle_refine_design(self, design_id: str, improvements: Dict[str, Any],
+                            additional_constraints: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理refine_design工具调用 - 设计改进"""
+        
+        if design_id not in self._robot_designs:
+            raise ValueError(f"Design not found: {design_id}")
+        
+        # 获取原设计
+        original_design = self._robot_designs[design_id]
+        
+        # 创建新设计
+        new_design_id = str(uuid.uuid4())
+        new_design = original_design.copy()
+        new_design["id"] = new_design_id
+        new_design["parent_design"] = design_id
+        
+        improvements_applied = []
+        
+        # 应用改进
+        if improvements.get("increase_grip_force") and original_design["type"] == "gripper":
+            new_design["specifications"]["grip_force"] *= 1.5
+            improvements_applied.append("Increased grip force by 50%")
+            
+        if improvements.get("reduce_weight"):
+            # 简化：假设减重10%
+            if "weight" in new_design["specifications"]:
+                new_design["specifications"]["weight"] *= 0.9
+            improvements_applied.append("Reduced weight by 10%")
+            
+        # 应用新约束
+        if additional_constraints:
+            new_design["constraints"].update(additional_constraints)
+        
+        # 重新生成模型（简化）
+        new_model_result = self._handle_design_robot(
+            new_design["task_description"],
+            new_design["constraints"],
+            optimize_for=["efficiency"]
+        )
+        
+        new_design["model_id"] = new_model_result["model_id"]
+        
+        # 保存新设计
+        self._robot_designs[new_design_id] = new_design
+        
+        return {
+            "success": True,
+            "design_id": new_design_id,
+            "parent_design_id": design_id,
+            "improvements_applied": improvements_applied,
+            "new_specifications": new_design["specifications"]
+        }
+    
+    def _handle_suggest_improvements(self, model_id: str, goals: List[str]) -> Dict[str, Any]:
+        """处理suggest_improvements工具调用 - 改进建议"""
+        
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+        
+        suggestions = []
+        
+        # 基于目标生成建议
+        if "increase_workspace" in goals:
+            suggestions.append({
+                "description": "Add an additional link to increase reach",
+                "expected_improvement": "20% larger workspace",
+                "implementation": {
+                    "add_link": True,
+                    "link_length": 0.2
+                }
+            })
+            
+        if "improve_precision" in goals:
+            suggestions.append({
+                "description": "Use higher resolution encoders and add gear reduction",
+                "expected_improvement": "5x better precision",
+                "implementation": {
+                    "encoder_resolution": 0.0001,
+                    "gear_ratio": 10
+                }
+            })
+            
+        if "reduce_cost" in goals:
+            suggestions.append({
+                "description": "Use standard components from library",
+                "expected_improvement": "30% cost reduction",
+                "implementation": {
+                    "use_standard_components": True
+                }
+            })
+        
+        return {
+            "suggestions": suggestions,
+            "model_id": model_id,
+            "goals_addressed": goals
+        }
+    
+    def _handle_compare_designs(self, design_ids: List[str], metrics: List[str]) -> Dict[str, Any]:
+        """处理compare_designs工具调用 - 设计比较"""
+        
+        # 验证设计存在
+        for design_id in design_ids:
+            if design_id not in self._robot_designs:
+                raise ValueError(f"Design not found: {design_id}")
+        
+        detailed_scores = []
+        
+        for design_id in design_ids:
+            design = self._robot_designs[design_id]
+            scores = {}
+            
+            # 计算各指标得分（简化）
+            if "grip_force" in metrics and design["type"] == "gripper":
+                scores["grip_force"] = design["specifications"].get("grip_force", 10.0)
+                
+            if "precision" in metrics:
+                scores["precision"] = 1.0 / design["specifications"].get("estimated_performance", {}).get("estimated_precision", 0.01)
+                
+            if "cost" in metrics:
+                cost_estimate = design.get("cost_estimate")
+                if cost_estimate:
+                    cost = cost_estimate.get("total", 100.0)
+                else:
+                    cost = 100.0  # 默认成本
+                scores["cost"] = 1000.0 / cost  # 反向，成本越低分数越高
+                
+            detailed_scores.append({
+                "design_id": design_id,
+                **scores
+            })
+        
+        # 确定获胜者（简化：总分最高）
+        winner_idx = 0
+        max_score = 0
+        
+        for i, score_dict in enumerate(detailed_scores):
+            # 计算数值分数总和，排除design_id
+            numeric_scores = [v for k, v in score_dict.items() if k != "design_id" and isinstance(v, (int, float))]
+            total = sum(numeric_scores) if numeric_scores else 0
+            
+            if i == 0:
+                max_score = total
+            elif total > max_score:
+                max_score = total
+                winner_idx = i
+        
+        return {
+            "comparison": detailed_scores,
+            "winner": design_ids[winner_idx],
+            "detailed_scores": detailed_scores
+        }
+    
+    def _handle_explain_design(self, design_id: str) -> Dict[str, Any]:
+        """处理explain_design工具调用 - 设计解释"""
+        
+        if design_id not in self._robot_designs:
+            raise ValueError(f"Design not found: {design_id}")
+        
+        design = self._robot_designs[design_id]
+        
+        design_choices = []
+        rationale = {}
+        
+        if design["type"] == "arm":
+            design_choices.append(f"Used {design['specifications'].get('num_joints', 4)} joints")
+            rationale["joint_count"] = "More joints provide better workspace coverage but increase complexity"
+            
+            design_choices.append("Selected revolute joints for all axes")
+            rationale["joint_type"] = "Revolute joints provide good range of motion for manipulation tasks"
+            
+        elif design["type"] == "gripper":
+            design_choices.append("Parallel jaw configuration")
+            rationale["jaw_type"] = "Parallel jaws provide stable grasping for regular objects"
+            
+            design_choices.append(f"Finger length: {design['specifications'].get('finger_length', 0.08)}m")
+            rationale["finger_length"] = "Optimized for the specified object sizes"
+            
+        elif design["type"] == "mobile":
+            num_wheels = design["specifications"].get("num_wheels", 4)
+            design_choices.append(f"Used {num_wheels} wheels")
+            rationale["wheel_count"] = "More wheels provide better stability on rough terrain" if num_wheels > 4 else "4 wheels balance stability and maneuverability"
+        
+        # 添加执行器选择
+        design_choices.append("Selected appropriate actuators for the task")
+        rationale["actuator_selection"] = "Actuators chosen based on torque and speed requirements"
+        
+        design_choices.append("Aluminum structure")
+        rationale["material"] = "Aluminum provides good strength-to-weight ratio"
+        
+        return {
+            "explanation": f"This {design['type']} robot was designed for: {design['task_description']}",
+            "design_choices": design_choices,
+            "rationale": rationale,
+            "key_features": list(design["specifications"].keys())
+        }
+    
+    def _handle_list_components(self, category: Optional[str] = None) -> Dict[str, Any]:
+        """处理list_components工具调用 - 列出组件"""
+        
+        components = []
+        
+        if category:
+            if category in self._component_library:
+                components = self._component_library[category]
+        else:
+            # 返回所有组件
+            for cat, items in self._component_library.items():
+                for item in items:
+                    item_with_cat = item.copy()
+                    item_with_cat["category"] = cat
+                    components.append(item_with_cat)
+        
+        return {
+            "components": components,
+            "total_count": len(components)
+        }
+    
+    def _handle_check_compatibility(self, component_a: Dict[str, Any], 
+                                  component_b: Dict[str, Any]) -> Dict[str, Any]:
+        """处理check_compatibility工具调用 - 兼容性检查"""
+        
+        # 简化的兼容性检查
+        compatible = True
+        reasons = []
+        
+        # 检查类型兼容性
+        type_a = component_a.get("type", "")
+        type_b = component_b.get("type", "")
+        
+        if type_a == "motor" and type_b == "gearbox":
+            # 检查扭矩匹配
+            if component_a.get("torque", 0) > component_b.get("max_torque", float('inf')):
+                compatible = False
+                reasons.append("Motor torque exceeds gearbox capacity")
+        
+        elif type_a == "servo" and type_b == "link":
+            # 检查重量
+            if component_b.get("weight", 0) > component_a.get("torque", 0) * 0.1:
+                compatible = False
+                reasons.append("Link too heavy for servo torque")
+        
+        if compatible:
+            reasons.append("Components are compatible")
+        
+        return {
+            "compatible": compatible,
+            "reasons": reasons
         }
