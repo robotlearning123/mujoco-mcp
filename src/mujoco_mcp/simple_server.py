@@ -1,6 +1,6 @@
 """
-MuJoCo MCP 简单服务器实现 (v0.2.0)
-包含基本的MCP功能、模型加载和仿真控制
+MuJoCo MCP 简单服务器实现 (v0.2.1)
+包含基本的MCP功能、模型加载、仿真控制和增强状态查询
 """
 import logging
 import uuid
@@ -14,7 +14,7 @@ class MuJoCoMCPServer:
     def __init__(self):
         """初始化服务器"""
         self.name = "mujoco-mcp"
-        self.version = "0.2.0"
+        self.version = "0.2.1"
         self.description = "MuJoCo Model Context Protocol Server"
         self.logger = logging.getLogger("mujoco_mcp.simple_server")
         
@@ -113,6 +113,59 @@ class MuJoCoMCPServer:
                 "positions": "List of joint positions to set"
             },
             "handler": self._handle_set_joint_positions
+        }
+        
+        # get_joint_positions 工具
+        self._tools["get_joint_positions"] = {
+            "name": "get_joint_positions",
+            "description": "Get current joint positions",
+            "parameters": {
+                "model_id": "ID of the model",
+                "include_names": "(optional) Include joint names"
+            },
+            "handler": self._handle_get_joint_positions
+        }
+        
+        # get_joint_velocities 工具
+        self._tools["get_joint_velocities"] = {
+            "name": "get_joint_velocities",
+            "description": "Get current joint velocities",
+            "parameters": {
+                "model_id": "ID of the model",
+                "include_names": "(optional) Include joint names"
+            },
+            "handler": self._handle_get_joint_velocities
+        }
+        
+        # set_joint_velocities 工具
+        self._tools["set_joint_velocities"] = {
+            "name": "set_joint_velocities",
+            "description": "Set joint velocities",
+            "parameters": {
+                "model_id": "ID of the model",
+                "velocities": "List of joint velocities to set"
+            },
+            "handler": self._handle_set_joint_velocities
+        }
+        
+        # get_body_states 工具
+        self._tools["get_body_states"] = {
+            "name": "get_body_states",
+            "description": "Get rigid body states (positions and orientations)",
+            "parameters": {
+                "model_id": "ID of the model"
+            },
+            "handler": self._handle_get_body_states
+        }
+        
+        # get_sensor_data 工具
+        self._tools["get_sensor_data"] = {
+            "name": "get_sensor_data",
+            "description": "Get sensor readings",
+            "parameters": {
+                "model_id": "ID of the model"
+            },
+            "handler": self._handle_get_sensor_data
         }
         
     def get_server_info(self) -> Dict[str, Any]:
@@ -359,4 +412,120 @@ class MuJoCoMCPServer:
         return {
             "success": True,
             "message": f"Set {len(positions)} joint positions"
+        }
+    
+    def _handle_get_joint_positions(self, model_id: str, include_names: bool = False) -> Dict[str, Any]:
+        """处理get_joint_positions工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 获取关节位置
+        positions = sim.get_joint_positions().tolist()
+        
+        result = {
+            "positions": positions
+        }
+        
+        # 可选地包含关节名称
+        if include_names:
+            result["names"] = sim.get_joint_names()
+            
+        return result
+    
+    def _handle_get_joint_velocities(self, model_id: str, include_names: bool = False) -> Dict[str, Any]:
+        """处理get_joint_velocities工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 获取关节速度
+        velocities = sim.get_joint_velocities().tolist()
+        
+        result = {
+            "velocities": velocities
+        }
+        
+        # 可选地包含关节名称
+        if include_names:
+            result["names"] = sim.get_joint_names()
+            
+        return result
+    
+    def _handle_set_joint_velocities(self, model_id: str, velocities: List[float]) -> Dict[str, Any]:
+        """处理set_joint_velocities工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        if not velocities:
+            raise ValueError("velocities is required")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 检查速度数量是否匹配
+        nv = sim.model.nv if sim._initialized else 0
+        if len(velocities) != nv:
+            raise ValueError(f"Expected {nv} velocities, got {len(velocities)}")
+            
+        # 设置关节速度
+        sim.set_joint_velocities(velocities)
+        
+        return {
+            "success": True,
+            "message": f"Set {len(velocities)} joint velocities"
+        }
+    
+    def _handle_get_body_states(self, model_id: str) -> Dict[str, Any]:
+        """处理get_body_states工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 获取刚体状态
+        body_states = sim.get_rigid_body_states()
+        
+        return {
+            "bodies": body_states
+        }
+    
+    def _handle_get_sensor_data(self, model_id: str) -> Dict[str, Any]:
+        """处理get_sensor_data工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 获取传感器数据
+        sensor_data = sim.get_sensor_data()
+        
+        return {
+            "sensors": sensor_data
         }
