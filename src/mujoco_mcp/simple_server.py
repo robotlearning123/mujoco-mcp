@@ -1,6 +1,6 @@
 """
-MuJoCo MCP 简单服务器实现 (v0.1.2)
-包含基本的MCP功能和load_model工具
+MuJoCo MCP 简单服务器实现 (v0.2.0)
+包含基本的MCP功能、模型加载和仿真控制
 """
 import logging
 import uuid
@@ -14,7 +14,7 @@ class MuJoCoMCPServer:
     def __init__(self):
         """初始化服务器"""
         self.name = "mujoco-mcp"
-        self.version = "0.1.2"
+        self.version = "0.2.0"
         self.description = "MuJoCo Model Context Protocol Server"
         self.logger = logging.getLogger("mujoco_mcp.simple_server")
         
@@ -69,6 +69,50 @@ class MuJoCoMCPServer:
             "description": "Get list of loaded models",
             "parameters": {},
             "handler": self._handle_get_loaded_models
+        }
+        
+        # step_simulation 工具
+        self._tools["step_simulation"] = {
+            "name": "step_simulation",
+            "description": "Step the simulation forward",
+            "parameters": {
+                "model_id": "ID of the model to step",
+                "steps": "(optional) Number of steps to advance (default: 1)"
+            },
+            "handler": self._handle_step_simulation
+        }
+        
+        # reset_simulation 工具
+        self._tools["reset_simulation"] = {
+            "name": "reset_simulation",
+            "description": "Reset simulation to initial state",
+            "parameters": {
+                "model_id": "ID of the model to reset"
+            },
+            "handler": self._handle_reset_simulation
+        }
+        
+        # get_simulation_state 工具
+        self._tools["get_simulation_state"] = {
+            "name": "get_simulation_state",
+            "description": "Get current simulation state",
+            "parameters": {
+                "model_id": "ID of the model",
+                "include_positions": "(optional) Include joint positions",
+                "include_velocities": "(optional) Include joint velocities"
+            },
+            "handler": self._handle_get_simulation_state
+        }
+        
+        # set_joint_positions 工具
+        self._tools["set_joint_positions"] = {
+            "name": "set_joint_positions",
+            "description": "Set joint positions",
+            "parameters": {
+                "model_id": "ID of the model",
+                "positions": "List of joint positions to set"
+            },
+            "handler": self._handle_set_joint_positions
         }
         
     def get_server_info(self) -> Dict[str, Any]:
@@ -211,3 +255,108 @@ class MuJoCoMCPServer:
             models.append(model_info)
             
         return {"models": models}
+    
+    def _handle_step_simulation(self, model_id: str, steps: int = 1) -> Dict[str, Any]:
+        """处理step_simulation工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        if steps < 1:
+            raise ValueError("steps must be positive")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 步进仿真
+        for _ in range(steps):
+            sim.step()
+            
+        return {
+            "success": True,
+            "steps_completed": steps,
+            "time": sim.get_time(),
+            "message": f"Simulation stepped {steps} times"
+        }
+    
+    def _handle_reset_simulation(self, model_id: str) -> Dict[str, Any]:
+        """处理reset_simulation工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 重置仿真
+        sim.reset()
+        
+        return {
+            "success": True,
+            "message": "Simulation reset to initial state",
+            "time": sim.get_time()
+        }
+    
+    def _handle_get_simulation_state(self, model_id: str, 
+                                   include_positions: bool = False,
+                                   include_velocities: bool = False) -> Dict[str, Any]:
+        """处理get_simulation_state工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 构建状态信息
+        state = {
+            "time": sim.get_time(),
+            "nq": sim.get_num_joints(),
+            "nv": sim.model.nv if sim._initialized else 0
+        }
+        
+        # 可选地包含位置和速度
+        if include_positions:
+            state["qpos"] = sim.get_joint_positions().tolist()
+            
+        if include_velocities:
+            state["qvel"] = sim.get_joint_velocities().tolist()
+            
+        return state
+    
+    def _handle_set_joint_positions(self, model_id: str, positions: List[float]) -> Dict[str, Any]:
+        """处理set_joint_positions工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        if not positions:
+            raise ValueError("positions is required")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 检查位置数量是否匹配
+        nq = sim.get_num_joints()
+        if len(positions) != nq:
+            raise ValueError(f"Expected {nq} positions, got {len(positions)}")
+            
+        # 设置关节位置
+        sim.set_joint_positions(positions)
+        
+        return {
+            "success": True,
+            "message": f"Set {len(positions)} joint positions"
+        }
