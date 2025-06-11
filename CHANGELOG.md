@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-01-06
+
+### Added
+- ✅ Simulation control tools:
+  - `step_simulation` - Advance simulation by N steps
+  - `reset_simulation` - Reset to initial state
+  - `get_simulation_state` - Query current state (time, positions, velocities)
+  - `set_joint_positions` - Set joint positions directly
+- ✅ Support for multiple independent simulations
+- ✅ Comprehensive parameter validation for all new tools
+- ✅ State persistence between tool calls
+
+### Changed
+- Enhanced model management to support simulation operations
+- Updated version to 0.2.0
+
+### Testing
+- Created test suite for simulation control (test_v0_2_0.py)
+- All 16 tests passing
+- Validated simulation lifecycle management
+
 ## [0.1.2] - 2025-01-06
 
 ### Added
