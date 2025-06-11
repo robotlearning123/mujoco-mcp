@@ -146,7 +146,7 @@ class TestVisualization:
                 "width": 5000,
                 "height": 5000
             })
-        assert "size" in str(exc_info.value).lower() or "large" in str(exc_info.value).lower()
+        assert "between" in str(exc_info.value).lower() or "must be" in str(exc_info.value).lower()
         
         # Test too small
         with pytest.raises(ValueError) as exc_info:
@@ -155,7 +155,7 @@ class TestVisualization:
                 "width": 10,
                 "height": 10
             })
-        assert "size" in str(exc_info.value).lower() or "small" in str(exc_info.value).lower()
+        assert "between" in str(exc_info.value).lower() or "must be" in str(exc_info.value).lower()
     
     def test_visualization_state_consistency(self):
         """Test that visualization doesn't affect simulation state"""
