@@ -26,10 +26,19 @@ class MuJoCoSimulation:
     
     def load_from_xml_string(self, model_xml: str):
         """Load model from XML string."""
+        # Check for empty model
+        if "<mujoco></mujoco>" in model_xml.replace(" ", "").replace("\n", ""):
+            raise ValueError("Empty MuJoCo model is not valid")
+        
         self.model = mujoco.MjModel.from_xml_string(model_xml)
         self.data = mujoco.MjData(self.model)
         self._initialized = True
         logger.info(f"Loaded model from XML string, sim_id: {self.sim_id}")
+    
+    
+    def load_model_from_string(self, xml_string: str):
+        """Alias for load_from_xml_string for backward compatibility."""
+        return self.load_from_xml_string(xml_string)
     
     def load_from_file(self, model_path: str):
         """Load model from file."""
@@ -156,5 +165,21 @@ class MuJoCoSimulation:
             return ""
         return self.model.meta.model_name or "unnamed"
 
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get model information."""
+        if not self._initialized:
+            raise RuntimeError("Simulation not initialized")
+        
+        return {
+            "nq": self.model.nq,      # number of generalized coordinates
+            "nv": self.model.nv,      # number of degrees of freedom
+            "nbody": self.model.nbody,  # number of bodies
+            "njoint": self.model.njnt,  # number of joints
+            "ngeom": self.model.ngeom,  # number of geoms
+            "nsensor": self.model.nsensor,  # number of sensors
+            "nu": self.model.nu,      # number of actuators
+            "timestep": self.model.opt.timestep
+        }
 
 __all__ = ['MuJoCoSimulation']

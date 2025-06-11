@@ -43,7 +43,7 @@ class EnhancedAuthManager(AuthManager):
             config_file: 配置文件路径
             auto_approve_mode: 是否启用自动批准模式
         """
-        super().__init__(config_file, auto_approve_mode)
+        # super().__init__(config_file, auto_approve_mode)  # AuthManager不接受参数
         self.logger = logging.getLogger("mujoco_mcp.enhanced_auth")
         
         # 安全限制
@@ -220,6 +220,10 @@ class EnhancedAuthManager(AuthManager):
                     return False, f"施加力大小 {magnitude} 超出限制 {max_force}"
         
         return True, ""
+    
+    def check_rate_limit(self, client_id: str, operation: str) -> Tuple[bool, str]:
+        """Public wrapper for rate limit checking."""
+        return self._check_rate_limit(client_id, operation)
     
     def _check_rate_limit(self, client_id: str, operation: str) -> Tuple[bool, str]:
         """
