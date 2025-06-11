@@ -122,7 +122,7 @@ class TestBasicControl:
         assert actuator["name"] == "cart_motor"
         assert actuator["type"] == "motor"
         assert "gear" in actuator
-        assert actuator["gear"] == [10.0]
+        assert actuator["gear"][0] == 10.0  # First gear component
         assert "ctrl_limited" in actuator
         assert actuator["ctrl_limited"] is True
         assert "ctrl_range" in actuator
@@ -138,7 +138,7 @@ class TestBasicControl:
         
         # Should succeed but clamp the value
         assert result["success"] is True
-        assert "clamped" in result.get("warnings", [])
+        assert any("clamped" in w for w in result.get("warnings", []))
     
     def test_get_control_state(self):
         """Test getting current control state"""

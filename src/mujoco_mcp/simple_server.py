@@ -1,6 +1,6 @@
 """
-MuJoCo MCP 简单服务器实现 (v0.2.1)
-包含基本的MCP功能、模型加载、仿真控制和增强状态查询
+MuJoCo MCP 简单服务器实现 (v0.2.2)
+包含基本的MCP功能、模型加载、仿真控制、增强状态查询和基础控制
 """
 import logging
 import uuid
@@ -14,7 +14,7 @@ class MuJoCoMCPServer:
     def __init__(self):
         """初始化服务器"""
         self.name = "mujoco-mcp"
-        self.version = "0.2.1"
+        self.version = "0.2.2"
         self.description = "MuJoCo Model Context Protocol Server"
         self.logger = logging.getLogger("mujoco_mcp.simple_server")
         
@@ -166,6 +166,37 @@ class MuJoCoMCPServer:
                 "model_id": "ID of the model"
             },
             "handler": self._handle_get_sensor_data
+        }
+        
+        # apply_control 工具
+        self._tools["apply_control"] = {
+            "name": "apply_control",
+            "description": "Apply control inputs to actuators",
+            "parameters": {
+                "model_id": "ID of the model",
+                "control": "List of control values for actuators"
+            },
+            "handler": self._handle_apply_control
+        }
+        
+        # get_actuator_info 工具
+        self._tools["get_actuator_info"] = {
+            "name": "get_actuator_info",
+            "description": "Get information about model actuators",
+            "parameters": {
+                "model_id": "ID of the model"
+            },
+            "handler": self._handle_get_actuator_info
+        }
+        
+        # get_control_state 工具
+        self._tools["get_control_state"] = {
+            "name": "get_control_state",
+            "description": "Get current control values",
+            "parameters": {
+                "model_id": "ID of the model"
+            },
+            "handler": self._handle_get_control_state
         }
         
     def get_server_info(self) -> Dict[str, Any]:
@@ -528,4 +559,119 @@ class MuJoCoMCPServer:
         
         return {
             "sensors": sensor_data
+        }
+    
+    def _handle_apply_control(self, model_id: str, control: List[float]) -> Dict[str, Any]:
+        """处理apply_control工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        if not control:
+            raise ValueError("control is required")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 检查控制数量是否匹配
+        nu = sim.get_num_actuators()
+        if len(control) != nu:
+            raise ValueError(f"Expected {nu} control values, got {len(control)}")
+            
+        # 获取控制限制并应用
+        warnings = []
+        clamped_control = []
+        
+        for i in range(nu):
+            ctrl_val = control[i]
+            # 检查是否有控制限制
+            if hasattr(sim.model, 'actuator_ctrllimited') and hasattr(sim.model, 'actuator_ctrlrange'):
+                if sim.model.actuator_ctrllimited[i]:
+                    ctrl_min = sim.model.actuator_ctrlrange[i, 0]
+                    ctrl_max = sim.model.actuator_ctrlrange[i, 1]
+                    if ctrl_val < ctrl_min or ctrl_val > ctrl_max:
+                        clamped_val = max(ctrl_min, min(ctrl_max, ctrl_val))
+                        clamped_control.append(clamped_val)
+                        warnings.append(f"Control {i} clamped from {ctrl_val} to {clamped_val}")
+                        continue
+            clamped_control.append(ctrl_val)
+        
+        # 应用控制
+        sim.apply_control(clamped_control)
+        
+        result = {
+            "success": True,
+            "message": f"Applied {len(control)} control values"
+        }
+        
+        if warnings:
+            result["warnings"] = warnings
+            
+        return result
+    
+    def _handle_get_actuator_info(self, model_id: str) -> Dict[str, Any]:
+        """处理get_actuator_info工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 获取驱动器信息
+        actuators = []
+        nu = sim.get_num_actuators()
+        
+        for i in range(nu):
+            actuator_info = {
+                "index": i,
+                "name": sim.model.actuator(i).name if hasattr(sim.model.actuator(i), 'name') else f"actuator_{i}",
+                "type": "motor",  # MuJoCo中最常见的类型
+            }
+            
+            # 获取gear信息
+            if hasattr(sim.model, 'actuator_gear'):
+                actuator_info["gear"] = sim.model.actuator_gear[i].tolist()
+                
+            # 获取控制限制信息
+            if hasattr(sim.model, 'actuator_ctrllimited'):
+                actuator_info["ctrl_limited"] = bool(sim.model.actuator_ctrllimited[i])
+                
+            if hasattr(sim.model, 'actuator_ctrlrange'):
+                actuator_info["ctrl_range"] = sim.model.actuator_ctrlrange[i].tolist()
+                
+            actuators.append(actuator_info)
+            
+        return {
+            "actuators": actuators,
+            "total": nu
+        }
+    
+    def _handle_get_control_state(self, model_id: str) -> Dict[str, Any]:
+        """处理get_control_state工具调用"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 获取当前控制值
+        if sim._initialized and hasattr(sim.data, 'ctrl'):
+            control = sim.data.ctrl.copy().tolist()
+        else:
+            control = []
+            
+        return {
+            "control": control,
+            "num_actuators": sim.get_num_actuators()
         }
