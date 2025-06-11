@@ -1,114 +1,238 @@
-# MuJoCo MCP - 路线图到 v1.0
+# MuJoCo MCP - Roadmap to v1.0
 
-> 逐步迭代，每个版本都是完整可运行的
-> 当前版本: v0.2.2
+> Generated: 2025-01-06
+> Current Version: v0.3.2
 
-## 🎯 版本规划
+## 🎯 Progress Overview
 
-### ✅ 已完成版本
+### Completed Versions (9/22)
+- ✅ v0.1.0 - Minimum Viable Version
+- ✅ v0.1.1 - Simple MCP Server
+- ✅ v0.1.2 - First MCP Tool
+- ✅ v0.2.0 - Simulation Control
+- ✅ v0.2.1 - Enhanced State Query
+- ✅ v0.2.2 - Basic Control
+- ✅ v0.3.0 - Simple Visualization
+- ✅ v0.3.1 - First Demo (Pendulum)
+- ✅ v0.3.2 - Natural Language Interface
 
-| 版本 | 功能 | 测试 | 日期 |
-|------|------|------|------|
-| v0.1.0 | 最小可运行版本 | 12/12 | 2025-01-06 |
-| v0.1.1 | 简单MCP服务器 | 16/16 | 2025-01-06 |
-| v0.1.2 | 第一个MCP工具 (load_model) | 12/12 | 2025-01-06 |
-| v0.2.0 | 仿真控制 (step, reset, state) | 16/16 | 2025-01-06 |
-| v0.2.1 | 增强状态查询 | 14/14 | 2025-01-06 |
-| v0.2.2 | 基础控制 | 10/10 | 2025-01-06 |
+### In Progress
+None
 
-### 🚧 即将开发
+### Upcoming (13 versions)
+- 🔲 v0.4.0 - Model Generator
+- 🔲 v0.4.1 - Parameter Optimization
+- 🔲 v0.4.2 - Robot Designer MVP
+- 🔲 v0.5.0 - Public Release Preparation
+- ... (see detailed plan below)
 
-#### v0.3.0 - 简单可视化 (当前)
-- [ ] get_render_frame工具 - 获取渲染帧
-- [ ] 基础相机控制
-- [ ] Base64图像编码
-- [ ] ASCII可视化选项
-- 预计测试: ~8个
+## 📊 Metrics
 
-#### v0.3.1 - 第一个完整演示
-- [ ] 单摆控制演示
-- [ ] PID控制器示例
-- [ ] 能量监测
-- [ ] 轨迹跟踪
-- 预计测试: ~6个
+| Metric | Current | Target (v1.0) | Progress |
+|--------|---------|---------------|----------|
+| Versions | 9 | 22 | 41% |
+| MCP Tools | 28 | 50+ | 56% |
+| Test Cases | 119 | 300+ | 40% |
+| Demos | 1 | 10+ | 10% |
+| Documentation | Basic | Complete | 30% |
 
-#### v0.3.2 - 自然语言接口
-- [ ] execute_command工具
-- [ ] 基础命令解析
-- [ ] 动作序列生成
-- [ ] 安全验证
-- 预计测试: ~8个
+## 🛠️ Implemented Tools (28)
 
-### 📋 后续版本
+### Core Tools (2)
+- ✅ get_server_info
+- ✅ get_tools
 
-#### v0.4.x - 高级功能系列
-- v0.4.0: 模型生成器 (generate_robot工具)
-- v0.4.1: 参数优化 (optimize_parameters工具)
-- v0.4.2: 机器人设计师MVP完成
+### Model Management (2)
+- ✅ load_model
+- ✅ get_loaded_models
 
-#### v0.5.x - 生产就绪系列
-- v0.5.0: 性能优化 (批量操作、缓存)
-- v0.5.1: 错误恢复 (自动重试、状态恢复)
-- v0.5.2: 监控和日志 (指标、追踪)
+### Simulation Control (4)
+- ✅ step_simulation
+- ✅ reset_simulation
+- ✅ get_simulation_state
+- ✅ set_joint_positions
 
-#### v0.6.x - 集成系列
-- v0.6.0: ROS集成
-- v0.6.1: Gym环境支持
-- v0.6.2: 多智能体支持
+### State Query (5)
+- ✅ get_joint_positions
+- ✅ get_joint_velocities
+- ✅ set_joint_velocities
+- ✅ get_body_states
+- ✅ get_sensor_data
 
-#### v0.7.x - 扩展系列
-- v0.7.0: 插件系统
-- v0.7.1: 自定义传感器
-- v0.7.2: 自定义驱动器
+### Control (3)
+- ✅ apply_control
+- ✅ get_actuator_info
+- ✅ get_control_state
 
-#### v0.8.x - 优化系列
-- v0.8.0: GPU加速
-- v0.8.1: 并行仿真
-- v0.8.2: 分布式仿真
+### Visualization (2)
+- ✅ get_render_frame
+- ✅ get_ascii_visualization
 
-#### v0.9.x - 最终准备
-- v0.9.0: API稳定性审查
-- v0.9.1: 文档完善
-- v0.9.2: 示例库完善
-- v0.9.3: 性能基准测试
-- v0.9.4: 安全审计
-- v0.9.5: RC候选版本
+### Demo System (2)
+- ✅ pendulum_demo
+- ✅ list_demos
 
-### 🎉 v1.0.0 - 正式发布
-**目标日期**: 2025年Q2
+### Natural Language (4)
+- ✅ execute_command
+- ✅ create_scene
+- ✅ perform_task
+- ✅ analyze_behavior
 
-**发布标准**:
-- ✅ 100%测试覆盖率
-- ✅ 完整文档
-- ✅ 10+演示示例
-- ✅ 性能基准达标
-- ✅ 安全审计通过
-- ✅ API稳定承诺
-- ✅ 社区反馈整合
+### High-Level Actions (4)
+- ✅ Natural language parsing
+- ✅ Scene templates
+- ✅ Task automation
+- ✅ Behavior analysis
 
-## 📊 进度统计
+## 🚀 Remaining Roadmap
 
-- 已完成版本: 6个
-- 已实现工具: 20个
-- 已通过测试: 80个
-- 代码行数: ~1500行
-- 完成度: ~30%
+### Phase 1: Model Generation (v0.4.x)
+**Goal**: Enable dynamic model creation and optimization
 
-## 🔑 关键里程碑
+#### v0.4.0 - Model Generator (2 days)
+- [ ] generate_robot tool
+- [ ] generate_environment tool
+- [ ] Model templates
+- [ ] XML validation
+- [ ] Tests: 15+
 
-1. **v0.3.2** - 自然语言控制 (MVP完成)
-2. **v0.5.0** - 生产就绪
-3. **v0.7.0** - 插件生态系统
-4. **v1.0.0** - 正式发布
+#### v0.4.1 - Parameter Optimization (2 days)
+- [ ] optimize_parameters tool
+- [ ] Cost functions
+- [ ] Gradient-free optimization
+- [ ] Performance metrics
+- [ ] Tests: 12+
 
-## 💡 设计原则
+#### v0.4.2 - Robot Designer MVP (2 days)
+- [ ] design_robot tool
+- [ ] Component library
+- [ ] Constraint satisfaction
+- [ ] Design validation
+- [ ] Tests: 15+
 
-1. **增量开发**: 每个版本都可运行
-2. **测试驱动**: 先写测试，再写代码
-3. **向后兼容**: 不破坏现有API
-4. **安全第一**: 所有操作都有验证
-5. **文档同步**: 每个版本都更新文档
+### Phase 2: Production Ready (v0.5.x)
+**Goal**: Prepare for public release
 
----
+#### v0.5.0 - FastMCP Migration Start (3 days)
+- [ ] Create fastmcp_server.py
+- [ ] Migrate core tools
+- [ ] Dual implementation support
+- [ ] Performance benchmarks
+- [ ] Tests: 20+
 
-**当前任务**: 继续 v0.2.2 - 基础控制功能
+#### v0.5.1 - Advanced Control (2 days)
+- [ ] MPC controller
+- [ ] Trajectory optimization
+- [ ] Inverse kinematics
+- [ ] Force control
+- [ ] Tests: 15+
+
+#### v0.5.2 - Multi-Robot Support (2 days)
+- [ ] Multi-model coordination
+- [ ] Collision detection
+- [ ] Communication protocol
+- [ ] Synchronization
+- [ ] Tests: 12+
+
+### Phase 3: Advanced Features (v0.6.x)
+**Goal**: Add advanced capabilities
+
+#### v0.6.0 - Learning Integration (3 days)
+- [ ] RL environment wrapper
+- [ ] Reward functions
+- [ ] Policy interface
+- [ ] Training utilities
+- [ ] Tests: 20+
+
+#### v0.6.1 - Cloud Integration (2 days)
+- [ ] Remote simulation
+- [ ] Result storage
+- [ ] Distributed computing
+- [ ] API gateway
+- [ ] Tests: 15+
+
+#### v0.6.2 - Real Robot Bridge (3 days)
+- [ ] Hardware abstraction
+- [ ] Safety constraints
+- [ ] Real-time control
+- [ ] Sensor fusion
+- [ ] Tests: 18+
+
+### Phase 4: Polish (v0.7.x - v0.9.x)
+**Goal**: Refine and optimize
+
+#### v0.7.0 - Plugin System (2 days)
+- [ ] Plugin architecture
+- [ ] Custom tool registration
+- [ ] Extension marketplace
+- [ ] Tests: 15+
+
+#### v0.8.0 - Performance Optimization (2 days)
+- [ ] Profiling tools
+- [ ] Caching layer
+- [ ] Parallel simulation
+- [ ] Tests: 12+
+
+#### v0.9.0 - Documentation Complete (2 days)
+- [ ] API documentation
+- [ ] Tutorials
+- [ ] Video demos
+- [ ] Migration guide
+- [ ] Tests: 10+
+
+### Phase 5: Release (v1.0.0)
+**Goal**: Official release
+
+#### v1.0.0 - Production Release (3 days)
+- [ ] Final FastMCP migration
+- [ ] Security audit
+- [ ] Performance validation
+- [ ] Launch preparation
+- [ ] Tests: 25+
+
+## 📈 Estimated Timeline
+
+Based on current progress (9 versions in 1 day):
+- Optimistic: 5-7 days to v1.0
+- Realistic: 10-14 days to v1.0
+- Conservative: 20 days to v1.0
+
+## 🎯 Next Milestones
+
+1. **v0.4.0** - Model Generator (Next)
+2. **v0.5.0** - FastMCP Migration (Critical)
+3. **v0.6.0** - Learning Integration (Major)
+4. **v1.0.0** - Production Release (Final)
+
+## 💡 Success Criteria for v1.0
+
+- [ ] Full MCP protocol compliance (FastMCP)
+- [ ] 50+ well-documented tools
+- [ ] 10+ interactive demos
+- [ ] Complete test coverage (>80%)
+- [ ] Production-ready performance
+- [ ] Comprehensive documentation
+- [ ] Security validated
+- [ ] Community feedback incorporated
+
+## 🔄 Current Status
+
+**Strengths**:
+- Solid foundation with 28 working tools
+- Excellent test coverage (100% passing)
+- Natural language interface implemented
+- Clear architecture
+
+**Areas to Improve**:
+- FastMCP migration needed
+- More demos required
+- Documentation expansion
+- Performance optimization
+
+**Risk Factors**:
+- FastMCP migration complexity
+- Maintaining backward compatibility
+- Testing real robot integration
+- Documentation debt
+
+Continue with TDD approach, ensuring each version is fully tested and functional!
