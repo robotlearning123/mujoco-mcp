@@ -93,7 +93,7 @@ class TestLoadModelTool:
         # Test invalid model string
         with pytest.raises(ValueError) as exc_info:
             self.server.call_tool("load_model", {"model_string": "not xml"})
-        assert "invalid" in str(exc_info.value).lower()
+        assert "valid xml" in str(exc_info.value).lower()
     
     def test_load_multiple_models(self):
         """Test loading multiple models"""

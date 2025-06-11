@@ -115,7 +115,13 @@ class MuJoCoMCPServer:
         
         # 调用处理器
         if callable(handler):
-            return handler(**parameters) if parameters else handler()
+            try:
+                return handler(**parameters) if parameters else handler()
+            except TypeError as e:
+                # 转换TypeError为ValueError以提供更好的错误消息
+                if "missing" in str(e) and "required" in str(e):
+                    raise ValueError(f"Missing required parameter for tool '{tool_name}': {str(e)}")
+                raise
         else:
             raise RuntimeError(f"Tool handler for {tool_name} is not callable")
             
@@ -133,15 +139,75 @@ class MuJoCoMCPServer:
         self._running = False
         self.logger.info("MuJoCo MCP Server stopped")
         
-
-# 为了向后兼容，更新version.py
-def update_version():
-    """更新版本号到0.1.1"""
-    try:
-        import os
-        version_file = os.path.join(os.path.dirname(__file__), "version.py")
-        with open(version_file, "w") as f:
-            f.write('"""Version information for mujoco-mcp."""\n\n')
-            f.write('__version__ = "0.1.1"\n')
-    except Exception:
-        pass
+    def _handle_load_model(self, model_string: str, name: Optional[str] = None) -> Dict[str, Any]:
+        """处理load_model工具调用"""
+        # 参数验证
+        if not model_string:
+            raise ValueError("model_string is required and cannot be empty")
+            
+        # 检查是否是有效的XML
+        if not model_string.strip().startswith("<"):
+            raise ValueError("model_string must be valid XML (should start with '<')")
+            
+        # 生成模型ID
+        model_id = str(uuid.uuid4())
+        
+        # 创建仿真实例
+        sim = MuJoCoSimulation()
+        
+        try:
+            # 加载模型
+            sim.load_from_xml_string(model_string)
+            
+            # 存储模型
+            self._models[model_id] = sim
+            self._model_names[model_id] = name or f"model_{model_id[:8]}"
+            
+            # 获取模型信息
+            model_info = sim.get_model_info()
+            
+            result = {
+                "success": True,
+                "model_id": model_id,
+                "message": f"Model loaded successfully with ID: {model_id}",
+                "model_info": model_info
+            }
+            
+            if name:
+                result["name"] = name
+                
+            return result
+            
+        except Exception as e:
+            # 清理失败的模型
+            if model_id in self._models:
+                del self._models[model_id]
+            if model_id in self._model_names:
+                del self._model_names[model_id]
+                
+            raise ValueError(f"Failed to load model: {str(e)}")
+            
+    def _handle_get_loaded_models(self) -> Dict[str, Any]:
+        """处理get_loaded_models工具调用"""
+        models = []
+        
+        for model_id, sim in self._models.items():
+            model_info = {
+                "model_id": model_id,
+                "name": self._model_names.get(model_id, "unnamed")
+            }
+            
+            # 添加基本模型信息
+            try:
+                info = sim.get_model_info()
+                model_info.update({
+                    "nq": info.get("nq", 0),
+                    "nv": info.get("nv", 0),
+                    "nbody": info.get("nbody", 0)
+                })
+            except Exception:
+                pass
+                
+            models.append(model_info)
+            
+        return {"models": models}
