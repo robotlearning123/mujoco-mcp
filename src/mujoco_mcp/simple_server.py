@@ -17,8 +17,8 @@ class MuJoCoMCPServer:
     def __init__(self):
         """初始化服务器"""
         self.name = "mujoco-mcp"
-        self.version = "0.3.1"
-        self.description = "MuJoCo Model Context Protocol Server"
+        self.version = "0.3.2"
+        self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations through natural language commands and structured tools"
         self.logger = logging.getLogger("mujoco_mcp.simple_server")
         
         # 工具注册表
@@ -40,7 +40,7 @@ class MuJoCoMCPServer:
         # get_server_info 工具
         self._tools["get_server_info"] = {
             "name": "get_server_info",
-            "description": "Get information about the MCP server",
+            "description": "Get detailed information about the MuJoCo MCP server including version, capabilities, and available features",
             "parameters": {},
             "handler": self.get_server_info
         }
@@ -48,7 +48,7 @@ class MuJoCoMCPServer:
         # get_tools 工具
         self._tools["get_tools"] = {
             "name": "get_tools",
-            "description": "Get list of available tools",
+            "description": "Get a comprehensive list of all available tools with their descriptions and parameters",
             "parameters": {},
             "handler": self._handle_get_tools
         }
@@ -58,10 +58,10 @@ class MuJoCoMCPServer:
         # load_model 工具
         self._tools["load_model"] = {
             "name": "load_model",
-            "description": "Load a MuJoCo model from XML string",
+            "description": "Load a MuJoCo physics model from an XML string. This creates a new simulation instance that can be controlled and queried",
             "parameters": {
-                "model_string": "XML string containing the MuJoCo model",
-                "name": "(optional) Name for the loaded model"
+                "model_string": "XML string containing the MuJoCo model definition in MJCF format",
+                "name": "(optional) A human-readable name for the loaded model for easier reference"
             },
             "handler": self._handle_load_model
         }
@@ -69,7 +69,7 @@ class MuJoCoMCPServer:
         # get_loaded_models 工具
         self._tools["get_loaded_models"] = {
             "name": "get_loaded_models",
-            "description": "Get list of loaded models",
+            "description": "Get a list of all currently loaded MuJoCo models with their IDs and basic information",
             "parameters": {},
             "handler": self._handle_get_loaded_models
         }
@@ -77,10 +77,10 @@ class MuJoCoMCPServer:
         # step_simulation 工具
         self._tools["step_simulation"] = {
             "name": "step_simulation",
-            "description": "Step the simulation forward",
+            "description": "Advance the physics simulation forward by one or more timesteps, computing the next state based on current forces and dynamics",
             "parameters": {
-                "model_id": "ID of the model to step",
-                "steps": "(optional) Number of steps to advance (default: 1)"
+                "model_id": "Unique identifier of the model to simulate",
+                "steps": "(optional) Number of simulation steps to advance (default: 1)"
             },
             "handler": self._handle_step_simulation
         }
@@ -88,9 +88,9 @@ class MuJoCoMCPServer:
         # reset_simulation 工具
         self._tools["reset_simulation"] = {
             "name": "reset_simulation",
-            "description": "Reset simulation to initial state",
+            "description": "Reset the simulation to its initial state, clearing all velocities and resetting positions to defaults",
             "parameters": {
-                "model_id": "ID of the model to reset"
+                "model_id": "Unique identifier of the model to reset"
             },
             "handler": self._handle_reset_simulation
         }
@@ -110,10 +110,10 @@ class MuJoCoMCPServer:
         # set_joint_positions 工具
         self._tools["set_joint_positions"] = {
             "name": "set_joint_positions",
-            "description": "Set joint positions",
+            "description": "Set the positions of all joints in the model. This directly updates the joint angles/positions without simulating physics",
             "parameters": {
-                "model_id": "ID of the model",
-                "positions": "List of joint positions to set"
+                "model_id": "Unique identifier of the model to modify",
+                "positions": "List of joint position values (in radians for revolute joints, meters for prismatic joints)"
             },
             "handler": self._handle_set_joint_positions
         }
@@ -143,10 +143,10 @@ class MuJoCoMCPServer:
         # set_joint_velocities 工具
         self._tools["set_joint_velocities"] = {
             "name": "set_joint_velocities",
-            "description": "Set joint velocities",
+            "description": "Set the velocities of all joints in the model. This directly updates joint angular/linear velocities",
             "parameters": {
-                "model_id": "ID of the model",
-                "velocities": "List of joint velocities to set"
+                "model_id": "Unique identifier of the model to modify",
+                "velocities": "List of joint velocity values (in rad/s for revolute joints, m/s for prismatic joints)"
             },
             "handler": self._handle_set_joint_velocities
         }
@@ -164,9 +164,9 @@ class MuJoCoMCPServer:
         # get_sensor_data 工具
         self._tools["get_sensor_data"] = {
             "name": "get_sensor_data",
-            "description": "Get sensor readings",
+            "description": "Get current readings from all sensors defined in the model (force sensors, touch sensors, gyroscopes, etc.)",
             "parameters": {
-                "model_id": "ID of the model"
+                "model_id": "Unique identifier of the model to query"
             },
             "handler": self._handle_get_sensor_data
         }
@@ -253,9 +253,55 @@ class MuJoCoMCPServer:
         # list_demos 工具
         self._tools["list_demos"] = {
             "name": "list_demos",
-            "description": "List available demonstrations",
+            "description": "List all available demonstration scenarios with their descriptions and difficulty levels",
             "parameters": {},
             "handler": self._handle_list_demos
+        }
+        
+        # execute_command 工具 - 自然语言接口
+        self._tools["execute_command"] = {
+            "name": "execute_command",
+            "description": "Execute a natural language command to control the simulation. This tool interprets human-friendly commands and translates them into appropriate MuJoCo operations",
+            "parameters": {
+                "command": "Natural language command describing what you want to do (e.g., 'create a pendulum', 'move the arm to 45 degrees', 'show me the current state')",
+                "context": "(optional) Additional context like model_id or parameters as a dictionary"
+            },
+            "handler": self._handle_execute_command
+        }
+        
+        # create_scene 工具 - 高级场景创建
+        self._tools["create_scene"] = {
+            "name": "create_scene",
+            "description": "Create a pre-defined scene or robot model with sensible defaults. This is a high-level tool for quickly setting up common scenarios",
+            "parameters": {
+                "scene_type": "Type of scene to create (e.g., 'pendulum', 'double_pendulum', 'cart_pole', 'robotic_arm')",
+                "parameters": "(optional) Dictionary of scene-specific parameters to customize the creation"
+            },
+            "handler": self._handle_create_scene
+        }
+        
+        # perform_task 工具 - 高级任务执行
+        self._tools["perform_task"] = {
+            "name": "perform_task",
+            "description": "Perform a high-level task on a model such as 'swing_up', 'balance', 'reach_target', etc. This abstracts complex control sequences",
+            "parameters": {
+                "task": "Name of the task to perform (e.g., 'swing_up', 'balance', 'track_trajectory')",
+                "model_id": "ID of the model to perform the task on",
+                "parameters": "(optional) Task-specific parameters as a dictionary"
+            },
+            "handler": self._handle_perform_task
+        }
+        
+        # analyze_behavior 工具 - 行为分析
+        self._tools["analyze_behavior"] = {
+            "name": "analyze_behavior",
+            "description": "Analyze the behavior of a simulation over time, providing insights about stability, energy, periodicity, or other metrics",
+            "parameters": {
+                "model_id": "ID of the model to analyze",
+                "analysis_type": "Type of analysis to perform (e.g., 'energy', 'stability', 'trajectory', 'frequency')",
+                "duration": "(optional) Duration in seconds to run the analysis (default: 1.0)"
+            },
+            "handler": self._handle_analyze_behavior
         }
         
     def get_server_info(self) -> Dict[str, Any]:
@@ -269,7 +315,8 @@ class MuJoCoMCPServer:
                 "control",
                 "state_query",
                 "visualization",
-                "demo"
+                "demo",
+                "natural_language"
             ]
         }
         
@@ -1280,3 +1327,357 @@ class MuJoCoMCPServer:
         return {
             "demos": demos
         }
+    
+    def _handle_execute_command(self, command: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理execute_command工具调用 - 自然语言接口"""
+        
+        # 验证命令不为空
+        if not command or not command.strip():
+            raise ValueError("Command cannot be empty. Please provide a natural language command describing what you want to do.")
+        
+        command_lower = command.lower().strip()
+        context = context or {}
+        
+        # 解析命令意图
+        if "create" in command_lower and "pendulum" in command_lower and not ("swing" in command_lower and "up" in command_lower):
+            # 仅创建单摆
+            result = self._handle_pendulum_demo("setup")
+            return {
+                "success": True,
+                "model_id": result["model_id"],
+                "interpretation": "Creating a pendulum simulation",
+                "action_taken": "pendulum_demo with action='setup'",
+                "result": result
+            }
+            
+        elif "what can you do" in command_lower or "help" in command_lower or "capabilities" in command_lower:
+            # 返回能力列表
+            return {
+                "success": True,
+                "capabilities": [
+                    "Create physics simulations (pendulum, robotic arm, etc.)",
+                    "Control simulations (move to position, apply forces)",
+                    "Query simulation state (positions, velocities, energy)",
+                    "Visualize simulations (render frames, ASCII art)",
+                    "Perform complex tasks (swing up, balance, trajectory tracking)",
+                    "Analyze behavior (energy, stability, frequency)"
+                ],
+                "hint": "Try commands like 'create a pendulum', 'move to 45 degrees', 'show me the state'"
+            }
+            
+        elif ("move" in command_lower or "control" in command_lower) and context.get("model_id"):
+            # 控制命令
+            model_id = context["model_id"]
+            
+            # 提取目标角度
+            import re
+            angle_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:degrees?|deg)', command_lower)
+            target_angle = float(angle_match.group(1)) if angle_match else 45.0
+            
+            # 检查是否指定了PID参数
+            kp_match = re.search(r'kp\s*=\s*(\d+(?:\.\d+)?)', command_lower)
+            kp = float(kp_match.group(1)) if kp_match else 5.0
+            
+            result = self._handle_pendulum_demo(
+                action="control",
+                model_id=model_id,
+                target_angle=target_angle,
+                duration=2.0,
+                kp=kp,
+                ki=0.5,
+                kd=1.0
+            )
+            
+            return {
+                "success": True,
+                "interpretation": f"Controlling pendulum to {target_angle} degrees",
+                "action_taken": f"PID control with target angle {target_angle}°",
+                "parameters_used": {
+                    "target_angle": target_angle,
+                    "kp": kp,
+                    "ki": 0.5,
+                    "kd": 1.0
+                },
+                "result": result
+            }
+            
+        elif ("angle" in command_lower or "position" in command_lower or "state" in command_lower) and context.get("model_id"):
+            # 查询状态
+            model_id = context["model_id"]
+            
+            # 获取状态
+            state = self._handle_pendulum_demo(
+                action="get_state",
+                model_id=model_id
+            )
+            
+            angle = state.get("angle", 0.0)
+            velocity = state.get("velocity", 0.0)
+            
+            return {
+                "success": True,
+                "interpretation": "Querying current pendulum state",
+                "answer": f"The pendulum is currently at {angle:.1f} degrees with angular velocity {velocity:.2f} rad/s",
+                "raw_data": state
+            }
+            
+        elif ("show" in command_lower or "visualize" in command_lower) and context.get("model_id"):
+            # 可视化命令
+            model_id = context["model_id"]
+            
+            # 获取ASCII可视化
+            ascii_result = self._handle_get_ascii_visualization(model_id, 40, 20)
+            
+            return {
+                "success": True,
+                "interpretation": "Visualizing the current simulation state",
+                "visualization": {
+                    "ascii": ascii_result["ascii_art"]
+                }
+            }
+            
+        elif "swing" in command_lower and "up" in command_lower:
+            # 摆起控制
+            if "create" in command_lower and "pendulum" in command_lower:
+                # 先创建后摆起
+                setup_result = self._handle_pendulum_demo("setup")
+                model_id = setup_result["model_id"]
+                
+                swing_result = self._handle_pendulum_demo(
+                    action="swing_up",
+                    model_id=model_id,
+                    duration=5.0,
+                    energy_gain=1.0
+                )
+                
+                return {
+                    "success": True,
+                    "model_id": model_id,
+                    "interpretation": "Creating pendulum and performing swing-up control",
+                    "steps_taken": [
+                        "Created pendulum simulation",
+                        "Applied energy-based swing-up control"
+                    ],
+                    "result": swing_result
+                }
+            elif context.get("model_id"):
+                # 对现有模型摆起
+                model_id = context["model_id"]
+                swing_result = self._handle_pendulum_demo(
+                    action="swing_up",
+                    model_id=model_id,
+                    duration=5.0,
+                    energy_gain=1.0
+                )
+                
+                return {
+                    "success": True,
+                    "interpretation": "Performing swing-up control on existing pendulum",
+                    "action_taken": "Energy-based swing-up control",
+                    "result": swing_result
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "No model specified. Please create a pendulum first or provide model_id in context."
+                }
+                
+        else:
+            # 无法理解的命令
+            return {
+                "success": False,
+                "interpretation": f"Unable to understand command: '{command}'",
+                "clarification_needed": "Please try rephrasing or use one of these examples:",
+                "examples": [
+                    "create a pendulum",
+                    "move the pendulum to 45 degrees",
+                    "what is the current angle?",
+                    "show me the pendulum",
+                    "swing up the pendulum"
+                ]
+            }
+    
+    def _handle_create_scene(self, scene_type: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理create_scene工具调用 - 高级场景创建"""
+        
+        scene_type_lower = scene_type.lower()
+        parameters = parameters or {}
+        
+        if scene_type_lower == "pendulum":
+            # 创建单摆场景
+            length = parameters.get("length", 0.5)
+            mass = parameters.get("mass", 0.5)
+            damping = parameters.get("damping", 0.1)
+            
+            pendulum_xml = f"""<mujoco model="pendulum_scene">
+                <option timestep="0.001" gravity="0 0 -9.81"/>
+                <worldbody>
+                    <body name="pendulum" pos="0 0 1">
+                        <joint name="hinge" type="hinge" axis="0 1 0" range="-180 180" damping="{damping}"/>
+                        <geom name="rod" type="capsule" fromto="0 0 0 0 0 -{length}" size="0.02" mass="0.1"/>
+                        <body name="bob" pos="0 0 -{length}">
+                            <geom name="ball" type="sphere" size="0.05" mass="{mass}" rgba="1 0 0 1"/>
+                        </body>
+                    </body>
+                </worldbody>
+                <actuator>
+                    <motor name="torque" joint="hinge" gear="1" ctrllimited="true" ctrlrange="-2 2"/>
+                </actuator>
+                <sensor>
+                    <jointpos name="angle" joint="hinge"/>
+                    <jointvel name="velocity" joint="hinge"/>
+                </sensor>
+            </mujoco>"""
+            
+            result = self._handle_load_model(pendulum_xml, f"{scene_type}_scene")
+            
+            return {
+                "success": True,
+                "model_id": result["model_id"],
+                "scene_info": {
+                    "type": "pendulum",
+                    "parameters": {
+                        "length": length,
+                        "mass": mass,
+                        "damping": damping
+                    }
+                },
+                "message": f"Created {scene_type} scene with custom parameters"
+            }
+            
+        else:
+            # 未实现的场景类型
+            return {
+                "success": False,
+                "error": f"Scene type '{scene_type}' not implemented yet",
+                "available_scenes": ["pendulum"],
+                "message": "More scene types will be added in future versions"
+            }
+    
+    def _handle_perform_task(self, task: str, model_id: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理perform_task工具调用 - 高级任务执行"""
+        
+        if not model_id:
+            raise ValueError("model_id is required for perform_task")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        task_lower = task.lower()
+        parameters = parameters or {}
+        
+        if task_lower == "swing_up":
+            # 摆起任务
+            duration = parameters.get("duration", 5.0)
+            energy_gain = parameters.get("energy_gain", 1.0)
+            
+            result = self._handle_pendulum_demo(
+                action="swing_up",
+                model_id=model_id,
+                duration=duration,
+                energy_gain=energy_gain
+            )
+            
+            return {
+                "success": True,
+                "task": "swing_up",
+                "task_result": result,
+                "message": "Swing-up task completed"
+            }
+            
+        elif task_lower == "balance":
+            # 平衡任务 - 保持在特定角度
+            target_angle = parameters.get("target_angle", 0.0)
+            duration = parameters.get("duration", 3.0)
+            
+            result = self._handle_pendulum_demo(
+                action="control",
+                model_id=model_id,
+                target_angle=target_angle,
+                duration=duration,
+                kp=parameters.get("kp", 10.0),
+                ki=parameters.get("ki", 1.0),
+                kd=parameters.get("kd", 2.0)
+            )
+            
+            return {
+                "success": True,
+                "task": "balance",
+                "task_result": result,
+                "message": f"Balance task completed at {target_angle} degrees"
+            }
+            
+        else:
+            return {
+                "success": False,
+                "error": f"Task '{task}' not implemented",
+                "available_tasks": ["swing_up", "balance"],
+                "message": "More tasks will be added in future versions"
+            }
+    
+    def _handle_analyze_behavior(self, model_id: str, analysis_type: str, duration: float = 1.0) -> Dict[str, Any]:
+        """处理analyze_behavior工具调用 - 行为分析"""
+        
+        if not model_id:
+            raise ValueError("model_id is required for analyze_behavior")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        analysis_type_lower = analysis_type.lower()
+        
+        if analysis_type_lower == "energy":
+            # 能量分析
+            result = self._handle_pendulum_demo(
+                action="analyze_energy",
+                model_id=model_id,
+                duration=duration
+            )
+            
+            return {
+                "success": True,
+                "analysis_type": "energy",
+                "analysis": result,
+                "message": "Energy analysis completed"
+            }
+            
+        elif analysis_type_lower == "stability":
+            # 稳定性分析
+            sim = self._models[model_id]
+            
+            # 记录位置变化
+            positions = []
+            timestep = sim.model.opt.timestep
+            steps = int(duration / timestep)
+            
+            for _ in range(steps):
+                pos = sim.data.qpos[0] if sim._initialized else 0.0
+                positions.append(pos)
+                sim.step()
+            
+            # 计算稳定性指标
+            positions_array = np.array(positions)
+            mean_pos = np.mean(positions_array)
+            std_pos = np.std(positions_array)
+            max_deviation = np.max(np.abs(positions_array - mean_pos))
+            
+            return {
+                "success": True,
+                "analysis_type": "stability",
+                "analysis": {
+                    "mean_position": mean_pos,
+                    "std_deviation": std_pos,
+                    "max_deviation": max_deviation,
+                    "is_stable": std_pos < 0.1,  # 简单的稳定性判断
+                    "stability_score": 1.0 / (1.0 + std_pos)  # 0到1的稳定性分数
+                },
+                "message": "Stability analysis completed"
+            }
+            
+        else:
+            return {
+                "success": False,
+                "error": f"Analysis type '{analysis_type}' not implemented",
+                "available_types": ["energy", "stability"],
+                "message": "More analysis types will be added in future versions"
+            }
