@@ -1,6 +1,6 @@
 """
-MuJoCo MCP 简单服务器实现 (v0.5.2)
-包含基本的MCP功能、模型加载、仿真控制、增强状态查询、基础控制、可视化、性能监控和多智能体协调
+MuJoCo MCP 简单服务器实现 (v0.6.0)
+包含基本的MCP功能、模型加载、仿真控制、增强状态查询、基础控制、可视化、性能监控、多智能体协调和强化学习集成
 """
 import logging
 import uuid
@@ -22,7 +22,7 @@ class MuJoCoMCPServer:
     def __init__(self):
         """初始化服务器"""
         self.name = "mujoco-mcp"
-        self.version = "0.5.2"
+        self.version = "0.6.0"
         self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations through natural language commands and structured tools"
         self.logger = logging.getLogger("mujoco_mcp.simple_server")
         
@@ -82,6 +82,13 @@ class MuJoCoMCPServer:
         self._learning_environments = {}  # env_id -> learning_env_data
         self._experience_buffers = {}  # env_id -> experience_buffer
         
+        # 强化学习集成 - v0.6.0
+        self._rl_environments = {}  # env_id -> rl_env_data
+        self._policies = {}  # policy_id -> policy_data
+        self._training_sessions = {}  # session_id -> session_data
+        self._checkpoints = {}  # checkpoint_id -> checkpoint_data
+        self._training_metrics = {}  # session_id -> metrics_history
+        
         # 启动性能监控线程
         self._monitoring_thread = threading.Thread(target=self._monitor_performance, daemon=True)
         self._monitoring_thread.start()
@@ -94,6 +101,8 @@ class MuJoCoMCPServer:
         self._register_performance_tools()
         # 注册多智能体协调工具
         self._register_multi_agent_tools()
+        # 注册强化学习工具
+        self._register_learning_tools()
         
     def _register_standard_tools(self):
         """注册标准的MCP工具"""
@@ -5176,4 +5185,763 @@ class MuJoCoMCPServer:
             "information_transfer": information_transfer,
             "protocol_efficiency": protocol_efficiency,
             "vocabulary_size": random.randint(10, 50)
+        }    
+    def _register_learning_tools(self):
+        """注册强化学习工具 - v0.6.0"""
+        # create_rl_environment 工具
+        self._tools["create_rl_environment"] = {
+            "name": "create_rl_environment",
+            "description": "Create a reinforcement learning environment",
+            "parameters": {
+                "env_type": "Environment type: 'pendulum', 'cartpole', 'reacher', 'walker', 'ant', 'humanoid', 'hopper'",
+                "observation_space": "(optional) Observation space type: 'continuous', 'discrete'",
+                "action_space": "(optional) Action space type: 'continuous', 'discrete'",
+                "max_episode_steps": "(optional) Maximum steps per episode",
+                "reward_function": "(optional) Reward function type",
+                "reward_params": "(optional) Parameters for reward function"
+            },
+            "handler": self._handle_create_rl_environment
+        }
+        
+        # reset_rl_environment 工具
+        self._tools["reset_rl_environment"] = {
+            "name": "reset_rl_environment",
+            "description": "Reset RL environment to initial state",
+            "parameters": {
+                "env_id": "ID of the environment to reset"
+            },
+            "handler": self._handle_reset_rl_environment
+        }
+        
+        # step_rl_environment 工具
+        self._tools["step_rl_environment"] = {
+            "name": "step_rl_environment",
+            "description": "Step RL environment with action",
+            "parameters": {
+                "env_id": "ID of the environment",
+                "action": "Action to take"
+            },
+            "handler": self._handle_step_rl_environment
+        }
+        
+        # get_rl_state 工具
+        self._tools["get_rl_state"] = {
+            "name": "get_rl_state",
+            "description": "Get current RL environment state",
+            "parameters": {
+                "env_id": "ID of the environment"
+            },
+            "handler": self._handle_get_rl_state
+        }
+        
+        # list_reward_functions 工具
+        self._tools["list_reward_functions"] = {
+            "name": "list_reward_functions",
+            "description": "List available reward functions",
+            "parameters": {},
+            "handler": self._handle_list_reward_functions
+        }
+        
+        # get_episode_info 工具
+        self._tools["get_episode_info"] = {
+            "name": "get_episode_info",
+            "description": "Get current episode information",
+            "parameters": {
+                "env_id": "ID of the environment"
+            },
+            "handler": self._handle_get_episode_info
+        }
+        
+        # register_policy 工具
+        self._tools["register_policy"] = {
+            "name": "register_policy",
+            "description": "Register a policy for action selection",
+            "parameters": {
+                "policy_type": "Policy type: 'random', 'neural', 'linear', 'custom'",
+                "policy_name": "Name for the policy",
+                "action_space_dim": "(optional) Action space dimension for random policy",
+                "architecture": "(optional) Architecture for neural policy"
+            },
+            "handler": self._handle_register_policy
+        }
+        
+        # execute_policy 工具
+        self._tools["execute_policy"] = {
+            "name": "execute_policy",
+            "description": "Execute policy to get action",
+            "parameters": {
+                "policy_id": "ID of the policy",
+                "observation": "Current observation"
+            },
+            "handler": self._handle_execute_policy
+        }
+        
+        # update_policy 工具
+        self._tools["update_policy"] = {
+            "name": "update_policy",
+            "description": "Update policy parameters",
+            "parameters": {
+                "policy_id": "ID of the policy",
+                "parameters": "Parameters to update"
+            },
+            "handler": self._handle_update_policy
+        }
+        
+        # create_training_session 工具
+        self._tools["create_training_session"] = {
+            "name": "create_training_session",
+            "description": "Create a training session",
+            "parameters": {
+                "env_id": "ID of the environment",
+                "policy_id": "ID of the policy",
+                "algorithm": "(optional) Training algorithm: 'ppo', 'dqn', 'sac', 'td3'",
+                "hyperparameters": "(optional) Training hyperparameters"
+            },
+            "handler": self._handle_create_training_session
+        }
+        
+        # run_training_steps 工具
+        self._tools["run_training_steps"] = {
+            "name": "run_training_steps",
+            "description": "Run training steps",
+            "parameters": {
+                "session_id": "ID of the training session",
+                "num_steps": "Number of steps to train"
+            },
+            "handler": self._handle_run_training_steps
+        }
+        
+        # evaluate_policy 工具
+        self._tools["evaluate_policy"] = {
+            "name": "evaluate_policy",
+            "description": "Evaluate policy performance",
+            "parameters": {
+                "env_id": "ID of the environment",
+                "policy_id": "ID of the policy",
+                "num_episodes": "Number of evaluation episodes",
+                "render": "(optional) Whether to render evaluation"
+            },
+            "handler": self._handle_evaluate_policy
+        }
+        
+        # save_checkpoint 工具
+        self._tools["save_checkpoint"] = {
+            "name": "save_checkpoint",
+            "description": "Save training checkpoint",
+            "parameters": {
+                "session_id": "ID of the training session",
+                "checkpoint_name": "Name for the checkpoint"
+            },
+            "handler": self._handle_save_checkpoint
+        }
+        
+        # load_checkpoint 工具
+        self._tools["load_checkpoint"] = {
+            "name": "load_checkpoint",
+            "description": "Load training checkpoint",
+            "parameters": {
+                "checkpoint_id": "ID of the checkpoint to load"
+            },
+            "handler": self._handle_load_checkpoint
+        }
+        
+        # get_training_metrics 工具
+        self._tools["get_training_metrics"] = {
+            "name": "get_training_metrics",
+            "description": "Get training metrics",
+            "parameters": {
+                "session_id": "ID of the training session",
+                "metric_types": "(optional) List of metric types to retrieve"
+            },
+            "handler": self._handle_get_training_metrics
+        }
+    
+    def _handle_create_rl_environment(self, env_type: str,
+                                    observation_space: str = "continuous",
+                                    action_space: str = "continuous",
+                                    max_episode_steps: int = 1000,
+                                    reward_function: Optional[str] = None,
+                                    reward_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理create_rl_environment工具调用"""
+        env_id = str(uuid.uuid4())
+        
+        # 根据环境类型创建相应的MuJoCo模型
+        model_xml = self._generate_rl_environment_xml(env_type)
+        
+        # 加载模型
+        result = self._handle_load_model(model_xml, f"rl_{env_type}")
+        model_id = result["model_id"]
+        
+        # 确定观察和动作维度
+        obs_dim, act_dim = self._get_env_dimensions(env_type)
+        
+        # 存储RL环境信息
+        self._rl_environments[env_id] = {
+            "model_id": model_id,
+            "env_type": env_type,
+            "observation_space": observation_space,
+            "action_space": action_space,
+            "observation_dim": obs_dim,
+            "action_dim": act_dim,
+            "max_episode_steps": max_episode_steps,
+            "reward_function": reward_function or "default",
+            "reward_params": reward_params or {},
+            "episode_step": 0,
+            "episode_reward": 0.0,
+            "is_terminal": False,
+            "current_observation": None
+        }
+        
+        return {
+            "success": True,
+            "env_id": env_id,
+            "model_id": model_id,
+            "env_type": env_type,
+            "observation_space": observation_space,
+            "action_space": action_space,
+            "observation_dim": obs_dim,
+            "action_dim": act_dim,
+            "reward_function": reward_function or "default"
+        }
+    
+    def _generate_rl_environment_xml(self, env_type: str) -> str:
+        """生成RL环境的XML"""
+        # 简化实现，为每种环境类型返回基本XML
+        if env_type == "pendulum":
+            return """<mujoco model="pendulum">
+                <option timestep="0.01" gravity="0 0 -9.81"/>
+                <worldbody>
+                    <geom name="ground" type="plane" pos="0 0 0" size="10 10 0.1"/>
+                    <body name="pendulum" pos="0 0 1">
+                        <joint name="hinge" type="hinge" axis="0 1 0" range="-180 180"/>
+                        <geom name="rod" type="capsule" fromto="0 0 0 0 0 -0.5" size="0.02"/>
+                        <body name="bob" pos="0 0 -0.5">
+                            <geom name="ball" type="sphere" size="0.05" mass="1"/>
+                        </body>
+                    </body>
+                </worldbody>
+                <actuator>
+                    <motor name="torque" joint="hinge" gear="1" ctrllimited="true" ctrlrange="-2 2"/>
+                </actuator>
+            </mujoco>"""
+        elif env_type == "cartpole":
+            return """<mujoco model="cartpole">
+                <option timestep="0.01" gravity="0 0 -9.81"/>
+                <worldbody>
+                    <geom name="ground" type="plane" pos="0 0 0" size="10 10 0.1"/>
+                    <body name="cart" pos="0 0 0.1">
+                        <joint name="slider" type="slide" axis="1 0 0" range="-2 2"/>
+                        <geom name="cart" type="box" size="0.2 0.1 0.05" rgba="0 0 1 1"/>
+                        <body name="pole" pos="0 0 0.05">
+                            <joint name="hinge" type="hinge" axis="0 1 0" range="-180 180"/>
+                            <geom name="pole" type="capsule" fromto="0 0 0 0 0 0.6" size="0.02" rgba="1 0 0 1"/>
+                        </body>
+                    </body>
+                </worldbody>
+                <actuator>
+                    <motor name="slide" joint="slider" gear="10" ctrllimited="true" ctrlrange="-1 1"/>
+                </actuator>
+            </mujoco>"""
+        else:
+            # 默认返回简单的机器人环境
+            return """<mujoco model="simple_robot">
+                <option timestep="0.01" gravity="0 0 -9.81"/>
+                <worldbody>
+                    <geom name="ground" type="plane" pos="0 0 0" size="10 10 0.1"/>
+                    <body name="robot" pos="0 0 0.5">
+                        <joint name="x" type="slide" axis="1 0 0" range="-5 5"/>
+                        <joint name="y" type="slide" axis="0 1 0" range="-5 5"/>
+                        <geom name="body" type="box" size="0.1 0.1 0.1" rgba="1 0 0 1"/>
+                    </body>
+                </worldbody>
+                <actuator>
+                    <motor name="x_motor" joint="x" gear="1"/>
+                    <motor name="y_motor" joint="y" gear="1"/>
+                </actuator>
+            </mujoco>"""
+    
+    def _get_env_dimensions(self, env_type: str) -> Tuple[int, int]:
+        """获取环境的观察和动作维度"""
+        dimensions = {
+            "pendulum": (3, 1),      # [angle, angular_vel, time], [torque]
+            "cartpole": (4, 1),      # [x, x_vel, angle, angular_vel], [force]
+            "reacher": (6, 2),       # [angles, velocities, target], [torques]
+            "walker": (17, 6),       # walker2d standard dimensions
+            "ant": (27, 8),          # ant standard dimensions
+            "humanoid": (376, 17),   # humanoid standard dimensions
+            "hopper": (11, 3),       # hopper standard dimensions
+        }
+        return dimensions.get(env_type, (4, 2))  # default dimensions
+    
+    def _handle_reset_rl_environment(self, env_id: str) -> Dict[str, Any]:
+        """处理reset_rl_environment工具调用"""
+        if env_id not in self._rl_environments:
+            raise ValueError(f"Environment not found: {env_id}")
+        
+        env = self._rl_environments[env_id]
+        model_id = env["model_id"]
+        
+        # 重置仿真
+        self._handle_reset_simulation(model_id=model_id)
+        
+        # 重置环境状态
+        env["episode_step"] = 0
+        env["episode_reward"] = 0.0
+        env["is_terminal"] = False
+        
+        # 获取初始观察
+        observation = self._get_observation(env_id)
+        env["current_observation"] = observation
+        
+        return {
+            "success": True,
+            "observation": observation,
+            "info": {
+                "env_type": env["env_type"],
+                "max_steps": env["max_episode_steps"]
+            }
+        }
+    
+    def _get_observation(self, env_id: str) -> List[float]:
+        """获取环境观察"""
+        env = self._rl_environments[env_id]
+        model_id = env["model_id"]
+        
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+        
+        sim = self._models[model_id]
+        
+        # 简化的观察提取
+        obs = []
+        
+        # 添加关节位置
+        if hasattr(sim.data, 'qpos'):
+            obs.extend(sim.data.qpos.tolist())
+        
+        # 添加关节速度
+        if hasattr(sim.data, 'qvel'):
+            obs.extend(sim.data.qvel.tolist())
+        
+        # 确保观察维度正确
+        expected_dim = env["observation_dim"]
+        if len(obs) < expected_dim:
+            obs.extend([0.0] * (expected_dim - len(obs)))
+        elif len(obs) > expected_dim:
+            obs = obs[:expected_dim]
+        
+        return obs
+    
+    def _handle_step_rl_environment(self, env_id: str, action: List[float]) -> Dict[str, Any]:
+        """处理step_rl_environment工具调用"""
+        if env_id not in self._rl_environments:
+            raise ValueError(f"Environment not found: {env_id}")
+        
+        env = self._rl_environments[env_id]
+        model_id = env["model_id"]
+        
+        # 应用动作
+        self._handle_apply_control(model_id=model_id, control=action)
+        
+        # 步进仿真
+        self._handle_step_simulation(model_id=model_id, steps=1)
+        
+        # 更新步数
+        env["episode_step"] += 1
+        
+        # 获取新观察
+        observation = self._get_observation(env_id)
+        env["current_observation"] = observation
+        
+        # 计算奖励
+        reward = self._calculate_reward(env_id, observation, action)
+        env["episode_reward"] += reward
+        
+        # 检查终止条件
+        done = env["episode_step"] >= env["max_episode_steps"]
+        env["is_terminal"] = done
+        
+        # 额外信息
+        info = {
+            "episode_step": env["episode_step"],
+            "episode_reward": env["episode_reward"]
+        }
+        
+        return {
+            "success": True,
+            "observation": observation,
+            "reward": reward,
+            "done": done,
+            "info": info
+        }
+    
+    def _calculate_reward(self, env_id: str, observation: List[float], action: List[float]) -> float:
+        """计算奖励"""
+        env = self._rl_environments[env_id]
+        reward_function = env["reward_function"]
+        
+        # 简化的奖励计算
+        if reward_function == "forward_progress":
+            # 前进奖励
+            reward = observation[0] if observation else 0.0  # x位置作为奖励
+            # 减去努力惩罚
+            effort_weight = env["reward_params"].get("effort_weight", 0.01)
+            reward -= effort_weight * sum(a**2 for a in action)
+        else:
+            # 默认奖励：存活奖励
+            reward = 1.0
+            # 可以根据环境类型添加特定奖励
+            if env["env_type"] == "pendulum":
+                # 倒立摆：角度接近0的奖励
+                angle = observation[0] if observation else 0
+                reward = -abs(angle)
+            elif env["env_type"] == "cartpole":
+                # 保持平衡的奖励
+                reward = 1.0 if not env["is_terminal"] else 0.0
+        
+        return reward
+    
+    def _handle_get_rl_state(self, env_id: str) -> Dict[str, Any]:
+        """处理get_rl_state工具调用"""
+        if env_id not in self._rl_environments:
+            raise ValueError(f"Environment not found: {env_id}")
+        
+        env = self._rl_environments[env_id]
+        
+        return {
+            "episode_step": env["episode_step"],
+            "total_reward": env["episode_reward"],
+            "is_terminal": env["is_terminal"],
+            "observation": env["current_observation"],
+            "env_type": env["env_type"],
+            "max_steps": env["max_episode_steps"]
+        }
+    
+    def _handle_list_reward_functions(self) -> Dict[str, Any]:
+        """处理list_reward_functions工具调用"""
+        functions = [
+            {
+                "name": "default",
+                "description": "Default reward for the environment type",
+                "parameters": []
+            },
+            {
+                "name": "forward_progress",
+                "description": "Reward forward movement with effort penalty",
+                "parameters": ["forward_weight", "stability_weight", "effort_weight"]
+            },
+            {
+                "name": "target_reaching",
+                "description": "Reward for reaching a target position",
+                "parameters": ["target_position", "distance_threshold"]
+            },
+            {
+                "name": "energy_efficient",
+                "description": "Minimize energy consumption",
+                "parameters": ["energy_weight", "progress_weight"]
+            },
+            {
+                "name": "stability",
+                "description": "Reward stable posture and movement",
+                "parameters": ["stability_threshold", "penalty_weight"]
+            }
+        ]
+        
+        return {
+            "available_functions": functions
+        }
+    
+    def _handle_get_episode_info(self, env_id: str) -> Dict[str, Any]:
+        """处理get_episode_info工具调用"""
+        if env_id not in self._rl_environments:
+            raise ValueError(f"Environment not found: {env_id}")
+        
+        env = self._rl_environments[env_id]
+        
+        avg_reward = env["episode_reward"] / max(env["episode_step"], 1)
+        
+        return {
+            "steps_taken": env["episode_step"],
+            "max_steps": env["max_episode_steps"],
+            "cumulative_reward": env["episode_reward"],
+            "average_reward": avg_reward,
+            "is_done": env["is_terminal"],
+            "env_type": env["env_type"]
+        }
+    
+    def _handle_register_policy(self, policy_type: str, policy_name: str,
+                              action_space_dim: Optional[int] = None,
+                              architecture: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理register_policy工具调用"""
+        policy_id = str(uuid.uuid4())
+        
+        # 存储策略信息
+        self._policies[policy_id] = {
+            "type": policy_type,
+            "name": policy_name,
+            "action_space_dim": action_space_dim,
+            "architecture": architecture,
+            "parameters": {},
+            "created_time": time.time()
+        }
+        
+        # 初始化策略参数
+        if policy_type == "random":
+            if not action_space_dim:
+                action_space_dim = 2  # 默认动作维度
+            self._policies[policy_id]["action_space_dim"] = action_space_dim
+        elif policy_type == "neural":
+            if architecture:
+                # 简化的神经网络参数初始化
+                self._policies[policy_id]["parameters"] = {
+                    "weights": "initialized",
+                    "architecture": architecture
+                }
+        
+        return {
+            "success": True,
+            "policy_id": policy_id,
+            "policy_type": policy_type,
+            "policy_name": policy_name
+        }
+    
+    def _handle_execute_policy(self, policy_id: str, observation: List[float]) -> Dict[str, Any]:
+        """处理execute_policy工具调用"""
+        if policy_id not in self._policies:
+            raise ValueError(f"Policy not found: {policy_id}")
+        
+        policy = self._policies[policy_id]
+        
+        # 根据策略类型生成动作
+        if policy["type"] == "random":
+            # 随机策略
+            action_dim = policy.get("action_space_dim", 2)
+            action = [random.uniform(-1, 1) for _ in range(action_dim)]
+        elif policy["type"] == "neural":
+            # 简化的神经网络前向传播
+            # 实际实现中应该使用真实的神经网络
+            arch = policy.get("architecture", {})
+            output_dim = arch.get("output_dim", 2)
+            action = [random.uniform(-1, 1) for _ in range(output_dim)]
+        else:
+            # 默认动作
+            action = [0.0, 0.0]
+        
+        return {
+            "success": True,
+            "action": action,
+            "policy_type": policy["type"]
+        }
+    
+    def _handle_update_policy(self, policy_id: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """处理update_policy工具调用"""
+        if policy_id not in self._policies:
+            raise ValueError(f"Policy not found: {policy_id}")
+        
+        policy = self._policies[policy_id]
+        
+        # 更新参数
+        policy["parameters"].update(parameters)
+        
+        return {
+            "success": True,
+            "policy_id": policy_id,
+            "parameters_updated": True
+        }
+    
+    def _handle_create_training_session(self, env_id: str, policy_id: str,
+                                      algorithm: str = "ppo",
+                                      hyperparameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理create_training_session工具调用"""
+        if env_id not in self._rl_environments:
+            raise ValueError(f"Environment not found: {env_id}")
+        
+        if policy_id not in self._policies:
+            raise ValueError(f"Policy not found: {policy_id}")
+        
+        session_id = str(uuid.uuid4())
+        
+        # 默认超参数
+        default_hyperparams = {
+            "learning_rate": 3e-4,
+            "batch_size": 64,
+            "n_epochs": 10,
+            "gamma": 0.99
+        }
+        
+        if hyperparameters:
+            default_hyperparams.update(hyperparameters)
+        
+        # 存储训练会话
+        self._training_sessions[session_id] = {
+            "env_id": env_id,
+            "policy_id": policy_id,
+            "algorithm": algorithm,
+            "hyperparameters": default_hyperparams,
+            "total_steps": 0,
+            "episodes_completed": 0,
+            "created_time": time.time()
+        }
+        
+        # 初始化训练指标
+        self._training_metrics[session_id] = {
+            "rewards": [],
+            "losses": [],
+            "entropies": [],
+            "timestamps": []
+        }
+        
+        return {
+            "success": True,
+            "session_id": session_id,
+            "algorithm": algorithm,
+            "hyperparameters": default_hyperparams
+        }
+    
+    def _handle_run_training_steps(self, session_id: str, num_steps: int) -> Dict[str, Any]:
+        """处理run_training_steps工具调用"""
+        if session_id not in self._training_sessions:
+            raise ValueError(f"Training session not found: {session_id}")
+        
+        session = self._training_sessions[session_id]
+        env_id = session["env_id"]
+        policy_id = session["policy_id"]
+        
+        # 模拟训练过程
+        rewards = []
+        losses = []
+        
+        for _ in range(num_steps):
+            # 模拟一步训练
+            # 实际实现中应该运行真实的RL算法
+            reward = random.uniform(-1, 10)
+            loss = random.uniform(0, 1)
+            
+            rewards.append(reward)
+            losses.append(loss)
+            
+            # 更新指标
+            self._training_metrics[session_id]["rewards"].append(reward)
+            self._training_metrics[session_id]["losses"].append(loss)
+            self._training_metrics[session_id]["timestamps"].append(time.time())
+        
+        session["total_steps"] += num_steps
+        
+        return {
+            "success": True,
+            "steps_completed": num_steps,
+            "metrics": {
+                "average_reward": np.mean(rewards),
+                "loss": np.mean(losses),
+                "total_steps": session["total_steps"]
+            }
+        }
+    
+    def _handle_evaluate_policy(self, env_id: str, policy_id: str,
+                              num_episodes: int, render: bool = False) -> Dict[str, Any]:
+        """处理evaluate_policy工具调用"""
+        if env_id not in self._rl_environments:
+            raise ValueError(f"Environment not found: {env_id}")
+        
+        if policy_id not in self._policies:
+            raise ValueError(f"Policy not found: {policy_id}")
+        
+        # 模拟策略评估
+        episode_rewards = []
+        episode_lengths = []
+        successes = 0
+        
+        for _ in range(num_episodes):
+            # 模拟一个episode
+            episode_reward = random.uniform(0, 100)
+            episode_length = random.randint(50, 200)
+            success = random.random() > 0.3
+            
+            episode_rewards.append(episode_reward)
+            episode_lengths.append(episode_length)
+            if success:
+                successes += 1
+        
+        return {
+            "success": True,
+            "episodes_evaluated": num_episodes,
+            "average_reward": np.mean(episode_rewards),
+            "std_reward": np.std(episode_rewards),
+            "average_length": np.mean(episode_lengths),
+            "success_rate": successes / num_episodes
+        }
+    
+    def _handle_save_checkpoint(self, session_id: str, checkpoint_name: str) -> Dict[str, Any]:
+        """处理save_checkpoint工具调用"""
+        if session_id not in self._training_sessions:
+            raise ValueError(f"Training session not found: {session_id}")
+        
+        checkpoint_id = str(uuid.uuid4())
+        
+        # 保存检查点（简化实现）
+        self._checkpoints[checkpoint_id] = {
+            "session_id": session_id,
+            "name": checkpoint_name,
+            "timestamp": time.time(),
+            "session_data": self._training_sessions[session_id].copy(),
+            "metrics": self._training_metrics[session_id].copy(),
+            "path": f"/tmp/checkpoint_{checkpoint_id}.pkl"  # 模拟路径
+        }
+        
+        return {
+            "success": True,
+            "checkpoint_id": checkpoint_id,
+            "checkpoint_name": checkpoint_name,
+            "path": self._checkpoints[checkpoint_id]["path"]
+        }
+    
+    def _handle_load_checkpoint(self, checkpoint_id: str) -> Dict[str, Any]:
+        """处理load_checkpoint工具调用"""
+        if checkpoint_id not in self._checkpoints:
+            raise ValueError(f"Checkpoint not found: {checkpoint_id}")
+        
+        checkpoint = self._checkpoints[checkpoint_id]
+        session_id = checkpoint["session_id"]
+        
+        # 恢复会话（简化实现）
+        if session_id in self._training_sessions:
+            # 更新现有会话
+            self._training_sessions[session_id].update(checkpoint["session_data"])
+            self._training_metrics[session_id] = checkpoint["metrics"].copy()
+        else:
+            # 创建新会话
+            self._training_sessions[session_id] = checkpoint["session_data"].copy()
+            self._training_metrics[session_id] = checkpoint["metrics"].copy()
+        
+        return {
+            "success": True,
+            "session_id": session_id,
+            "checkpoint_name": checkpoint["name"],
+            "loaded_from": checkpoint["path"]
+        }
+    
+    def _handle_get_training_metrics(self, session_id: str,
+                                   metric_types: Optional[List[str]] = None) -> Dict[str, Any]:
+        """处理get_training_metrics工具调用"""
+        if session_id not in self._training_metrics:
+            raise ValueError(f"Training session not found: {session_id}")
+        
+        metrics = self._training_metrics[session_id]
+        
+        if not metric_types:
+            metric_types = ["reward", "loss"]
+        
+        result_metrics = {}
+        
+        for metric_type in metric_types:
+            if metric_type == "reward" and "rewards" in metrics:
+                result_metrics["reward"] = metrics["rewards"][-100:]  # 最近100个
+            elif metric_type == "loss" and "losses" in metrics:
+                result_metrics["loss"] = metrics["losses"][-100:]
+            elif metric_type == "entropy" and "entropies" in metrics:
+                result_metrics["entropy"] = metrics["entropies"][-100:]
+        
+        return {
+            "metrics": result_metrics,
+            "timestamps": metrics["timestamps"][-100:] if "timestamps" in metrics else []
         }

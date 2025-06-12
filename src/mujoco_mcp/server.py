@@ -143,6 +143,7 @@ class MuJoCoServer:
                 "robot_designer": True,
                 "performance_monitoring": True,
                 "multi_agent_coordination": True,
+                "reinforcement_learning": True,
                 "fastmcp": {
                     "enabled": True,
                     "version": "1.0"
