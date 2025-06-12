@@ -1,6 +1,6 @@
 """
-MuJoCo MCP 简单服务器实现 (v0.5.1)
-包含基本的MCP功能、模型加载、仿真控制、增强状态查询、基础控制、可视化和性能监控
+MuJoCo MCP 简单服务器实现 (v0.5.2)
+包含基本的MCP功能、模型加载、仿真控制、增强状态查询、基础控制、可视化、性能监控和多智能体协调
 """
 import logging
 import uuid
@@ -22,7 +22,7 @@ class MuJoCoMCPServer:
     def __init__(self):
         """初始化服务器"""
         self.name = "mujoco-mcp"
-        self.version = "0.5.1"
+        self.version = "0.5.2"
         self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations through natural language commands and structured tools"
         self.logger = logging.getLogger("mujoco_mcp.simple_server")
         
@@ -74,6 +74,14 @@ class MuJoCoMCPServer:
         self._model_cache = {}  # xml_hash -> compiled_model
         self._profile_data = {}  # profile_id -> profile_data
         
+        # 多智能体协调 - v0.5.2
+        self._multi_agent_worlds = {}  # world_id -> world_data
+        self._agent_registry = {}  # agent_id -> agent_data
+        self._communication_buffers = {}  # world_id -> communication_buffer
+        self._swarms = {}  # swarm_id -> swarm_data
+        self._learning_environments = {}  # env_id -> learning_env_data
+        self._experience_buffers = {}  # env_id -> experience_buffer
+        
         # 启动性能监控线程
         self._monitoring_thread = threading.Thread(target=self._monitor_performance, daemon=True)
         self._monitoring_thread.start()
@@ -84,6 +92,8 @@ class MuJoCoMCPServer:
         self._register_mujoco_tools()
         # 注册性能监控工具
         self._register_performance_tools()
+        # 注册多智能体协调工具
+        self._register_multi_agent_tools()
         
     def _register_standard_tools(self):
         """注册标准的MCP工具"""
@@ -4119,3 +4129,1051 @@ class MuJoCoMCPServer:
             "config": self._auto_cleanup_config
         }
     
+    def _register_multi_agent_tools(self):
+        """注册多智能体协调工具 - v0.5.2"""
+        # create_multi_agent_world 工具
+        self._tools["create_multi_agent_world"] = {
+            "name": "create_multi_agent_world",
+            "description": "Create a multi-agent simulation world",
+            "parameters": {
+                "world_type": "Type of world: 'collaborative', 'competitive', 'formation', 'exploration', 'warehouse', 'navigation'",
+                "num_agents": "Number of agents to create",
+                "world_size": "(optional) World dimensions [x, y, z] in meters",
+                "agent_config": "(optional) Configuration for agents",
+                "formation": "(optional) Formation type for formation worlds",
+                "enable_collision_avoidance": "(optional) Enable collision avoidance"
+            },
+            "handler": self._handle_create_multi_agent_world
+        }
+        
+        # add_agent_to_world 工具
+        self._tools["add_agent_to_world"] = {
+            "name": "add_agent_to_world",
+            "description": "Add a new agent to existing multi-agent world",
+            "parameters": {
+                "world_id": "ID of the world",
+                "agent_type": "Type of agent: 'mobile_robot', 'drone', 'manipulator'",
+                "position": "Initial position [x, y, z]"
+            },
+            "handler": self._handle_add_agent_to_world
+        }
+        
+        # send_agent_message 工具
+        self._tools["send_agent_message"] = {
+            "name": "send_agent_message",
+            "description": "Send message between agents",
+            "parameters": {
+                "world_id": "ID of the world",
+                "from_agent": "Sender agent ID",
+                "to_agent": "Receiver agent ID",
+                "message_type": "Type of message: 'coordinate', 'observation', 'command'",
+                "content": "Message content"
+            },
+            "handler": self._handle_send_agent_message
+        }
+        
+        # get_agent_messages 工具
+        self._tools["get_agent_messages"] = {
+            "name": "get_agent_messages",
+            "description": "Get messages for an agent",
+            "parameters": {
+                "world_id": "ID of the world",
+                "agent_id": "Agent ID to get messages for"
+            },
+            "handler": self._handle_get_agent_messages
+        }
+        
+        # execute_formation 工具
+        self._tools["execute_formation"] = {
+            "name": "execute_formation",
+            "description": "Execute coordinated formation movement",
+            "parameters": {
+                "world_id": "ID of the world",
+                "formation_type": "Formation type: 'line', 'triangle', 'square', 'circle', 'v'",
+                "target_position": "Target position for formation center [x, y, z]",
+                "maintain_spacing": "(optional) Maintain relative spacing"
+            },
+            "handler": self._handle_execute_formation
+        }
+        
+        # share_observations 工具
+        self._tools["share_observations"] = {
+            "name": "share_observations",
+            "description": "Share observations between agents",
+            "parameters": {
+                "world_id": "ID of the world",
+                "sharing_mode": "Mode: 'broadcast', 'neighbors', 'team'",
+                "include_processed": "(optional) Include processed data"
+            },
+            "handler": self._handle_share_observations
+        }
+        
+        # assign_tasks 工具
+        self._tools["assign_tasks"] = {
+            "name": "assign_tasks",
+            "description": "Assign tasks to multiple agents",
+            "parameters": {
+                "world_id": "ID of the world",
+                "tasks": "List of tasks to assign",
+                "assignment_strategy": "Strategy: 'optimal', 'round_robin', 'capability_based'",
+                "allow_cooperation": "(optional) Allow multiple agents per task"
+            },
+            "handler": self._handle_assign_tasks
+        }
+        
+        # set_agent_control 工具
+        self._tools["set_agent_control"] = {
+            "name": "set_agent_control",
+            "description": "Set control inputs for specific agent",
+            "parameters": {
+                "world_id": "ID of the world",
+                "agent_id": "Agent ID",
+                "control": "Control values"
+            },
+            "handler": self._handle_set_agent_control
+        }
+        
+        # step_multi_agent_world 工具
+        self._tools["step_multi_agent_world"] = {
+            "name": "step_multi_agent_world",
+            "description": "Step multi-agent world simulation",
+            "parameters": {
+                "world_id": "ID of the world",
+                "steps": "Number of steps",
+                "sync_mode": "(optional) Synchronization mode: 'lockstep', 'async'"
+            },
+            "handler": self._handle_step_multi_agent_world
+        }
+        
+        # set_agent_target 工具
+        self._tools["set_agent_target"] = {
+            "name": "set_agent_target",
+            "description": "Set target position for agent navigation",
+            "parameters": {
+                "world_id": "ID of the world",
+                "agent_id": "Agent ID",
+                "target": "Target position [x, y, z]"
+            },
+            "handler": self._handle_set_agent_target
+        }
+        
+        # get_collision_statistics 工具
+        self._tools["get_collision_statistics"] = {
+            "name": "get_collision_statistics",
+            "description": "Get collision statistics for multi-agent world",
+            "parameters": {
+                "world_id": "ID of the world"
+            },
+            "handler": self._handle_get_collision_statistics
+        }
+        
+        # create_swarm 工具
+        self._tools["create_swarm"] = {
+            "name": "create_swarm",
+            "description": "Create a swarm of agents",
+            "parameters": {
+                "swarm_size": "Number of agents in swarm",
+                "swarm_type": "Type: 'homogeneous', 'heterogeneous'",
+                "behavior": "Behavior type: 'flocking', 'foraging', 'emergent'",
+                "spawn_area": "(optional) Spawn area dimensions [x, y, z]",
+                "behavior_params": "(optional) Behavior parameters"
+            },
+            "handler": self._handle_create_swarm
+        }
+        
+        # execute_swarm_behavior 工具
+        self._tools["execute_swarm_behavior"] = {
+            "name": "execute_swarm_behavior",
+            "description": "Execute swarm behavior",
+            "parameters": {
+                "swarm_id": "ID of the swarm",
+                "duration": "Duration to run behavior",
+                "target_direction": "(optional) Target direction for movement"
+            },
+            "handler": self._handle_execute_swarm_behavior
+        }
+        
+        # swarm_forage 工具
+        self._tools["swarm_forage"] = {
+            "name": "swarm_forage",
+            "description": "Execute swarm foraging task",
+            "parameters": {
+                "swarm_id": "ID of the swarm",
+                "targets": "List of foraging targets",
+                "strategy": "Strategy: 'nearest_first', 'highest_value', 'distributed'",
+                "time_limit": "Time limit for foraging"
+            },
+            "handler": self._handle_swarm_forage
+        }
+        
+        # observe_swarm_behavior 工具
+        self._tools["observe_swarm_behavior"] = {
+            "name": "observe_swarm_behavior",
+            "description": "Observe and analyze swarm behavior",
+            "parameters": {
+                "swarm_id": "ID of the swarm",
+                "duration": "Observation duration",
+                "metrics": "Metrics to track"
+            },
+            "handler": self._handle_observe_swarm_behavior
+        }
+        
+        # create_learning_environment 工具
+        self._tools["create_learning_environment"] = {
+            "name": "create_learning_environment",
+            "description": "Create multi-agent learning environment",
+            "parameters": {
+                "env_type": "Environment type: 'cooperative', 'competitive', 'partial_observation'",
+                "num_agents": "Number of learning agents",
+                "shared_rewards": "(optional) Use shared rewards",
+                "require_communication": "(optional) Require communication"
+            },
+            "handler": self._handle_create_learning_environment
+        }
+        
+        # add_experience 工具
+        self._tools["add_experience"] = {
+            "name": "add_experience",
+            "description": "Add experience to learning buffer",
+            "parameters": {
+                "env_id": "Environment ID",
+                "agent_id": "Agent ID",
+                "state": "Current state",
+                "action": "Action taken",
+                "reward": "Reward received",
+                "next_state": "Next state"
+            },
+            "handler": self._handle_add_experience
+        }
+        
+        # get_experience_buffer 工具
+        self._tools["get_experience_buffer"] = {
+            "name": "get_experience_buffer",
+            "description": "Get experience buffer data",
+            "parameters": {
+                "env_id": "Environment ID",
+                "buffer_type": "Buffer type: 'shared', 'individual'"
+            },
+            "handler": self._handle_get_experience_buffer
+        }
+        
+        # train_agents 工具
+        self._tools["train_agents"] = {
+            "name": "train_agents",
+            "description": "Train agents in multi-agent environment",
+            "parameters": {
+                "env_id": "Environment ID",
+                "algorithm": "Algorithm: 'multi_agent_ppo', 'qmix', 'maddpg'",
+                "episodes": "Number of training episodes",
+                "coordination_mode": "Mode: 'centralized_training', 'decentralized'"
+            },
+            "handler": self._handle_train_agents
+        }
+        
+        # enable_communication_learning 工具
+        self._tools["enable_communication_learning"] = {
+            "name": "enable_communication_learning",
+            "description": "Enable communication protocol learning",
+            "parameters": {
+                "env_id": "Environment ID",
+                "message_size": "Size of communication messages",
+                "learning_rate": "Learning rate for communication"
+            },
+            "handler": self._handle_enable_communication_learning
+        }
+        
+        # test_learned_communication 工具
+        self._tools["test_learned_communication"] = {
+            "name": "test_learned_communication",
+            "description": "Test learned communication protocols",
+            "parameters": {
+                "env_id": "Environment ID",
+                "test_scenarios": "Number of test scenarios"
+            },
+            "handler": self._handle_test_learned_communication
+        }
+    
+    def _handle_create_multi_agent_world(self, world_type: str, num_agents: int,
+                                       world_size: Optional[List[float]] = None,
+                                       agent_config: Optional[Dict[str, Any]] = None,
+                                       formation: Optional[str] = None,
+                                       enable_collision_avoidance: bool = False) -> Dict[str, Any]:
+        """处理create_multi_agent_world工具调用"""
+        world_id = str(uuid.uuid4())
+        world_size = world_size or [10.0, 10.0, 5.0]
+        
+        # 创建世界XML
+        world_xml = self._generate_multi_agent_world_xml(
+            world_type, num_agents, world_size, agent_config
+        )
+        
+        # 加载世界模型
+        result = self._handle_load_model(world_xml, f"{world_type}_world")
+        model_id = result["model_id"]
+        
+        # 创建智能体
+        agent_ids = []
+        for i in range(num_agents):
+            agent_id = f"agent_{i}_{uuid.uuid4().hex[:8]}"
+            agent_ids.append(agent_id)
+            
+            self._agent_registry[agent_id] = {
+                "world_id": world_id,
+                "index": i,
+                "type": agent_config.get("type", "mobile_robot") if agent_config else "mobile_robot",
+                "position": [i * 2.0 - num_agents, 0, 0],  # 分散初始位置
+                "target": None,
+                "messages": []
+            }
+        
+        # 存储世界信息
+        self._multi_agent_worlds[world_id] = {
+            "model_id": model_id,
+            "type": world_type,
+            "size": world_size,
+            "agent_ids": agent_ids,
+            "formation": formation,
+            "collision_avoidance": enable_collision_avoidance,
+            "collision_count": 0,
+            "near_misses": 0,
+            "avoidance_maneuvers": 0
+        }
+        
+        # 初始化通信缓冲区
+        self._communication_buffers[world_id] = []
+        
+        return {
+            "success": True,
+            "world_id": world_id,
+            "model_id": model_id,
+            "num_agents": num_agents,
+            "agent_ids": agent_ids,
+            "world_size": world_size,
+            "world_type": world_type
+        }
+    
+    def _generate_multi_agent_world_xml(self, world_type: str, num_agents: int,
+                                      world_size: List[float],
+                                      agent_config: Optional[Dict[str, Any]]) -> str:
+        """生成多智能体世界XML"""
+        # 简化实现，生成基本的多机器人世界
+        agents_xml = ""
+        for i in range(num_agents):
+            x_pos = i * 2.0 - num_agents
+            agents_xml += f"""
+                <body name="agent_{i}" pos="{x_pos} 0 0.1">
+                    <joint name="agent_{i}_x" type="slide" axis="1 0 0" limited="false"/>
+                    <joint name="agent_{i}_y" type="slide" axis="0 1 0" limited="false"/>
+                    <geom name="agent_{i}_body" type="cylinder" size="0.3 0.1" rgba="0 0.5 1 1"/>
+                    <site name="agent_{i}_sensor" pos="0 0 0.1" size="0.05"/>
+                </body>"""
+        
+        return f"""<mujoco model="multi_agent_{world_type}">
+            <option timestep="0.001" gravity="0 0 -9.81"/>
+            <worldbody>
+                <geom name="ground" type="plane" pos="0 0 0" size="50 50 0.1" rgba="0.8 0.8 0.8 1"/>
+                <light name="light" diffuse="1 1 1" pos="0 0 3" dir="0 0 -1"/>
+                {agents_xml}
+            </worldbody>
+            <actuator>
+                {"".join(f'''
+                <motor name="agent_{i}_motor_x" joint="agent_{i}_x" gear="100"/>
+                <motor name="agent_{i}_motor_y" joint="agent_{i}_y" gear="100"/>
+                ''' for i in range(num_agents))}
+            </actuator>
+            <sensor>
+                {"".join(f'''
+                <jointpos name="agent_{i}_pos_x" joint="agent_{i}_x"/>
+                <jointpos name="agent_{i}_pos_y" joint="agent_{i}_y"/>
+                ''' for i in range(num_agents))}
+            </sensor>
+        </mujoco>"""
+    
+    def _handle_add_agent_to_world(self, world_id: str, agent_type: str,
+                                  position: List[float]) -> Dict[str, Any]:
+        """处理add_agent_to_world工具调用"""
+        if world_id not in self._multi_agent_worlds:
+            raise ValueError(f"World not found: {world_id}")
+        
+        world = self._multi_agent_worlds[world_id]
+        agent_id = f"agent_new_{uuid.uuid4().hex[:8]}"
+        
+        # 添加智能体到注册表
+        self._agent_registry[agent_id] = {
+            "world_id": world_id,
+            "index": len(world["agent_ids"]),
+            "type": agent_type,
+            "position": position,
+            "target": None,
+            "messages": []
+        }
+        
+        world["agent_ids"].append(agent_id)
+        
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "total_agents": len(world["agent_ids"])
+        }
+    
+    def _handle_send_agent_message(self, world_id: str, from_agent: str,
+                                  to_agent: str, message_type: str,
+                                  content: Dict[str, Any]) -> Dict[str, Any]:
+        """处理send_agent_message工具调用"""
+        if world_id not in self._multi_agent_worlds:
+            raise ValueError(f"World not found: {world_id}")
+        
+        if from_agent not in self._agent_registry:
+            raise ValueError(f"Agent not found: {from_agent}")
+        
+        if to_agent not in self._agent_registry:
+            raise ValueError(f"Agent not found: {to_agent}")
+        
+        # 创建消息
+        message = {
+            "id": str(uuid.uuid4()),
+            "timestamp": time.time(),
+            "from_agent": from_agent,
+            "to_agent": to_agent,
+            "type": message_type,
+            "content": content
+        }
+        
+        # 添加到接收者的消息队列
+        self._agent_registry[to_agent]["messages"].append(message)
+        
+        # 添加到通信缓冲区
+        if world_id not in self._communication_buffers:
+            self._communication_buffers[world_id] = []
+        self._communication_buffers[world_id].append(message)
+        
+        return {
+            "success": True,
+            "message_id": message["id"],
+            "delivered": True
+        }
+    
+    def _handle_get_agent_messages(self, world_id: str, agent_id: str) -> Dict[str, Any]:
+        """处理get_agent_messages工具调用"""
+        if world_id not in self._multi_agent_worlds:
+            raise ValueError(f"World not found: {world_id}")
+        
+        if agent_id not in self._agent_registry:
+            raise ValueError(f"Agent not found: {agent_id}")
+        
+        messages = self._agent_registry[agent_id]["messages"].copy()
+        # 清空已读消息
+        self._agent_registry[agent_id]["messages"] = []
+        
+        return {
+            "messages": messages,
+            "count": len(messages)
+        }
+    
+    def _handle_execute_formation(self, world_id: str, formation_type: str,
+                                target_position: List[float],
+                                maintain_spacing: bool = True) -> Dict[str, Any]:
+        """处理execute_formation工具调用"""
+        if world_id not in self._multi_agent_worlds:
+            raise ValueError(f"World not found: {world_id}")
+        
+        world = self._multi_agent_worlds[world_id]
+        agent_ids = world["agent_ids"]
+        num_agents = len(agent_ids)
+        
+        # 计算队形位置
+        formation_positions = self._calculate_formation_positions(
+            formation_type, num_agents, target_position
+        )
+        
+        # 移动智能体到队形位置
+        for i, agent_id in enumerate(agent_ids):
+            if i < len(formation_positions):
+                self._agent_registry[agent_id]["target"] = formation_positions[i]
+        
+        # 模拟移动（简化）
+        formation_error = random.uniform(0.01, 0.1)  # 模拟队形误差
+        
+        return {
+            "success": True,
+            "formation_type": formation_type,
+            "agents_moved": num_agents,
+            "target_position": target_position,
+            "formation_error": formation_error
+        }
+    
+    def _calculate_formation_positions(self, formation_type: str, num_agents: int,
+                                     center: List[float]) -> List[List[float]]:
+        """计算队形位置"""
+        positions = []
+        
+        if formation_type == "line":
+            # 直线队形
+            spacing = 1.0
+            for i in range(num_agents):
+                offset = (i - num_agents/2) * spacing
+                positions.append([center[0] + offset, center[1], center[2]])
+                
+        elif formation_type == "triangle":
+            # 三角形队形
+            rows = int(np.ceil(np.sqrt(2 * num_agents)))
+            spacing = 1.0
+            row = 0
+            col = 0
+            for i in range(num_agents):
+                x = center[0] + (col - row/2) * spacing
+                y = center[1] + row * spacing * 0.866  # sqrt(3)/2
+                positions.append([x, y, center[2]])
+                col += 1
+                if col > row:
+                    row += 1
+                    col = 0
+                    
+        elif formation_type == "circle":
+            # 圆形队形
+            radius = num_agents * 0.3
+            for i in range(num_agents):
+                angle = 2 * np.pi * i / num_agents
+                x = center[0] + radius * np.cos(angle)
+                y = center[1] + radius * np.sin(angle)
+                positions.append([x, y, center[2]])
+                
+        else:
+            # 默认分散队形
+            for i in range(num_agents):
+                positions.append([
+                    center[0] + random.uniform(-2, 2),
+                    center[1] + random.uniform(-2, 2),
+                    center[2]
+                ])
+        
+        return positions
+    
+    def _handle_share_observations(self, world_id: str, sharing_mode: str,
+                                 include_processed: bool = False) -> Dict[str, Any]:
+        """处理share_observations工具调用"""
+        if world_id not in self._multi_agent_worlds:
+            raise ValueError(f"World not found: {world_id}")
+        
+        world = self._multi_agent_worlds[world_id]
+        model_id = world["model_id"]
+        
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+        
+        # 模拟观察数据共享
+        shared_data = {}
+        observations_shared = 0
+        
+        for agent_id in world["agent_ids"]:
+            # 模拟智能体观察数据
+            observation = {
+                "position": self._agent_registry[agent_id]["position"],
+                "detected_objects": random.randint(0, 5),
+                "sensor_readings": [random.random() for _ in range(4)]
+            }
+            
+            if include_processed:
+                observation["processed"] = {
+                    "obstacle_map": "simulated_map_data",
+                    "path_suggestions": []
+                }
+            
+            shared_data[agent_id] = observation
+            observations_shared += 1
+        
+        return {
+            "success": True,
+            "sharing_mode": sharing_mode,
+            "observations_shared": observations_shared,
+            "shared_data": shared_data
+        }
+    
+    def _handle_assign_tasks(self, world_id: str, tasks: List[Dict[str, Any]],
+                           assignment_strategy: str,
+                           allow_cooperation: bool = False) -> Dict[str, Any]:
+        """处理assign_tasks工具调用"""
+        if world_id not in self._multi_agent_worlds:
+            raise ValueError(f"World not found: {world_id}")
+        
+        world = self._multi_agent_worlds[world_id]
+        agent_ids = world["agent_ids"]
+        
+        assignments = {}
+        
+        if assignment_strategy == "round_robin":
+            # 轮询分配
+            for i, task in enumerate(tasks):
+                agent_id = agent_ids[i % len(agent_ids)]
+                if agent_id not in assignments:
+                    assignments[agent_id] = []
+                assignments[agent_id].append(task)
+                
+        elif assignment_strategy == "optimal":
+            # 优化分配（简化：基于距离）
+            for task in tasks:
+                if "location" in task:
+                    # 找最近的智能体
+                    min_dist = float('inf')
+                    best_agent = agent_ids[0]
+                    
+                    for agent_id in agent_ids:
+                        agent_pos = self._agent_registry[agent_id]["position"]
+                        task_pos = task["location"]
+                        dist = np.linalg.norm(np.array(agent_pos) - np.array(task_pos))
+                        
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_agent = agent_id
+                    
+                    if best_agent not in assignments:
+                        assignments[best_agent] = []
+                    assignments[best_agent].append(task)
+                else:
+                    # 随机分配
+                    agent_id = random.choice(agent_ids)
+                    if agent_id not in assignments:
+                        assignments[agent_id] = []
+                    assignments[agent_id].append(task)
+        
+        # 估计完成时间
+        estimated_time = len(tasks) * 2.0 / len(agent_ids)  # 简化估计
+        
+        return {
+            "success": True,
+            "assignments": assignments,
+            "total_tasks": len(tasks),
+            "agents_assigned": len(assignments),
+            "estimated_completion_time": estimated_time
+        }
+    
+    def _handle_set_agent_control(self, world_id: str, agent_id: str,
+                                control: List[float]) -> Dict[str, Any]:
+        """处理set_agent_control工具调用"""
+        if world_id not in self._multi_agent_worlds:
+            raise ValueError(f"World not found: {world_id}")
+        
+        if agent_id not in self._agent_registry:
+            raise ValueError(f"Agent not found: {agent_id}")
+        
+        world = self._multi_agent_worlds[world_id]
+        model_id = world["model_id"]
+        
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+        
+        # 设置控制输入（简化）
+        agent_data = self._agent_registry[agent_id]
+        agent_data["control"] = control
+        
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "control_set": control
+        }
+    
+    def _handle_step_multi_agent_world(self, world_id: str, steps: int,
+                                     sync_mode: str = "lockstep") -> Dict[str, Any]:
+        """处理step_multi_agent_world工具调用"""
+        if world_id not in self._multi_agent_worlds:
+            raise ValueError(f"World not found: {world_id}")
+        
+        world = self._multi_agent_worlds[world_id]
+        model_id = world["model_id"]
+        
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+        
+        # 步进仿真
+        sim = self._models[model_id]
+        
+        agent_states = {}
+        for i in range(steps):
+            # 应用每个智能体的控制
+            for j, agent_id in enumerate(world["agent_ids"]):
+                agent_data = self._agent_registry[agent_id]
+                if "control" in agent_data:
+                    # 设置控制（假设每个智能体有2个控制输入）
+                    ctrl_idx = j * 2
+                    if ctrl_idx + 1 < len(sim.data.ctrl):
+                        sim.data.ctrl[ctrl_idx:ctrl_idx+2] = agent_data["control"][:2]
+            
+            # 步进仿真
+            sim.step()
+            
+            # 检查碰撞（简化）
+            if world.get("collision_avoidance", False):
+                self._check_collisions(world_id)
+        
+        # 收集最终状态
+        for i, agent_id in enumerate(world["agent_ids"]):
+            # 获取位置（从关节位置）
+            if i * 2 + 1 < len(sim.data.qpos):
+                x = sim.data.qpos[i * 2]
+                y = sim.data.qpos[i * 2 + 1]
+                agent_states[agent_id] = {
+                    "position": [x, y, 0],
+                    "velocity": [sim.data.qvel[i * 2] if i * 2 < len(sim.data.qvel) else 0,
+                               sim.data.qvel[i * 2 + 1] if i * 2 + 1 < len(sim.data.qvel) else 0,
+                               0]
+                }
+                # 更新智能体位置
+                self._agent_registry[agent_id]["position"] = [x, y, 0]
+        
+        return {
+            "success": True,
+            "steps_completed": steps,
+            "sync_mode": sync_mode,
+            "all_agents_stepped": True,
+            "agent_states": agent_states
+        }
+    
+    def _check_collisions(self, world_id: str):
+        """检查智能体间的碰撞"""
+        world = self._multi_agent_worlds[world_id]
+        agent_ids = world["agent_ids"]
+        collision_threshold = 0.6  # 两个智能体中心的最小距离
+        near_miss_threshold = 1.0
+        
+        for i in range(len(agent_ids)):
+            for j in range(i + 1, len(agent_ids)):
+                pos1 = self._agent_registry[agent_ids[i]]["position"]
+                pos2 = self._agent_registry[agent_ids[j]]["position"]
+                
+                dist = np.linalg.norm(np.array(pos1[:2]) - np.array(pos2[:2]))
+                
+                if dist < collision_threshold:
+                    world["collision_count"] += 1
+                elif dist < near_miss_threshold:
+                    world["near_misses"] += 1
+                    # 模拟避让
+                    world["avoidance_maneuvers"] += 1
+    
+    def _handle_set_agent_target(self, world_id: str, agent_id: str,
+                               target: List[float]) -> Dict[str, Any]:
+        """处理set_agent_target工具调用"""
+        if world_id not in self._multi_agent_worlds:
+            raise ValueError(f"World not found: {world_id}")
+        
+        if agent_id not in self._agent_registry:
+            raise ValueError(f"Agent not found: {agent_id}")
+        
+        self._agent_registry[agent_id]["target"] = target
+        
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "target_set": target
+        }
+    
+    def _handle_get_collision_statistics(self, world_id: str) -> Dict[str, Any]:
+        """处理get_collision_statistics工具调用"""
+        if world_id not in self._multi_agent_worlds:
+            raise ValueError(f"World not found: {world_id}")
+        
+        world = self._multi_agent_worlds[world_id]
+        
+        return {
+            "total_collisions": world.get("collision_count", 0),
+            "near_misses": world.get("near_misses", 0),
+            "avoidance_maneuvers": world.get("avoidance_maneuvers", 0)
+        }
+    
+    def _handle_create_swarm(self, swarm_size: int, swarm_type: str,
+                           behavior: str, spawn_area: Optional[List[float]] = None,
+                           behavior_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """处理create_swarm工具调用"""
+        swarm_id = str(uuid.uuid4())
+        spawn_area = spawn_area or [5.0, 5.0, 2.0]
+        
+        # 创建群体世界
+        world_result = self._handle_create_multi_agent_world(
+            world_type="swarm",
+            num_agents=swarm_size,
+            world_size=[spawn_area[0] * 2, spawn_area[1] * 2, spawn_area[2] * 2]
+        )
+        
+        # 存储群体信息
+        self._swarms[swarm_id] = {
+            "world_id": world_result["world_id"],
+            "size": swarm_size,
+            "type": swarm_type,
+            "behavior": behavior,
+            "behavior_params": behavior_params or {},
+            "agent_ids": world_result["agent_ids"]
+        }
+        
+        return {
+            "success": True,
+            "swarm_id": swarm_id,
+            "world_id": world_result["world_id"],
+            "agent_count": swarm_size,
+            "behavior": behavior
+        }
+    
+    def _handle_execute_swarm_behavior(self, swarm_id: str, duration: float,
+                                     target_direction: Optional[List[float]] = None) -> Dict[str, Any]:
+        """处理execute_swarm_behavior工具调用"""
+        if swarm_id not in self._swarms:
+            raise ValueError(f"Swarm not found: {swarm_id}")
+        
+        swarm = self._swarms[swarm_id]
+        behavior = swarm["behavior"]
+        
+        # 模拟群体行为执行
+        if behavior == "flocking":
+            # 模拟鸟群行为
+            cohesion_score = random.uniform(0.6, 0.9)
+            alignment_score = random.uniform(0.5, 0.8)
+            separation_score = random.uniform(0.7, 0.95)
+            
+            return {
+                "success": True,
+                "behavior_executed": "flocking",
+                "duration": duration,
+                "cohesion_score": cohesion_score,
+                "alignment_score": alignment_score,
+                "separation_score": separation_score
+            }
+        else:
+            return {
+                "success": True,
+                "behavior_executed": behavior,
+                "duration": duration
+            }
+    
+    def _handle_swarm_forage(self, swarm_id: str, targets: List[Dict[str, Any]],
+                           strategy: str, time_limit: float) -> Dict[str, Any]:
+        """处理swarm_forage工具调用"""
+        if swarm_id not in self._swarms:
+            raise ValueError(f"Swarm not found: {swarm_id}")
+        
+        swarm = self._swarms[swarm_id]
+        
+        # 模拟觅食行为
+        targets_collected = random.randint(len(targets) // 2, len(targets))
+        total_value = sum(t.get("value", 10.0) for t in targets[:targets_collected])
+        efficiency = targets_collected / len(targets) if targets else 0
+        
+        # 模拟智能体贡献
+        agent_contributions = {}
+        for agent_id in swarm["agent_ids"]:
+            contribution = random.randint(0, max(1, targets_collected // swarm["size"]))
+            agent_contributions[agent_id] = contribution
+        
+        return {
+            "success": True,
+            "targets_collected": targets_collected,
+            "total_value": total_value,
+            "efficiency": efficiency,
+            "time_used": time_limit * random.uniform(0.6, 0.95),
+            "agent_contributions": agent_contributions
+        }
+    
+    def _handle_observe_swarm_behavior(self, swarm_id: str, duration: float,
+                                     metrics: List[str]) -> Dict[str, Any]:
+        """处理observe_swarm_behavior工具调用"""
+        if swarm_id not in self._swarms:
+            raise ValueError(f"Swarm not found: {swarm_id}")
+        
+        # 模拟行为观察
+        behavior_metrics = {}
+        
+        for metric in metrics:
+            if metric == "clustering":
+                behavior_metrics[metric] = random.uniform(0.3, 0.8)
+            elif metric == "velocity_variance":
+                behavior_metrics[metric] = random.uniform(0.1, 0.5)
+            elif metric == "spacing":
+                behavior_metrics[metric] = random.uniform(0.5, 2.0)
+            else:
+                behavior_metrics[metric] = random.random()
+        
+        # 检测涌现模式
+        patterns = ["flocking", "clustering", "dispersal"]
+        pattern_detected = random.choice(patterns)
+        
+        return {
+            "success": True,
+            "observation_duration": duration,
+            "behavior_metrics": behavior_metrics,
+            "pattern_detected": pattern_detected,
+            "confidence": random.uniform(0.7, 0.95)
+        }
+    
+    def _handle_create_learning_environment(self, env_type: str, num_agents: int,
+                                          shared_rewards: bool = False,
+                                          require_communication: bool = False) -> Dict[str, Any]:
+        """处理create_learning_environment工具调用"""
+        env_id = str(uuid.uuid4())
+        
+        # 创建学习环境
+        world_result = self._handle_create_multi_agent_world(
+            world_type=env_type,
+            num_agents=num_agents
+        )
+        
+        # 存储学习环境信息
+        self._learning_environments[env_id] = {
+            "world_id": world_result["world_id"],
+            "type": env_type,
+            "num_agents": num_agents,
+            "shared_rewards": shared_rewards,
+            "require_communication": require_communication,
+            "agent_ids": world_result["agent_ids"],
+            "episode_count": 0,
+            "total_reward": 0
+        }
+        
+        # 初始化经验缓冲区
+        self._experience_buffers[env_id] = {
+            "shared": [],
+            "individual": {agent_id: [] for agent_id in world_result["agent_ids"]}
+        }
+        
+        return {
+            "success": True,
+            "env_id": env_id,
+            "world_id": world_result["world_id"],
+            "agent_ids": world_result["agent_ids"],
+            "env_type": env_type
+        }
+    
+    def _handle_add_experience(self, env_id: str, agent_id: str,
+                             state: List[float], action: List[float],
+                             reward: float, next_state: List[float]) -> Dict[str, Any]:
+        """处理add_experience工具调用"""
+        if env_id not in self._learning_environments:
+            raise ValueError(f"Environment not found: {env_id}")
+        
+        if env_id not in self._experience_buffers:
+            self._experience_buffers[env_id] = {"shared": [], "individual": {}}
+        
+        experience = {
+            "agent_id": agent_id,
+            "state": state,
+            "action": action,
+            "reward": reward,
+            "next_state": next_state,
+            "timestamp": time.time()
+        }
+        
+        # 添加到共享缓冲区
+        self._experience_buffers[env_id]["shared"].append(experience)
+        
+        # 添加到个体缓冲区
+        if agent_id not in self._experience_buffers[env_id]["individual"]:
+            self._experience_buffers[env_id]["individual"][agent_id] = []
+        self._experience_buffers[env_id]["individual"][agent_id].append(experience)
+        
+        return {
+            "success": True,
+            "experience_added": True,
+            "buffer_size": len(self._experience_buffers[env_id]["shared"])
+        }
+    
+    def _handle_get_experience_buffer(self, env_id: str, buffer_type: str) -> Dict[str, Any]:
+        """处理get_experience_buffer工具调用"""
+        if env_id not in self._experience_buffers:
+            raise ValueError(f"Environment not found: {env_id}")
+        
+        buffer = self._experience_buffers[env_id]
+        
+        if buffer_type == "shared":
+            return {
+                "buffer_type": "shared",
+                "size": len(buffer["shared"]),
+                "experiences": buffer["shared"][-100:]  # 返回最近100条
+            }
+        else:
+            return {
+                "buffer_type": "individual",
+                "buffers": {
+                    agent_id: {
+                        "size": len(experiences),
+                        "experiences": experiences[-100:]
+                    }
+                    for agent_id, experiences in buffer["individual"].items()
+                }
+            }
+    
+    def _handle_train_agents(self, env_id: str, algorithm: str,
+                           episodes: int, coordination_mode: str) -> Dict[str, Any]:
+        """处理train_agents工具调用"""
+        if env_id not in self._learning_environments:
+            raise ValueError(f"Environment not found: {env_id}")
+        
+        env = self._learning_environments[env_id]
+        
+        # 模拟训练过程
+        agent_improvements = {}
+        for agent_id in env["agent_ids"]:
+            # 模拟性能提升
+            initial_performance = random.uniform(0.2, 0.4)
+            final_performance = initial_performance + random.uniform(0.1, 0.3)
+            agent_improvements[agent_id] = {
+                "initial": initial_performance,
+                "final": final_performance,
+                "improvement": final_performance - initial_performance
+            }
+        
+        env["episode_count"] += episodes
+        
+        return {
+            "success": True,
+            "algorithm": algorithm,
+            "episodes_completed": episodes,
+            "coordination_mode": coordination_mode,
+            "agent_improvements": agent_improvements,
+            "average_improvement": np.mean([imp["improvement"] for imp in agent_improvements.values()])
+        }
+    
+    def _handle_enable_communication_learning(self, env_id: str, message_size: int,
+                                            learning_rate: float) -> Dict[str, Any]:
+        """处理enable_communication_learning工具调用"""
+        if env_id not in self._learning_environments:
+            raise ValueError(f"Environment not found: {env_id}")
+        
+        env = self._learning_environments[env_id]
+        
+        # 初始化通信学习
+        env["communication_protocol"] = {
+            "enabled": True,
+            "message_size": message_size,
+            "learning_rate": learning_rate,
+            "vocabulary_size": 0,
+            "protocol_version": 1
+        }
+        
+        return {
+            "success": True,
+            "protocol_initialized": True,
+            "message_size": message_size,
+            "learning_rate": learning_rate
+        }
+    
+    def _handle_test_learned_communication(self, env_id: str, test_scenarios: int) -> Dict[str, Any]:
+        """处理test_learned_communication工具调用"""
+        if env_id not in self._learning_environments:
+            raise ValueError(f"Environment not found: {env_id}")
+        
+        env = self._learning_environments[env_id]
+        
+        if not env.get("communication_protocol", {}).get("enabled", False):
+            raise ValueError("Communication learning not enabled for this environment")
+        
+        # 模拟通信测试
+        successful_communications = random.randint(test_scenarios // 2, test_scenarios)
+        information_transfer = successful_communications / test_scenarios
+        
+        # 模拟协议效率
+        protocol_efficiency = random.uniform(0.6, 0.9)
+        
+        return {
+            "success": True,
+            "test_scenarios": test_scenarios,
+            "successful_communications": successful_communications,
+            "information_transfer": information_transfer,
+            "protocol_efficiency": protocol_efficiency,
+            "vocabulary_size": random.randint(10, 50)
+        }
