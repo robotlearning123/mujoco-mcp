@@ -1,13 +1,17 @@
 """
-MuJoCo MCP 简单服务器实现 (v0.3.0)
-包含基本的MCP功能、模型加载、仿真控制、增强状态查询、基础控制和可视化
+MuJoCo MCP 简单服务器实现 (v0.5.1)
+包含基本的MCP功能、模型加载、仿真控制、增强状态查询、基础控制、可视化和性能监控
 """
 import logging
 import uuid
 import base64
 import io
 import random
-from typing import Dict, List, Any, Optional
+import time
+import psutil
+import threading
+from collections import defaultdict, deque
+from typing import Dict, List, Any, Optional, Tuple
 import numpy as np
 from .simulation import MuJoCoSimulation
 
@@ -18,7 +22,7 @@ class MuJoCoMCPServer:
     def __init__(self):
         """初始化服务器"""
         self.name = "mujoco-mcp"
-        self.version = "0.5.0"
+        self.version = "0.5.1"
         self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations through natural language commands and structured tools"
         self.logger = logging.getLogger("mujoco_mcp.simple_server")
         
@@ -44,10 +48,42 @@ class MuJoCoMCPServer:
         self._robot_designs = {}  # design_id -> design_data
         self._component_library = self._init_component_library()
         
+        # 性能监控 - v0.5.1
+        self._start_time = time.time()
+        self._total_requests = 0
+        self._tool_metrics = defaultdict(lambda: {"count": 0, "total_time": 0.0, "max_time": 0.0})
+        self._simulation_metrics = {}  # model_id -> metrics
+        self._performance_tracking_enabled = False
+        self._performance_history = deque(maxlen=3600)  # 1 hour of second-by-second data
+        self._performance_thresholds = {
+            "max_step_time": 0.01,  # 10ms
+            "max_memory_mb": 2000,   # 2GB
+            "max_cpu_percent": 90    # 90%
+        }
+        self._performance_alerts = []
+        self._resource_limits = {
+            "max_models": 100,
+            "max_memory_mb": 4000,
+            "max_step_rate": 100000
+        }
+        self._auto_cleanup_enabled = False
+        self._auto_cleanup_config = {
+            "idle_timeout": 300,  # 5 minutes
+            "max_age": 3600      # 1 hour
+        }
+        self._model_cache = {}  # xml_hash -> compiled_model
+        self._profile_data = {}  # profile_id -> profile_data
+        
+        # 启动性能监控线程
+        self._monitoring_thread = threading.Thread(target=self._monitor_performance, daemon=True)
+        self._monitoring_thread.start()
+        
         # 注册标准MCP工具
         self._register_standard_tools()
         # 注册MuJoCo工具
         self._register_mujoco_tools()
+        # 注册性能监控工具
+        self._register_performance_tools()
         
     def _register_standard_tools(self):
         """注册标准的MCP工具"""
@@ -530,6 +566,167 @@ class MuJoCoMCPServer:
             },
             "handler": self._handle_check_compatibility
         }
+    
+    def _register_performance_tools(self):
+        """注册性能监控工具 - v0.5.1"""
+        # get_performance_metrics 工具
+        self._tools["get_performance_metrics"] = {
+            "name": "get_performance_metrics",
+            "description": "Get current performance metrics including uptime, request count, and resource usage",
+            "parameters": {},
+            "handler": self._handle_get_performance_metrics
+        }
+        
+        # get_simulation_metrics 工具
+        self._tools["get_simulation_metrics"] = {
+            "name": "get_simulation_metrics",
+            "description": "Get performance metrics for a specific simulation",
+            "parameters": {
+                "model_id": "ID of the model to get metrics for"
+            },
+            "handler": self._handle_get_simulation_metrics
+        }
+        
+        # enable_performance_tracking 工具
+        self._tools["enable_performance_tracking"] = {
+            "name": "enable_performance_tracking",
+            "description": "Enable or disable detailed performance tracking",
+            "parameters": {
+                "enabled": "Whether to enable performance tracking"
+            },
+            "handler": self._handle_enable_performance_tracking
+        }
+        
+        # get_tool_metrics 工具
+        self._tools["get_tool_metrics"] = {
+            "name": "get_tool_metrics",
+            "description": "Get performance metrics for individual tools",
+            "parameters": {},
+            "handler": self._handle_get_tool_metrics
+        }
+        
+        # get_memory_usage 工具
+        self._tools["get_memory_usage"] = {
+            "name": "get_memory_usage",
+            "description": "Get detailed memory usage information",
+            "parameters": {},
+            "handler": self._handle_get_memory_usage
+        }
+        
+        # get_performance_history 工具
+        self._tools["get_performance_history"] = {
+            "name": "get_performance_history",
+            "description": "Get historical performance data",
+            "parameters": {
+                "duration": "(optional) Duration in seconds to look back (default: 60)",
+                "resolution": "(optional) Data resolution: 'second', 'minute', 'hour' (default: 'second')"
+            },
+            "handler": self._handle_get_performance_history
+        }
+        
+        # set_performance_thresholds 工具
+        self._tools["set_performance_thresholds"] = {
+            "name": "set_performance_thresholds",
+            "description": "Set performance alert thresholds",
+            "parameters": {
+                "max_step_time": "(optional) Maximum simulation step time in seconds",
+                "max_memory_mb": "(optional) Maximum memory usage in MB",
+                "max_cpu_percent": "(optional) Maximum CPU usage percentage"
+            },
+            "handler": self._handle_set_performance_thresholds
+        }
+        
+        # get_performance_alerts 工具
+        self._tools["get_performance_alerts"] = {
+            "name": "get_performance_alerts",
+            "description": "Get current performance alerts",
+            "parameters": {},
+            "handler": self._handle_get_performance_alerts
+        }
+        
+        # clear_performance_data 工具
+        self._tools["clear_performance_data"] = {
+            "name": "clear_performance_data",
+            "description": "Clear performance tracking data",
+            "parameters": {},
+            "handler": self._handle_clear_performance_data
+        }
+        
+        # batch_step 工具
+        self._tools["batch_step"] = {
+            "name": "batch_step",
+            "description": "Step multiple simulations in batch for better performance",
+            "parameters": {
+                "model_ids": "List of model IDs to step",
+                "steps": "Number of steps for each simulation"
+            },
+            "handler": self._handle_batch_step
+        }
+        
+        # run_parallel 工具
+        self._tools["run_parallel"] = {
+            "name": "run_parallel",
+            "description": "Run multiple simulations in parallel",
+            "parameters": {
+                "model_ids": "List of model IDs to run",
+                "duration": "Simulation duration in seconds",
+                "timestep": "(optional) Timestep for simulation"
+            },
+            "handler": self._handle_run_parallel
+        }
+        
+        # start_profiling 工具
+        self._tools["start_profiling"] = {
+            "name": "start_profiling",
+            "description": "Start performance profiling",
+            "parameters": {
+                "duration": "Profiling duration in seconds",
+                "include_memory": "(optional) Include memory profiling"
+            },
+            "handler": self._handle_start_profiling
+        }
+        
+        # get_profile_results 工具
+        self._tools["get_profile_results"] = {
+            "name": "get_profile_results",
+            "description": "Get profiling results",
+            "parameters": {
+                "profile_id": "ID of the profiling session"
+            },
+            "handler": self._handle_get_profile_results
+        }
+        
+        # set_resource_limits 工具
+        self._tools["set_resource_limits"] = {
+            "name": "set_resource_limits",
+            "description": "Set resource usage limits",
+            "parameters": {
+                "max_models": "(optional) Maximum number of models",
+                "max_memory_mb": "(optional) Maximum memory usage in MB",
+                "max_step_rate": "(optional) Maximum steps per second"
+            },
+            "handler": self._handle_set_resource_limits
+        }
+        
+        # get_resource_usage 工具
+        self._tools["get_resource_usage"] = {
+            "name": "get_resource_usage",
+            "description": "Get current resource usage",
+            "parameters": {},
+            "handler": self._handle_get_resource_usage
+        }
+        
+        # enable_auto_cleanup 工具
+        self._tools["enable_auto_cleanup"] = {
+            "name": "enable_auto_cleanup",
+            "description": "Enable automatic resource cleanup",
+            "parameters": {
+                "enabled": "Whether to enable auto cleanup",
+                "idle_timeout": "(optional) Idle timeout in seconds",
+                "max_age": "(optional) Maximum model age in seconds"
+            },
+            "handler": self._handle_enable_auto_cleanup
+        }
         
     def get_server_info(self) -> Dict[str, Any]:
         """获取服务器信息"""
@@ -546,7 +743,8 @@ class MuJoCoMCPServer:
                 "natural_language",
                 "model_generation",
                 "parameter_optimization",
-                "robot_designer"
+                "robot_designer",
+                "performance_monitoring"
             ]
         }
         
@@ -579,10 +777,24 @@ class MuJoCoMCPServer:
         tool = self._tools[tool_name]
         handler = tool["handler"]
         
+        # 性能跟踪
+        self._total_requests += 1
+        start_time = time.time()
+        
         # 调用处理器
         if callable(handler):
             try:
-                return handler(**parameters) if parameters else handler()
+                result = handler(**parameters) if parameters else handler()
+                
+                # 记录性能指标
+                if self._performance_tracking_enabled:
+                    elapsed = time.time() - start_time
+                    metrics = self._tool_metrics[tool_name]
+                    metrics["count"] += 1
+                    metrics["total_time"] += elapsed
+                    metrics["max_time"] = max(metrics["max_time"], elapsed)
+                
+                return result
             except TypeError as e:
                 # 转换TypeError为ValueError以提供更好的错误消息
                 if "missing" in str(e) and "required" in str(e):
@@ -628,6 +840,13 @@ class MuJoCoMCPServer:
             # 存储模型
             self._models[model_id] = sim
             self._model_names[model_id] = name or f"model_{model_id[:8]}"
+            
+            # 初始化性能指标 - v0.5.1
+            self._simulation_metrics[model_id] = {
+                "total_steps": 0,
+                "total_step_time": 0.0,
+                "create_time": time.time()
+            }
             
             # 获取模型信息
             model_info = sim.get_model_info()
@@ -693,9 +912,30 @@ class MuJoCoMCPServer:
         # 获取仿真实例
         sim = self._models[model_id]
         
+        # 记录开始时间 - v0.5.1
+        start_time = time.time()
+        
         # 步进仿真
         for _ in range(steps):
             sim.step()
+        
+        # 更新性能指标 - v0.5.1
+        elapsed = time.time() - start_time
+        if model_id in self._simulation_metrics:
+            metrics = self._simulation_metrics[model_id]
+            metrics["total_steps"] += steps
+            metrics["total_step_time"] += elapsed
+            metrics["last_step_time"] = time.time()
+            
+            # 检查步进时间阈值
+            avg_step_time = elapsed / steps
+            if avg_step_time > self._performance_thresholds["max_step_time"]:
+                self._performance_alerts.append({
+                    "type": "step_time",
+                    "message": f"Step time ({avg_step_time:.4f}s) exceeds threshold",
+                    "model_id": model_id,
+                    "timestamp": time.time()
+                })
             
         return {
             "success": True,
@@ -3460,3 +3700,422 @@ class MuJoCoMCPServer:
             "compatible": compatible,
             "reasons": reasons
         }
+    
+    # ========== 性能监控处理器 - v0.5.1 ==========
+    
+    def _monitor_performance(self):
+        """性能监控线程"""
+        while True:
+            try:
+                # 收集当前性能数据
+                current_metrics = {
+                    "timestamp": time.time(),
+                    "cpu_percent": psutil.cpu_percent(interval=0.1),
+                    "memory_mb": psutil.Process().memory_info().rss / 1024 / 1024,
+                    "active_models": len(self._models),
+                    "total_requests": self._total_requests
+                }
+                
+                # 添加到历史记录
+                self._performance_history.append(current_metrics)
+                
+                # 检查阈值
+                if current_metrics["memory_mb"] > self._performance_thresholds["max_memory_mb"]:
+                    self._performance_alerts.append({
+                        "type": "memory",
+                        "message": f"Memory usage ({current_metrics['memory_mb']:.1f}MB) exceeds threshold",
+                        "timestamp": time.time()
+                    })
+                
+                if current_metrics["cpu_percent"] > self._performance_thresholds["max_cpu_percent"]:
+                    self._performance_alerts.append({
+                        "type": "cpu",
+                        "message": f"CPU usage ({current_metrics['cpu_percent']:.1f}%) exceeds threshold",
+                        "timestamp": time.time()
+                    })
+                
+                # 自动清理
+                if self._auto_cleanup_enabled:
+                    self._perform_auto_cleanup()
+                
+                # 休眠1秒
+                time.sleep(1)
+            except Exception as e:
+                self.logger.error(f"Error in performance monitoring: {e}")
+                time.sleep(5)  # 错误后等待更长时间
+    
+    def _perform_auto_cleanup(self):
+        """执行自动清理"""
+        current_time = time.time()
+        models_to_remove = []
+        
+        for model_id, sim in self._models.items():
+            if model_id not in self._simulation_metrics:
+                continue
+                
+            metrics = self._simulation_metrics[model_id]
+            
+            # 检查空闲时间
+            if "last_step_time" in metrics:
+                idle_time = current_time - metrics["last_step_time"]
+                if idle_time > self._auto_cleanup_config["idle_timeout"]:
+                    models_to_remove.append(model_id)
+                    continue
+            
+            # 检查年龄
+            if "create_time" in metrics:
+                age = current_time - metrics["create_time"]
+                if age > self._auto_cleanup_config["max_age"]:
+                    models_to_remove.append(model_id)
+        
+        # 移除模型
+        for model_id in models_to_remove:
+            if hasattr(self._models[model_id], 'close'):
+                self._models[model_id].close()
+            del self._models[model_id]
+            del self._model_names[model_id]
+            if model_id in self._simulation_metrics:
+                del self._simulation_metrics[model_id]
+    
+    def _handle_get_performance_metrics(self) -> Dict[str, Any]:
+        """处理get_performance_metrics工具调用"""
+        uptime = time.time() - self._start_time
+        
+        # 获取内存使用
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        
+        return {
+            "uptime": uptime,
+            "total_requests": self._total_requests,
+            "active_simulations": len(self._models),
+            "memory_usage": {
+                "rss_mb": memory_info.rss / 1024 / 1024,
+                "vms_mb": memory_info.vms / 1024 / 1024
+            },
+            "cpu_percent": psutil.cpu_percent(interval=0.1),
+            "tool_count": len(self._tools)
+        }
+    
+    def _handle_get_simulation_metrics(self, model_id: str) -> Dict[str, Any]:
+        """处理get_simulation_metrics工具调用"""
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+        
+        # 初始化metrics如果不存在
+        if model_id not in self._simulation_metrics:
+            self._simulation_metrics[model_id] = {
+                "total_steps": 0,
+                "total_step_time": 0.0,
+                "create_time": time.time()
+            }
+        
+        metrics = self._simulation_metrics[model_id]
+        sim = self._models[model_id]
+        
+        # 计算实时因子
+        real_time_factor = 0.0
+        if metrics["total_steps"] > 0 and metrics["total_step_time"] > 0:
+            sim_time = metrics["total_steps"] * sim.model.opt.timestep
+            real_time_factor = sim_time / metrics["total_step_time"]
+        
+        return {
+            "total_steps": metrics["total_steps"],
+            "average_step_time": metrics["total_step_time"] / max(metrics["total_steps"], 1),
+            "real_time_factor": real_time_factor,
+            "model_info": {
+                "nq": sim.model.nq,
+                "nv": sim.model.nv,
+                "nu": sim.model.nu,
+                "timestep": sim.model.opt.timestep
+            }
+        }
+    
+    def _handle_enable_performance_tracking(self, enabled: bool) -> Dict[str, Any]:
+        """处理enable_performance_tracking工具调用"""
+        self._performance_tracking_enabled = enabled
+        
+        return {
+            "success": True,
+            "tracking_enabled": self._performance_tracking_enabled
+        }
+    
+    def _handle_get_tool_metrics(self) -> Dict[str, Any]:
+        """处理get_tool_metrics工具调用"""
+        tool_calls = {}
+        
+        for tool_name, metrics in self._tool_metrics.items():
+            if metrics["count"] > 0:
+                tool_calls[tool_name] = {
+                    "count": metrics["count"],
+                    "average_time": metrics["total_time"] / metrics["count"],
+                    "max_time": metrics["max_time"],
+                    "total_time": metrics["total_time"]
+                }
+        
+        return {"tool_calls": tool_calls}
+    
+    def _handle_get_memory_usage(self) -> Dict[str, Any]:
+        """处理get_memory_usage工具调用"""
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        
+        # 计算仿真内存
+        simulation_memory = 0
+        for model_id, sim in self._models.items():
+            # 估算每个仿真的内存使用
+            if hasattr(sim, 'model') and sim.model:
+                # 基于模型大小的粗略估算
+                simulation_memory += (sim.model.nq + sim.model.nv) * 8 * 1000  # 假设每个状态变量1KB
+        
+        return {
+            "total_memory": memory_info.rss / 1024 / 1024,
+            "simulation_memory": simulation_memory / 1024 / 1024,
+            "model_count": len(self._models),
+            "memory_per_model": simulation_memory / max(len(self._models), 1) / 1024 / 1024
+        }
+    
+    def _handle_get_performance_history(self, duration: int = 60, resolution: str = "second") -> Dict[str, Any]:
+        """处理get_performance_history工具调用"""
+        current_time = time.time()
+        cutoff_time = current_time - duration
+        
+        # 过滤历史数据
+        history = []
+        for entry in self._performance_history:
+            if entry["timestamp"] >= cutoff_time:
+                history.append({
+                    "timestamp": entry["timestamp"],
+                    "metrics": {
+                        "cpu_percent": entry["cpu_percent"],
+                        "memory_mb": entry["memory_mb"],
+                        "active_models": entry["active_models"],
+                        "total_requests": entry["total_requests"]
+                    }
+                })
+        
+        return {"history": history, "resolution": resolution}
+    
+    def _handle_set_performance_thresholds(self, 
+                                         max_step_time: Optional[float] = None,
+                                         max_memory_mb: Optional[float] = None,
+                                         max_cpu_percent: Optional[float] = None) -> Dict[str, Any]:
+        """处理set_performance_thresholds工具调用"""
+        if max_step_time is not None:
+            self._performance_thresholds["max_step_time"] = max_step_time
+        if max_memory_mb is not None:
+            self._performance_thresholds["max_memory_mb"] = max_memory_mb
+        if max_cpu_percent is not None:
+            self._performance_thresholds["max_cpu_percent"] = max_cpu_percent
+        
+        return {
+            "success": True,
+            "thresholds": self._performance_thresholds
+        }
+    
+    def _handle_get_performance_alerts(self) -> Dict[str, Any]:
+        """处理get_performance_alerts工具调用"""
+        # 只返回最近的警报
+        recent_alerts = []
+        current_time = time.time()
+        
+        for alert in self._performance_alerts[-100:]:  # 最多100个警报
+            if current_time - alert["timestamp"] < 3600:  # 1小时内
+                recent_alerts.append(alert)
+        
+        return {"alerts": recent_alerts}
+    
+    def _handle_clear_performance_data(self) -> Dict[str, Any]:
+        """处理clear_performance_data工具调用"""
+        # 重置性能数据
+        self._total_requests = 0
+        self._tool_metrics.clear()
+        self._performance_history.clear()
+        self._performance_alerts.clear()
+        
+        # 重置仿真指标
+        for model_id in self._simulation_metrics:
+            self._simulation_metrics[model_id] = {
+                "total_steps": 0,
+                "total_step_time": 0.0,
+                "create_time": time.time()
+            }
+        
+        return {"success": True}
+    
+    def _handle_batch_step(self, model_ids: List[str], steps: int) -> Dict[str, Any]:
+        """处理batch_step工具调用"""
+        results = []
+        
+        for model_id in model_ids:
+            try:
+                result = self._handle_step_simulation(model_id, steps)
+                results.append(result)
+            except Exception as e:
+                results.append({
+                    "success": False,
+                    "model_id": model_id,
+                    "error": str(e)
+                })
+        
+        return {
+            "success": all(r.get("success", False) for r in results),
+            "results": results
+        }
+    
+    def _handle_run_parallel(self, model_ids: List[str], duration: float, 
+                           timestep: Optional[float] = None) -> Dict[str, Any]:
+        """处理run_parallel工具调用"""
+        import concurrent.futures
+        
+        def run_simulation(model_id: str) -> Dict[str, Any]:
+            """运行单个仿真"""
+            sim = self._models[model_id]
+            if timestep:
+                sim.model.opt.timestep = timestep
+            
+            steps = int(duration / sim.model.opt.timestep)
+            start_time = time.time()
+            
+            for _ in range(steps):
+                sim.step()
+            
+            return {
+                "model_id": model_id,
+                "steps": steps,
+                "elapsed": time.time() - start_time,
+                "final_time": sim.data.time
+            }
+        
+        # 并行运行
+        final_states = {}
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = {executor.submit(run_simulation, mid): mid for mid in model_ids}
+            
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                final_states[result["model_id"]] = result
+        
+        return {
+            "success": True,
+            "final_states": final_states
+        }
+    
+    def _handle_start_profiling(self, duration: float, include_memory: bool = False) -> Dict[str, Any]:
+        """处理start_profiling工具调用"""
+        import cProfile
+        import pstats
+        import io
+        
+        profile_id = str(uuid.uuid4())[:8]
+        
+        # 创建profiler
+        profiler = cProfile.Profile()
+        
+        # 启动profiling
+        self._profile_data[profile_id] = {
+            "profiler": profiler,
+            "start_time": time.time(),
+            "duration": duration,
+            "include_memory": include_memory,
+            "status": "running"
+        }
+        
+        # 在后台线程中运行
+        def run_profiling():
+            profiler.enable()
+            time.sleep(duration)
+            profiler.disable()
+            
+            # 分析结果
+            s = io.StringIO()
+            ps = pstats.Stats(profiler, stream=s).sort_stats('cumulative')
+            ps.print_stats(20)  # Top 20 functions
+            
+            self._profile_data[profile_id]["status"] = "completed"
+            self._profile_data[profile_id]["results"] = s.getvalue()
+        
+        threading.Thread(target=run_profiling, daemon=True).start()
+        
+        return {
+            "success": True,
+            "profile_id": profile_id
+        }
+    
+    def _handle_get_profile_results(self, profile_id: str) -> Dict[str, Any]:
+        """处理get_profile_results工具调用"""
+        if profile_id not in self._profile_data:
+            raise ValueError(f"Profile not found: {profile_id}")
+        
+        profile = self._profile_data[profile_id]
+        
+        if profile["status"] == "running":
+            return {
+                "status": "running",
+                "elapsed": time.time() - profile["start_time"]
+            }
+        
+        # 解析结果
+        results = profile["results"]
+        hotspots = []
+        
+        # 简单解析热点
+        lines = results.split('\n')
+        for line in lines[5:15]:  # 跳过头部，获取前10个热点
+            if line.strip():
+                hotspots.append(line.strip())
+        
+        return {
+            "status": "completed",
+            "hotspots": hotspots,
+            "memory_allocations": [] if not profile["include_memory"] else ["Memory profiling not implemented"]
+        }
+    
+    def _handle_set_resource_limits(self, max_models: Optional[int] = None,
+                                  max_memory_mb: Optional[float] = None,
+                                  max_step_rate: Optional[int] = None) -> Dict[str, Any]:
+        """处理set_resource_limits工具调用"""
+        if max_models is not None:
+            self._resource_limits["max_models"] = max_models
+        if max_memory_mb is not None:
+            self._resource_limits["max_memory_mb"] = max_memory_mb
+        if max_step_rate is not None:
+            self._resource_limits["max_step_rate"] = max_step_rate
+        
+        return {
+            "success": True,
+            "limits": self._resource_limits
+        }
+    
+    def _handle_get_resource_usage(self) -> Dict[str, Any]:
+        """处理get_resource_usage工具调用"""
+        # 计算步进率
+        total_steps = sum(m.get("total_steps", 0) for m in self._simulation_metrics.values())
+        uptime = time.time() - self._start_time
+        step_rate = total_steps / max(uptime, 1)
+        
+        return {
+            "cpu_percent": psutil.cpu_percent(interval=0.1),
+            "memory_mb": psutil.Process().memory_info().rss / 1024 / 1024,
+            "model_count": len(self._models),
+            "step_rate": step_rate,
+            "limits": self._resource_limits
+        }
+    
+    def _handle_enable_auto_cleanup(self, enabled: bool,
+                                  idle_timeout: Optional[float] = None,
+                                  max_age: Optional[float] = None) -> Dict[str, Any]:
+        """处理enable_auto_cleanup工具调用"""
+        self._auto_cleanup_enabled = enabled
+        
+        if idle_timeout is not None:
+            self._auto_cleanup_config["idle_timeout"] = idle_timeout
+        if max_age is not None:
+            self._auto_cleanup_config["max_age"] = max_age
+        
+        return {
+            "success": True,
+            "enabled": self._auto_cleanup_enabled,
+            "config": self._auto_cleanup_config
+        }
+    

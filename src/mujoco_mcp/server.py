@@ -141,6 +141,7 @@ class MuJoCoServer:
                 "model_generation": True,
                 "parameter_optimization": True,
                 "robot_designer": True,
+                "performance_monitoring": True,
                 "fastmcp": {
                     "enabled": True,
                     "version": "1.0"
