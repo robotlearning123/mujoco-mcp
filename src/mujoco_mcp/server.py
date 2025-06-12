@@ -257,9 +257,9 @@ class MuJoCoServer:
         @self.mcp.tool()
         async def nl_command(command: str, model_id: Optional[str] = None) -> Dict[str, Any]:
             """Execute natural language command"""
-            return self._impl._handle_nl_command(
+            return self._impl._handle_execute_command(
                 command=command,
-                model_id=model_id
+                context={"model_id": model_id} if model_id else {}
             )
         
         # Design robot
@@ -395,11 +395,27 @@ MuJoCoMCPServer = MuJoCoServer
 
 
 async def main():
-    """Main entry point"""
+    """Main entry point - use __main__.py for CLI instead"""
+    import warnings
+    warnings.warn(
+        "Direct execution of server.py is deprecated. Use 'python -m mujoco_mcp' instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     server = MuJoCoServer()
     await server.initialize()
     await server.run()
 
 
+# Only run if directly executed (not imported)
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Check if we're in an async environment
+    try:
+        asyncio.get_running_loop()
+        print("Error: Cannot run server directly in an async environment.")
+        print("Use 'python -m mujoco_mcp' for CLI usage.")
+        import sys
+        sys.exit(1)
+    except RuntimeError:
+        # No event loop running, safe to start one
+        asyncio.run(main())

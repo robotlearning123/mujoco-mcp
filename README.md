@@ -33,6 +33,16 @@ pip install -e .
 ./tools/install.bat # Windows
 ```
 
+### Configuration for AI Tools
+
+MuJoCo MCP includes configuration files for popular AI development tools:
+
+- **Claude Desktop**: Use `claude_desktop_config.json`
+- **Cursor**: Automatically uses `.cursorrules`
+- **VS Code**: See `CONFIG.md` for setup
+
+For detailed configuration instructions, see [CONFIG.md](CONFIG.md).
+
 ### Basic Usage
 
 ```python
