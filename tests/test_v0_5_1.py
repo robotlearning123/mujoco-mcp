@@ -314,10 +314,10 @@ class TestServerVersion051:
         await server.initialize()
         
         try:
-            assert server.version == "0.5.1"
+            assert server.version == "0.6.0"
             
             info = server.get_server_info()
-            assert info["version"] == "0.5.1"
+            assert info["version"] == "0.6.0"
         finally:
             await server.cleanup()
     

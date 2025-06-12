@@ -171,4 +171,256 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Authorization overhead <1ms per request
 - Memory usage <100MB for typical simulations
 
-[0.1.0]: https://github.com/yourusername/mujoco-mcp/releases/tag/v0.1.0
+[0.1.0]: https://github.com/mujoco-mcp/mujoco-mcp/releases/tag/v0.1.0
+## [0.6.0] - 2025-01-06
+
+### Added
+- ✅ Reinforcement Learning Integration:
+  - `create_rl_environment` - Create RL environments (pendulum, cartpole, reacher, walker, ant, humanoid, hopper)
+  - `reset_rl_environment` - Reset environment to initial state
+  - `step_rl_environment` - Step environment with actions
+  - `get_rl_state` - Get current RL environment state
+  - `get_episode_info` - Get episode information
+  - `list_reward_functions` - List available reward functions
+- ✅ Policy Management:
+  - `register_policy` - Register policies (random, neural, linear, custom)
+  - `execute_policy` - Execute policy to get actions
+  - `update_policy` - Update policy parameters
+- ✅ Training Infrastructure:
+  - `create_training_session` - Create training sessions
+  - `run_training_steps` - Execute training steps
+  - `evaluate_policy` - Evaluate policy performance
+  - `save_checkpoint` - Save training checkpoints
+  - `load_checkpoint` - Load training checkpoints
+  - `get_training_metrics` - Retrieve training metrics
+- ✅ Multiple RL algorithms support (PPO, DQN, SAC, TD3)
+- ✅ Customizable reward functions with parameterization
+
+### Changed
+- Updated version to 0.6.0
+- Enhanced server capabilities with reinforcement learning
+
+### Testing
+- Created comprehensive RL test suite (test_v0_6_0.py)
+- All 20 tests passing
+- Added reinforcement_learning_demo.py
+
+## [0.5.2] - 2025-01-06
+
+### Added
+- ✅ Multi-Agent Coordination:
+  - `create_multi_agent_world` - Create multi-agent simulation worlds
+  - `add_agent_to_world` - Add agents dynamically
+  - `send_agent_message` - Agent-to-agent communication
+  - `get_agent_messages` - Retrieve agent messages
+  - `execute_formation` - Coordinated formation movement
+  - `share_observations` - Share sensor data between agents
+  - `assign_tasks` - Distribute tasks among agents
+  - `set_agent_control` - Individual agent control
+  - `step_multi_agent_world` - Synchronized world stepping
+  - `set_agent_target` - Set navigation targets
+  - `get_collision_statistics` - Collision detection stats
+- ✅ Swarm Behaviors:
+  - `create_swarm` - Create agent swarms
+  - `execute_swarm_behavior` - Execute swarm behaviors (flocking, foraging)
+  - `swarm_forage` - Swarm foraging tasks
+  - `observe_swarm_behavior` - Analyze emergent behaviors
+- ✅ Multi-Agent Learning:
+  - `create_learning_environment` - Multi-agent learning environments
+  - `add_experience` - Add to experience buffer
+  - `get_experience_buffer` - Retrieve experiences
+  - `train_agents` - Train multiple agents
+  - `enable_communication_learning` - Learn communication protocols
+  - `test_learned_communication` - Test learned protocols
+
+### Changed
+- Updated version to 0.5.2
+- Added multi-agent coordination capability
+
+### Testing
+- Created multi-agent test suite (test_v0_5_2.py)
+- All 18 tests passing
+- Added multi_agent_demo.py
+
+## [0.5.1] - 2025-01-06
+
+### Added
+- ✅ Performance Monitoring:
+  - `get_performance_metrics` - Server performance metrics
+  - `get_simulation_metrics` - Per-simulation metrics
+  - `enable_performance_tracking` - Toggle tracking
+  - `get_tool_metrics` - Individual tool performance
+  - `get_memory_usage` - Memory usage details
+  - `get_performance_history` - Historical performance data
+  - `set_performance_thresholds` - Configure alerts
+  - `get_performance_alerts` - Retrieve alerts
+  - `clear_performance_data` - Reset tracking data
+- ✅ Performance Optimization:
+  - `batch_step` - Step multiple simulations efficiently
+  - `run_parallel` - Parallel simulation execution
+  - `start_profiling` - Performance profiling
+  - `get_profile_results` - Profiling results
+- ✅ Resource Management:
+  - `set_resource_limits` - Configure resource limits
+  - `get_resource_usage` - Monitor resource usage
+  - `enable_auto_cleanup` - Automatic resource cleanup
+- ✅ Real-time performance tracking with minimal overhead
+- ✅ Background monitoring thread
+
+### Changed
+- Updated version to 0.5.1
+- Added psutil dependency for system monitoring
+- Enhanced server with performance capabilities
+
+### Testing
+- Created performance test suite (test_v0_5_1.py)
+- 16/17 tests passing (1 skipped)
+- Added performance_monitoring_demo.py
+
+## [0.5.0] - 2025-01-06
+
+### Added
+- ✅ FastMCP Migration:
+  - Complete migration to FastMCP framework
+  - Async/await support throughout
+  - Improved performance and scalability
+  - Backward compatibility maintained
+- ✅ New server architecture with FastMCP
+- ✅ Simplified server implementation bridging
+- ✅ Enhanced MCP protocol compliance
+
+### Changed
+- Migrated from simple MCP to FastMCP framework
+- Updated version to 0.5.0
+- Restructured server.py as FastMCP wrapper
+- Maintained simple_server.py for implementation
+
+### Testing
+- Created FastMCP test suite (test_v0_5_0.py)
+- All 13 tests passing (simplified from original)
+- Added fastmcp_demo.py
+
+## [0.4.2] - 2025-01-06
+
+### Added
+- ✅ Robot Designer MVP:
+  - `design_robot` - AI-powered robot design from task descriptions
+  - Component-based design system
+  - Constraint satisfaction
+  - Cost estimation
+  - Design scoring and optimization
+- ✅ Natural language robot design
+- ✅ Component library with actuators, sensors, and structures
+- ✅ Multi-objective design optimization
+
+### Changed
+- Updated version to 0.4.2
+- Enhanced AI capabilities for robot design
+
+### Testing
+- Created robot designer test suite (test_v0_4_2.py)
+- All 16 tests passing
+- Added robot_designer_demo.py
+
+## [0.4.1] - 2025-01-06
+
+### Added
+- ✅ Parameter Optimization:
+  - `optimize_parameters` - Gradient-free parameter optimization
+  - `list_cost_functions` - Available optimization objectives
+  - `analyze_sensitivity` - Parameter sensitivity analysis
+  - `analyze_robustness` - Robustness analysis
+- ✅ Multiple optimization algorithms (random search, grid search, adaptive)
+- ✅ Cost function library
+- ✅ Multi-objective optimization support
+
+### Changed
+- Updated version to 0.4.1
+- Added optimization capabilities
+
+### Testing
+- Created optimization test suite (test_v0_4_1.py)
+- All 15 tests passing
+- Added parameter_optimization_demo.py
+
+## [0.4.0] - 2025-01-06
+
+### Added
+- ✅ Model Generation:
+  - `generate_model` - Generate MuJoCo models from specifications
+  - `get_model_templates` - List available templates
+  - `validate_model` - Validate generated models
+  - `combine_models` - Combine multiple models
+  - `save_model` - Save models to disk
+  - `list_saved_models` - List saved models
+- ✅ Template-based model generation
+- ✅ Model validation and safety checks
+- ✅ Model composition capabilities
+
+### Changed
+- Updated version to 0.4.0
+- Added model generation capabilities
+
+### Testing
+- Created model generation test suite (test_v0_4_0.py)
+- All 18 tests passing (after fixing XML parsing)
+- Added model_generation_demo.py
+
+## [0.3.2] - 2025-01-06
+
+### Added
+- ✅ Natural Language Interface:
+  - `execute_command` - Execute natural language commands
+  - `create_scene` - Create scenes from descriptions
+  - `perform_task` - Perform high-level tasks
+  - `analyze_behavior` - Analyze simulation behavior
+- ✅ Context-aware command interpretation
+- ✅ Task automation capabilities
+- ✅ Behavior analysis tools
+
+### Changed
+- Updated version to 0.3.2
+- Added NLP capabilities
+
+### Testing
+- Created NLP test suite (test_v0_3_2.py)
+- All 17 tests passing
+- Added natural_language_demo.py
+
+## [0.3.1] - 2025-01-06
+
+### Added
+- ✅ Pendulum Control Demo:
+  - `pendulum_demo` - Interactive pendulum demonstration
+  - `list_demos` - List available demos
+- ✅ Demo system framework
+- ✅ Energy-based swing-up control
+- ✅ PD stabilization control
+
+### Changed
+- Updated version to 0.3.1
+- Added demo capabilities
+
+### Testing
+- Created demo test suite (test_v0_3_1.py)
+- All 13 tests passing
+- Added animation_demo.py and visual_demo.py
+
+## [0.3.0] - 2025-01-06
+
+### Added
+- ✅ Simple Visualization Support:
+  - `get_render_frame` - Render current simulation frame
+  - `get_ascii_visualization` - ASCII art visualization
+- ✅ Base64-encoded image rendering
+- ✅ ASCII visualization for terminal output
+- ✅ Camera view configuration
+
+### Changed
+- Updated version to 0.3.0
+- Added visualization capabilities
+
+### Testing
+- Created visualization test suite (test_v0_3_0.py)
+- All 14 tests passing
+- Validated rendering pipeline

@@ -32,7 +32,7 @@ class TestFastMCPBasics:
         """Test that server can be created"""
         assert server is not None
         assert server.name == "mujoco-mcp"
-        assert server.version == "0.5.0"
+        assert server.version == "0.6.0"
         assert hasattr(server, 'mcp')
         assert server.mcp is not None
     
@@ -41,7 +41,7 @@ class TestFastMCPBasics:
         """Test server info"""
         info = server.get_server_info()
         assert info["name"] == "mujoco-mcp"
-        assert info["version"] == "0.5.0"
+        assert info["version"] == "0.6.0"
         assert info["capabilities"]["fastmcp"]["enabled"] is True
     
     @pytest.mark.asyncio
@@ -198,7 +198,7 @@ class TestBackwardCompatibility:
         
         server = MuJoCoMCPServer()
         assert server is not None
-        assert server.version == "0.5.0"
+        assert server.version == "0.6.0"
     
     @pytest.mark.asyncio
     async def test_simple_server_still_works(self):
@@ -208,7 +208,7 @@ class TestBackwardCompatibility:
         server = MuJoCoMCPServer()
         assert server is not None
         # Simple server has been updated to 0.5.0
-        assert server.version == "0.5.0"
+        assert server.version == "0.6.0"
 
 
 if __name__ == "__main__":

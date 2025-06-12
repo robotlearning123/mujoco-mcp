@@ -321,10 +321,10 @@ class TestServerVersion042:
     def test_version_updated(self):
         """Test that server version is 0.4.2"""
         server = MuJoCoMCPServer()
-        assert server.version == "0.4.2"
+        assert server.version == "0.6.0"
         
         info = server.get_server_info()
-        assert info["version"] == "0.4.2"
+        assert info["version"] == "0.6.0"
     
     def test_robot_designer_capability(self):
         """Test that robot designer capability is advertised"""

@@ -83,6 +83,7 @@ def mock_mujoco():
     mock.MjData.return_value = mock_data
     mock.mj_step = MagicMock()
     mock.mj_resetData = MagicMock()
+    mock.mj_forward = MagicMock()
     
     return mock, mock_model, mock_data
 

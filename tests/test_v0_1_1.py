@@ -24,7 +24,7 @@ class TestSimpleMCPServer:
         
     def test_create_mcp_server(self):
         """测试创建MCP服务器实例"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         assert server is not None
@@ -33,15 +33,15 @@ class TestSimpleMCPServer:
         
     def test_server_info(self):
         """测试服务器信息"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         assert server.name == "mujoco-mcp"
-        assert server.version == "0.1.1"
+        assert server.version == "0.6.0"
         
     def test_get_server_info_method(self):
         """测试get_server_info方法"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         info = server.get_server_info()
@@ -53,13 +53,13 @@ class TestSimpleMCPServer:
         assert "capabilities" in info
         
         assert info["name"] == "mujoco-mcp"
-        assert info["version"] == "0.1.1"
+        assert info["version"] == "0.6.0"
         assert "MuJoCo" in info["description"]
         assert isinstance(info["capabilities"], list)
         
     def test_get_tools_method(self):
         """测试get_tools方法"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         tools = server.get_tools()
@@ -76,7 +76,7 @@ class TestSimpleMCPServer:
             
     def test_has_standard_mcp_tools(self):
         """测试是否包含标准MCP工具"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         tools = server.get_tools()
@@ -89,7 +89,7 @@ class TestSimpleMCPServer:
         
     def test_tool_parameter_schema(self):
         """测试工具参数模式"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         tools = server.get_tools()
@@ -106,7 +106,7 @@ class TestSimpleMCPServer:
     @pytest.mark.asyncio
     async def test_server_can_start(self):
         """测试服务器可以启动"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         
@@ -116,7 +116,7 @@ class TestSimpleMCPServer:
         
     def test_call_tool_method(self):
         """测试call_tool方法"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         
@@ -129,7 +129,7 @@ class TestSimpleMCPServer:
         
     def test_call_get_tools(self):
         """测试调用get_tools工具"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         
@@ -142,7 +142,7 @@ class TestSimpleMCPServer:
         
     def test_call_unknown_tool(self):
         """测试调用未知工具"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         
@@ -153,7 +153,7 @@ class TestSimpleMCPServer:
         
     def test_server_has_resources(self):
         """测试服务器有资源列表"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         
@@ -165,7 +165,7 @@ class TestSimpleMCPServer:
         
     def test_mcp_protocol_compliance(self):
         """测试MCP协议合规性"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         
@@ -193,7 +193,7 @@ class TestServerIntegration:
     
     def test_server_lifecycle(self):
         """测试服务器生命周期"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         
@@ -207,7 +207,7 @@ class TestServerIntegration:
         
     def test_server_error_handling(self):
         """测试服务器错误处理"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         
@@ -220,7 +220,7 @@ class TestServerIntegration:
             
     def test_tool_registration(self):
         """测试工具注册机制"""
-        from mujoco_mcp.server import MuJoCoMCPServer
+        from mujoco_mcp.simple_server import MuJoCoMCPServer
         
         server = MuJoCoMCPServer()
         

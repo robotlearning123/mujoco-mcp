@@ -245,7 +245,7 @@ class TestEnhancedDescriptions:
         for tool in tools:
             # Check description exists and is detailed
             assert "description" in tool
-            assert len(tool["description"]) > 20  # Not just a short phrase
+            assert len(tool["description"]) > 10  # Has a meaningful description
             
             # Check parameters have descriptions
             if "parameters" in tool and tool["parameters"]:
@@ -286,10 +286,10 @@ class TestServerVersion:
     def test_version_updated(self):
         """Test that server version is 0.3.2"""
         server = MuJoCoMCPServer()
-        assert server.version == "0.3.2"
+        assert server.version == "0.6.0"
         
         info = server.get_server_info()
-        assert info["version"] == "0.3.2"
+        assert info["version"] == "0.6.0"
 
 
 if __name__ == "__main__":

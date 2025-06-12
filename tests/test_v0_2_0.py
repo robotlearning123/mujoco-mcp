@@ -244,10 +244,10 @@ class TestServerEnhancements:
     def test_server_version(self):
         """Test that server version is updated"""
         server = MuJoCoMCPServer()
-        assert server.version == "0.2.0"
+        assert server.version == "0.6.0"
         
         info = server.get_server_info()
-        assert info["version"] == "0.2.0"
+        assert info["version"] == "0.6.0"
     
     def test_tool_count(self):
         """Test that we have the expected number of tools"""

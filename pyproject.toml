@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mujoco-mcp"
-version = "0.1.0"
+version = "0.6.0"
 description = "MuJoCo Model Context Protocol server implementation"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -14,14 +14,15 @@ authors = [
 ]
 dependencies = [
     "mujoco>=2.3.0",
-    "fastmcp>=0.1.0",
+    "mcp",
+    "mcp-server-fastmcp>=0.1.0",
     "numpy>=1.22.0",
     "pydantic>=2.0.0",
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/yourusername/mujoco-mcp"
-"Bug Tracker" = "https://github.com/yourusername/mujoco-mcp/issues"
+"Homepage" = "https://github.com/mujoco-mcp/mujoco-mcp"
+"Bug Tracker" = "https://github.com/mujoco-mcp/mujoco-mcp/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

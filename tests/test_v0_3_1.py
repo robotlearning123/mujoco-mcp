@@ -259,10 +259,10 @@ class TestDemoEnhancements:
     def test_server_version(self):
         """Test that server version is updated"""
         server = MuJoCoMCPServer()
-        assert server.version == "0.3.1"
+        assert server.version == "0.6.0"
         
         info = server.get_server_info()
-        assert info["version"] == "0.3.1"
+        assert info["version"] == "0.6.0"
     
     def test_demo_capability(self):
         """Test that demo capability is advertised"""

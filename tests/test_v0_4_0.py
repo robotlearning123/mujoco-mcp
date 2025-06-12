@@ -303,10 +303,10 @@ class TestServerVersion:
     def test_version_updated(self):
         """Test that server version is 0.4.0"""
         server = MuJoCoMCPServer()
-        assert server.version == "0.4.0"
+        assert server.version == "0.6.0"
         
         info = server.get_server_info()
-        assert info["version"] == "0.4.0"
+        assert info["version"] == "0.6.0"
     
     def test_model_generation_capability(self):
         """Test that model generation capability is advertised"""
