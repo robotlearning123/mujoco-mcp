@@ -1,0 +1,47 @@
+# MuJoCo MCP - Cursor Configuration
+
+## Project Overview
+MuJoCo MCP is a Model Context Protocol server for controlling MuJoCo physics simulations through AI agents.
+
+## MCP Server Configuration
+When working with this project, you can connect to the MuJoCo MCP server:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "mujoco-mcp": {
+        "command": "python",
+        "args": ["-m", "mujoco_mcp.server"],
+        "env": {
+          "PYTHONUNBUFFERED": "1"
+        }
+      }
+    }
+  }
+}
+```
+
+## Available MCP Tools
+- **Simulation Control**: load_model, start_simulation, step_simulation, reset_simulation
+- **Robot Control**: set_joint_positions, apply_control, move_to_position, grasp_object
+- **RL Integration**: create_rl_environment, train_policy, evaluate_policy
+- **Visualization**: render_frame, get_camera_image, visualize_contacts
+- **Analysis**: analyze_behavior, get_performance_metrics, optimize_parameters
+
+## Code Guidelines
+1. Follow test-driven development (TDD) approach
+2. Maintain backward compatibility
+3. Add comprehensive docstrings for all public APIs
+4. Ensure all new features have corresponding tests
+5. Use type hints for better code clarity
+
+## Testing
+Run tests with: `pytest tests/`
+Check coverage with: `pytest --cov=mujoco_mcp tests/`
+
+## Natural Language Examples
+- "Create a pendulum and swing it to the upright position"
+- "Show me the current state of the robot"
+- "Optimize the controller parameters for energy efficiency"
+- "Train a policy to balance the cartpole"

@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "mujoco-mcp": {
+      "command": "python",
+      "args": ["-m", "mujoco_mcp.server"],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      },
+      "host": "localhost",
+      "port": 8000,
+      "metadata": {
+        "name": "MuJoCo MCP Server",
+        "version": "0.6.0",
+        "description": "Control MuJoCo physics simulations through natural language",
+        "author": "MuJoCo MCP Team",
+        "homepage": "https://github.com/mujoco-mcp/mujoco-mcp",
+        "capabilities": [
+          "physics_simulation",
+          "robot_control",
+          "reinforcement_learning",
+          "visualization",
+          "parameter_optimization",
+          "multi_agent_coordination"
+        ]
+      }
+    }
+  }
+}
