@@ -15,7 +15,7 @@ class MuJoCoRemoteServer:
     def __init__(self):
         """初始化远程服务器"""
         self.name = "mujoco-mcp-remote"
-        self.version = "0.6.2"
+        self.version = "0.7.0"
         self.description = "MuJoCo Model Context Protocol Server - Remote mode connecting to external MuJoCo Viewer GUI"
         self.logger = get_logger("mujoco_mcp.remote_server")
         

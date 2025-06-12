@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-06-13
+
+### Added
+- **Multi-Model Architecture**: New `ModelViewer` class for managing individual models
+- **Enhanced Socket Communication**: 
+  - Multi-threaded client handling
+  - Dynamic receive buffer (up to 1MB for large models)
+  - Support for 10 concurrent connections
+- **Improved Protocol**: All commands now include `model_id` parameter for multi-model support
+- **Comprehensive Testing Suite**: 
+  - `test_comprehensive_v062.py` - Full MCP tool testing
+  - `test_quick_v062.py` - Quick feature verification
+  - `test_fix_verification.py` - Multi-scene testing
+- **Documentation**: 
+  - `FIX_REPORT_v062.md` - Detailed technical improvements
+  - Test reports with metrics and recommendations
+
+### Changed
+- **Socket Server Architecture**: Complete rewrite of `mujoco_viewer_server.py`
+  - From single-threaded to multi-threaded design
+  - From single model to multi-model support
+  - From fixed buffer to dynamic message handling
+- **Client Communication**: Enhanced `viewer_client.py`
+  - Improved error handling and recovery
+  - Better connection state management
+  - Adaptive buffer sizes
+- **API Updates**: All viewer methods now accept `model_id` parameter
+- **Remote Viewer Mode**: Continued improvements to external viewer integration
+
+### Fixed
+- Socket connection timeout issues
+- Buffer overflow for large MuJoCo models
+- Connection drops during multi-scene creation
+- Error handling in viewer client
+- Thread safety in simulation loops
+
+### Known Limitations
+- MuJoCo GUI limitation: One viewer window per process
+- Full multi-model visualization requires process separation
+
+## [0.6.2] - 2025-06-12
+
+### Added
+- Remote viewer mode using official `mujoco.viewer.launch_passive()` API
+- External application integration pattern (similar to Blender/Figma MCP)
+- Socket-based IPC communication on localhost:8888
+- Real-time GUI visualization with native MuJoCo viewer
+
+### Changed
+- Architecture shifted from embedded to external viewer model
+- Improved macOS compatibility using mjpython
+
+### Fixed
+- macOS GUI compatibility issues
+- Thread safety in viewer operations
+
 ## [0.2.2] - 2025-01-06
 
 ### Added
