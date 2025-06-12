@@ -2,14 +2,12 @@
 MuJoCo MCP 远程服务器实现 (v0.6.2)
 通过Socket连接到外部MuJoCo Viewer进程，类似Blender/Figma MCP模式
 """
-import logging
 import uuid
 import time
 import json
 from typing import Dict, Any, List, Optional
 from .viewer_client import viewer_manager, ensure_viewer_connection
-
-logger = logging.getLogger("mujoco_mcp.remote_server")
+from .logging_config import get_logger, error_handler, MCPErrorCode
 
 class MuJoCoRemoteServer:
     """MuJoCo远程MCP服务器，连接到外部MuJoCo Viewer"""
@@ -19,7 +17,7 @@ class MuJoCoRemoteServer:
         self.name = "mujoco-mcp-remote"
         self.version = "0.6.2"
         self.description = "MuJoCo Model Context Protocol Server - Remote mode connecting to external MuJoCo Viewer GUI"
-        self.logger = logging.getLogger("mujoco_mcp.remote_server")
+        self.logger = get_logger("mujoco_mcp.remote_server")
         
         # 工具注册表
         self._tools = {}
@@ -106,6 +104,14 @@ class MuJoCoRemoteServer:
                 "context": "(optional) Additional context"
             },
             "handler": self._handle_execute_command
+        }
+        
+        # 获取已加载模型工具
+        self._tools["get_loaded_models"] = {
+            "name": "get_loaded_models",
+            "description": "Get list of all loaded models in viewers",
+            "parameters": {},
+            "handler": self._handle_get_loaded_models
         }
     
     def _handle_get_server_info(self) -> Dict[str, Any]:
@@ -282,6 +288,10 @@ class MuJoCoRemoteServer:
             "suggestion": "Try commands like 'create pendulum', 'show state', or 'reset simulation'"
         }
     
+    def _handle_get_loaded_models(self) -> Dict[str, Any]:
+        """获取已加载的模型列表"""
+        return self.get_loaded_models()
+    
     def _generate_scene_xml(self, scene_type: str, parameters: Dict[str, Any]) -> Optional[str]:
         """生成场景的MuJoCo XML"""
         
@@ -346,6 +356,97 @@ class MuJoCoRemoteServer:
             </mujoco>
             """
         
+        elif scene_type == "cart_pole":
+            cart_mass = parameters.get("cart_mass", 1.0)
+            pole_mass = parameters.get("pole_mass", 0.1)
+            pole_length = parameters.get("pole_length", 0.5)
+            
+            return f"""
+            <mujoco>
+                <option gravity="0 0 -9.81" timestep="0.01"/>
+                <default>
+                    <joint damping="0.1"/>
+                </default>
+                <worldbody>
+                    <body name="cart" pos="0 0 0.1">
+                        <joint name="cart_slide" type="slide" axis="1 0 0" range="-2 2"/>
+                        <geom name="cart_body" type="box" size="0.2 0.1 0.1" 
+                              mass="{cart_mass}" rgba="0.4 0.4 0.8 1"/>
+                        <body name="pole" pos="0 0 0.1">
+                            <joint name="pole_hinge" type="hinge" axis="0 1 0"/>
+                            <geom name="pole_rod" type="cylinder" size="0.02 {pole_length/2}" 
+                                  pos="0 0 {pole_length/2}" mass="{pole_mass}" rgba="0.8 0.4 0.4 1"/>
+                            <geom name="pole_tip" type="sphere" size="0.05" 
+                                  pos="0 0 {pole_length}" mass="0.05" rgba="0.8 0.8 0.4 1"/>
+                        </body>
+                    </body>
+                    <geom name="ground" type="plane" size="5 5 0.1" rgba="0.7 0.7 0.7 1"/>
+                </worldbody>
+                <actuator>
+                    <motor joint="cart_slide" gear="100"/>
+                </actuator>
+            </mujoco>
+            """
+        
+        elif scene_type == "robotic_arm":
+            # 简单的2自由度机械臂
+            link1_length = parameters.get("link1_length", 0.3)
+            link2_length = parameters.get("link2_length", 0.3)
+            base_mass = parameters.get("base_mass", 0.5)
+            link1_mass = parameters.get("link1_mass", 0.3)
+            link2_mass = parameters.get("link2_mass", 0.2)
+            
+            return f"""
+            <mujoco>
+                <option gravity="0 0 -9.81" timestep="0.01"/>
+                <default>
+                    <joint damping="0.3"/>
+                    <geom rgba="0.6 0.6 0.8 1"/>
+                </default>
+                <worldbody>
+                    <!-- 基座 -->
+                    <body name="base" pos="0 0 0.1">
+                        <geom name="base_geom" type="cylinder" size="0.08 0.05" 
+                              mass="{base_mass}" rgba="0.3 0.3 0.3 1"/>
+                        
+                        <!-- 第一关节和连杆 -->
+                        <body name="link1" pos="0 0 0.05">
+                            <joint name="joint1" type="hinge" axis="0 0 1" range="-3.14 3.14"/>
+                            <geom name="link1_geom" type="cylinder" size="0.03 {link1_length/2}" 
+                                  pos="0 0 {link1_length/2}" mass="{link1_mass}" rgba="0.8 0.4 0.4 1"/>
+                            
+                            <!-- 第二关节和连杆 -->
+                            <body name="link2" pos="0 0 {link1_length}">
+                                <joint name="joint2" type="hinge" axis="0 1 0" range="-1.57 1.57"/>
+                                <geom name="link2_geom" type="cylinder" size="0.02 {link2_length/2}" 
+                                      pos="0 0 {link2_length/2}" mass="{link2_mass}" rgba="0.4 0.8 0.4 1"/>
+                                
+                                <!-- 末端执行器 -->
+                                <body name="end_effector" pos="0 0 {link2_length}">
+                                    <geom name="ee_geom" type="sphere" size="0.04" 
+                                          mass="0.05" rgba="0.8 0.8 0.4 1"/>
+                                </body>
+                            </body>
+                        </body>
+                    </body>
+                    
+                    <!-- 地面 -->
+                    <geom name="ground" type="plane" size="2 2 0.1" rgba="0.7 0.7 0.7 1"/>
+                    
+                    <!-- 目标物体（可选） -->
+                    <body name="target" pos="0.4 0.0 0.2">
+                        <geom name="target_geom" type="box" size="0.05 0.05 0.05" 
+                              rgba="1.0 0.2 0.2 0.5"/>
+                    </body>
+                </worldbody>
+                
+                <actuator>
+                    <position joint="joint1" kp="100"/>
+                    <position joint="joint2" kp="100"/>
+                </actuator>
+            </mujoco>
+            """
+        
         # 更多场景类型可以在这里添加
         return None
     
@@ -399,6 +500,8 @@ class MuJoCoRemoteServer:
                     parameters.get("command", ""),
                     parameters.get("context")
                 )
+            elif tool_name == "get_loaded_models":
+                return handler()
             else:
                 return {"success": False, "error": f"Handler not implemented for tool: {tool_name}"}
         

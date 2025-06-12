@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 import asyncio
 import json
-import logging
+import time
 from typing import Dict, Any, List
 
 from mcp.server import Server, NotificationOptions
@@ -24,9 +24,12 @@ from mcp.server.models import InitializationOptions
 import mcp.server.stdio
 import mcp.types as types
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, stream=sys.stderr)
-logger = logging.getLogger("mujoco-mcp-remote")
+# Set up structured logging
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+from mujoco_mcp.logging_config import get_logger, error_handler, configure_logging, LogLevel
+
+configure_logging(LogLevel.INFO)
+logger = get_logger("mujoco-mcp-remote")
 
 # Create server instance
 server = Server("mujoco-mcp-remote")
@@ -167,7 +170,11 @@ async def handle_list_tools() -> List[types.Tool]:
 async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Handle tool calls by communicating with external MuJoCo Viewer"""
     try:
-        logger.info(f"Calling remote tool: {name} with arguments: {arguments}")
+        logger.info(
+            "Calling remote tool",
+            tool_name=name,
+            arguments=arguments
+        )
         
         # Import here to avoid circular imports
         from mujoco_mcp.remote_server import MuJoCoRemoteServer
@@ -175,7 +182,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
         # Create server instance if needed
         if not hasattr(handle_call_tool, '_remote_server'):
             handle_call_tool._remote_server = MuJoCoRemoteServer()
-            logger.info(f"MuJoCo Remote MCP Server initialized")
+            logger.info("MuJoCo Remote MCP Server initialized")
         
         # Call the tool using the remote server
         result = handle_call_tool._remote_server.call_tool(name, arguments)
@@ -258,11 +265,12 @@ You can now:
 """
                 for model in models:
                     status = "🟢 Connected" if model.get('viewer_connected') else "🔴 Disconnected"
+                    created_time = time.ctime(model.get('created_time', 0)) if model.get('created_time') else "Unknown"
                     response_text += f"""
 ## {model.get('scene_type', 'Unknown')}
 - **Model ID**: `{model.get('model_id')}`
 - **Status**: {status}
-- **Created**: {time.ctime(model.get('created_time', 0))}
+- **Created**: {created_time}
 - **Parameters**: {model.get('parameters', {})}
 
 """
@@ -287,7 +295,12 @@ You can now:
         ]
         
     except Exception as e:
-        logger.error(f"Tool execution error: {e}")
+        logger.error(
+            "Tool execution error",
+            tool_name=name,
+            arguments=arguments,
+            exception=str(e)
+        )
         return [
             types.TextContent(
                 type="text", 
@@ -297,7 +310,11 @@ You can now:
 
 async def main():
     """Main server entry point"""
-    logger.info("Starting MuJoCo MCP Remote Server v0.6.2")
+    logger.info(
+        "Starting MuJoCo MCP Remote Server",
+        version="0.6.2",
+        mode="remote_viewer"
+    )
     logger.info("This server connects to external MuJoCo Viewer GUI")
     logger.info("Make sure to start mujoco_viewer_server.py first!")
     
