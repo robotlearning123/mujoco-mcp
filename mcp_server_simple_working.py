@@ -130,6 +130,70 @@ async def handle_list_tools() -> List[types.Tool]:
                 },
                 "required": ["command"]
             }
+        ),
+        types.Tool(
+            name="get_render_frame",
+            description="Render a frame from the simulation and return as image",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "model_id": {
+                        "type": "string",
+                        "description": "ID of the model to render"
+                    },
+                    "width": {
+                        "type": "integer",
+                        "description": "Image width in pixels (default: 640)",
+                        "default": 640
+                    },
+                    "height": {
+                        "type": "integer", 
+                        "description": "Image height in pixels (default: 480)",
+                        "default": 480
+                    },
+                    "camera_name": {
+                        "type": "string",
+                        "description": "Camera name to use (optional)"
+                    },
+                    "camera_distance": {
+                        "type": "number",
+                        "description": "Camera distance (optional)"
+                    },
+                    "camera_azimuth": {
+                        "type": "number",
+                        "description": "Camera azimuth angle (optional)"
+                    },
+                    "camera_elevation": {
+                        "type": "number",
+                        "description": "Camera elevation angle (optional)"
+                    }
+                },
+                "required": ["model_id"]
+            }
+        ),
+        types.Tool(
+            name="get_ascii_visualization",
+            description="Get ASCII art visualization of the simulation",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "model_id": {
+                        "type": "string",
+                        "description": "ID of the model to visualize"
+                    },
+                    "width": {
+                        "type": "integer",
+                        "description": "ASCII art width (default: 60)",
+                        "default": 60
+                    },
+                    "height": {
+                        "type": "integer",
+                        "description": "ASCII art height (default: 20)", 
+                        "default": 20
+                    }
+                },
+                "required": ["model_id"]
+            }
         )
     ]
 
@@ -177,8 +241,8 @@ async def main():
             read_stream,
             write_stream,
             InitializationOptions(
-                server_name="mujoco-mcp",
-                server_version="0.6.0",
+                server_name="mujoco-mcp", 
+                server_version="0.6.1",
                 capabilities=server.get_capabilities(
                     notification_options=NotificationOptions(),
                     experimental_capabilities={}

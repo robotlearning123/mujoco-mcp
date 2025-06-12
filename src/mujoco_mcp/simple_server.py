@@ -1355,26 +1355,13 @@ class MuJoCoMCPServer:
                     raise ValueError(f"Unknown camera: {camera_name}")
         
         try:
-            # 这里我们创建一个模拟的渲染结果
-            # 在实际实现中，这里应该调用MuJoCo的渲染函数
-            # 由于测试环境可能没有GPU，我们生成一个简单的占位图像
-            
-            # 创建一个简单的灰度图像数据（用于测试）
-            import numpy as np
-            
-            # 创建渐变图像作为占位符
-            img_array = np.zeros((height, width, 3), dtype=np.uint8)
-            for i in range(height):
-                for j in range(width):
-                    # 创建一个简单的渐变效果
-                    img_array[i, j] = [
-                        int(255 * i / height),  # R
-                        int(255 * j / width),    # G
-                        128                      # B
-                    ]
+            # 使用MuJoCo实际渲染功能
+            img_array = sim.render_frame(width=width, height=height, camera_id=-1)
             
             # 将numpy数组转换为PNG格式的base64
             from PIL import Image
+            import io
+            
             img = Image.fromarray(img_array)
             buffer = io.BytesIO()
             img.save(buffer, format='PNG')
@@ -1385,7 +1372,8 @@ class MuJoCoMCPServer:
                 "image_data": img_data,
                 "format": "base64/png",
                 "width": width,
-                "height": height
+                "height": height,
+                "rendering_method": "mujoco_native" if hasattr(sim, 'model') else "software_fallback"
             }
             
             if camera_name:
@@ -1431,16 +1419,23 @@ class MuJoCoMCPServer:
         # 获取仿真实例
         sim = self._models[model_id]
         
-        # 生成ASCII艺术（简化版本）
-        # 在实际实现中，这里应该基于物体位置生成更有意义的可视化
-        ascii_chars = " .·:*#@"
-        
-        # 获取一些状态信息
-        time = sim.get_time()
-        bodies = sim.get_rigid_body_states() if sim._initialized else {}
-        
-        # 创建ASCII画布
-        canvas = [[' ' for _ in range(width)] for _ in range(height)]
+        # 使用simulation模块的ASCII渲染功能
+        try:
+            ascii_art = sim.render_ascii(width=width, height=height)
+            
+            return {
+                "success": True,
+                "ascii_art": ascii_art,
+                "width": width,
+                "height": height,
+                "timestamp": sim.get_time()
+            }
+        except Exception as e:
+            # 如果ASCII渲染失败，使用简化版本
+            self.logger.warning(f"ASCII rendering failed: {e}, using fallback")
+            
+            # 创建简化的ASCII画布
+            canvas = [[' ' for _ in range(width)] for _ in range(height)]
         
         # 添加边框
         for i in range(height):
