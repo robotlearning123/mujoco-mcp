@@ -18,7 +18,7 @@ class MuJoCoMCPServer:
     def __init__(self):
         """初始化服务器"""
         self.name = "mujoco-mcp"
-        self.version = "0.4.2"
+        self.version = "0.5.0"
         self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations through natural language commands and structured tools"
         self.logger = logging.getLogger("mujoco_mcp.simple_server")
         
@@ -119,6 +119,17 @@ class MuJoCoMCPServer:
                 "include_velocities": "(optional) Include joint velocities"
             },
             "handler": self._handle_get_simulation_state
+        }
+        
+        # get_state 工具 - 获取完整状态
+        self._tools["get_state"] = {
+            "name": "get_state",
+            "description": "Get comprehensive simulation state including positions, velocities, time, and more",
+            "parameters": {
+                "model_id": "ID of the model",
+                "components": "(optional) List of state components to include"
+            },
+            "handler": self._handle_get_state
         }
         
         # set_joint_positions 工具
@@ -742,6 +753,55 @@ class MuJoCoMCPServer:
         if include_velocities:
             state["qvel"] = sim.get_joint_velocities().tolist()
             
+        return state
+    
+    def _handle_get_state(self, model_id: str, components: Optional[List[str]] = None) -> Dict[str, Any]:
+        """处理get_state工具调用 - 获取完整状态"""
+        # 参数验证
+        if not model_id:
+            raise ValueError("model_id is required")
+            
+        if model_id not in self._models:
+            raise ValueError(f"Model not found: {model_id}")
+            
+        # 获取仿真实例
+        sim = self._models[model_id]
+        
+        # 默认返回所有组件
+        if components is None:
+            components = ["time", "joint_positions", "joint_velocities", "actuator_states", "sensor_data"]
+        
+        # 构建完整状态
+        state = {}
+        
+        if "time" in components:
+            state["time"] = sim.get_time()
+            
+        if "joint_positions" in components:
+            state["joint_positions"] = sim.get_joint_positions().tolist()
+            
+        if "joint_velocities" in components:
+            state["joint_velocities"] = sim.get_joint_velocities().tolist()
+            
+        if "actuator_states" in components and sim.get_num_actuators() > 0:
+            state["actuator_states"] = {
+                "control": sim.data.ctrl.tolist() if sim._initialized else [],
+                "force": sim.data.actuator_force.tolist() if sim._initialized else []
+            }
+            
+        if "sensor_data" in components:
+            sensor_data = sim.get_sensor_data()
+            if sensor_data:
+                state["sensor_data"] = sensor_data
+                
+        # 添加模型信息
+        state["model_info"] = {
+            "nq": sim.get_num_joints(),
+            "nv": sim.model.nv if sim._initialized else 0,
+            "nu": sim.get_num_actuators(),
+            "nsensor": sim.model.nsensor if sim._initialized else 0
+        }
+        
         return state
     
     def _handle_set_joint_positions(self, model_id: str, positions: List[float]) -> Dict[str, Any]:
