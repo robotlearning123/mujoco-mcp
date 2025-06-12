@@ -162,7 +162,7 @@ class MuJoCoRemoteServer:
             }
         
         # 加载模型到viewer
-        response = client.load_model(model_xml)
+        response = client.load_model(model_xml, model_id)
         if not response.get("success"):
             return {
                 "success": False,
@@ -207,7 +207,7 @@ class MuJoCoRemoteServer:
             return {"success": False, "error": "Viewer not connected"}
         
         # 获取当前状态（viewer自动步进仿真）
-        state_response = client.get_state()
+        state_response = client.get_state(model_id)
         if not state_response.get("success"):
             return {"success": False, "error": "Failed to get simulation state"}
         
@@ -227,7 +227,7 @@ class MuJoCoRemoteServer:
         if not client:
             return {"success": False, "error": "Viewer not connected"}
         
-        return client.get_state()
+        return client.get_state(model_id)
     
     def _handle_set_joint_positions(self, model_id: str, positions: List[float]) -> Dict[str, Any]:
         """设置关节位置"""
@@ -238,7 +238,7 @@ class MuJoCoRemoteServer:
         if not client:
             return {"success": False, "error": "Viewer not connected"}
         
-        return client.set_joint_positions(positions)
+        return client.set_joint_positions(positions, model_id)
     
     def _handle_reset_simulation(self, model_id: str) -> Dict[str, Any]:
         """重置仿真"""
@@ -249,7 +249,7 @@ class MuJoCoRemoteServer:
         if not client:
             return {"success": False, "error": "Viewer not connected"}
         
-        return client.reset_simulation()
+        return client.reset_simulation(model_id)
     
     def _handle_execute_command(self, command: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """执行自然语言命令"""

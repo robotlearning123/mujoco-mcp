@@ -72,8 +72,22 @@ class MuJoCoViewerClient:
             command_json = json.dumps(command)
             self.socket.send(command_json.encode('utf-8'))
             
-            # 接收响应
-            response_data = self.socket.recv(4096)
+            # 接收响应 - 支持更大的消息
+            response_data = b""
+            while True:
+                chunk = self.socket.recv(8192)
+                if not chunk:
+                    break
+                response_data += chunk
+                
+                # 检查是否收到完整的JSON (以换行符结束)
+                if response_data.endswith(b'\n'):
+                    break
+                
+                # 防止无限等待
+                if len(response_data) > 1024 * 1024:  # 1MB限制
+                    raise ValueError("Response too large")
+            
             response = json.loads(response_data.decode('utf-8').strip())
             
             return response
@@ -99,20 +113,26 @@ class MuJoCoViewerClient:
                 return response.get("success", False)
             return False
     
-    def load_model(self, model_xml: str) -> Dict[str, Any]:
+    def load_model(self, model_xml: str, model_id: str = None) -> Dict[str, Any]:
         """加载MuJoCo模型到viewer"""
-        return self.send_command({
+        cmd = {
             "type": "load_model",
             "model_xml": model_xml
-        })
+        }
+        if model_id:
+            cmd["model_id"] = model_id
+        return self.send_command(cmd)
     
     def start_viewer(self) -> Dict[str, Any]:
         """启动viewer GUI"""
         return self.send_command({"type": "start_viewer"})
     
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self, model_id: str = None) -> Dict[str, Any]:
         """获取仿真状态"""
-        return self.send_command({"type": "get_state"})
+        cmd = {"type": "get_state"}
+        if model_id:
+            cmd["model_id"] = model_id
+        return self.send_command(cmd)
     
     def set_control(self, control: list) -> Dict[str, Any]:
         """设置控制输入"""
@@ -121,16 +141,22 @@ class MuJoCoViewerClient:
             "control": control
         })
     
-    def set_joint_positions(self, positions: list) -> Dict[str, Any]:
+    def set_joint_positions(self, positions: list, model_id: str = None) -> Dict[str, Any]:
         """设置关节位置"""
-        return self.send_command({
+        cmd = {
             "type": "set_joint_positions",
             "positions": positions
-        })
+        }
+        if model_id:
+            cmd["model_id"] = model_id
+        return self.send_command(cmd)
     
-    def reset_simulation(self) -> Dict[str, Any]:
+    def reset_simulation(self, model_id: str = None) -> Dict[str, Any]:
         """重置仿真"""
-        return self.send_command({"type": "reset"})
+        cmd = {"type": "reset"}
+        if model_id:
+            cmd["model_id"] = model_id
+        return self.send_command(cmd)
     
     def _start_viewer_server(self) -> bool:
         """尝试启动MuJoCo Viewer Server - 支持macOS mjpython"""
