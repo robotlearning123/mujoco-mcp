@@ -32,7 +32,7 @@ class MuJoCoViewerClient:
         for attempt in range(self.reconnect_attempts):
             try:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.settimeout(5.0)
+                self.socket.settimeout(15.0)  # Increased timeout for model replacement
                 self.socket.connect((self.host, self.port))
                 self.connected = True
                 logger.info(f"Connected to MuJoCo Viewer Server at {self.host}:{self.port}")
@@ -113,11 +113,31 @@ class MuJoCoViewerClient:
                 return response.get("success", False)
             return False
     
-    def load_model(self, model_xml: str, model_id: str = None) -> Dict[str, Any]:
-        """加载MuJoCo模型到viewer"""
+    def load_model(self, model_source: str, model_id: str = None) -> Dict[str, Any]:
+        """加载MuJoCo模型到viewer
+        
+        Args:
+            model_source: XML字符串或XML文件路径
+            model_id: 模型ID
+        """
         cmd = {
             "type": "load_model",
-            "model_xml": model_xml
+            "model_xml": model_source  # 保持向后兼容，但实际可以是文件路径
+        }
+        if model_id:
+            cmd["model_id"] = model_id
+        return self.send_command(cmd)
+    
+    def replace_model(self, model_source: str, model_id: str = None) -> Dict[str, Any]:
+        """替换当前模型（关闭现有viewer并加载新模型）
+        
+        Args:
+            model_source: XML字符串或XML文件路径
+            model_id: 模型ID
+        """
+        cmd = {
+            "type": "replace_model",
+            "model_xml": model_source  # 保持向后兼容，但实际可以是文件路径
         }
         if model_id:
             cmd["model_id"] = model_id
@@ -154,6 +174,25 @@ class MuJoCoViewerClient:
     def reset_simulation(self, model_id: str = None) -> Dict[str, Any]:
         """重置仿真"""
         cmd = {"type": "reset"}
+        if model_id:
+            cmd["model_id"] = model_id
+        return self.send_command(cmd)
+    
+    def close_viewer(self) -> Dict[str, Any]:
+        """关闭viewer GUI窗口"""
+        return self.send_command({"type": "close_viewer"})
+    
+    def shutdown_server(self) -> Dict[str, Any]:
+        """关闭整个viewer服务器"""
+        return self.send_command({"type": "shutdown_server"})
+    
+    def capture_render(self, model_id: str = None, width: int = 640, height: int = 480) -> Dict[str, Any]:
+        """捕获当前渲染的图像"""
+        cmd = {
+            "type": "capture_render",
+            "width": width,
+            "height": height
+        }
         if model_id:
             cmd["model_id"] = model_id
         return self.send_command(cmd)

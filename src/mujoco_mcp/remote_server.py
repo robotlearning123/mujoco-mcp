@@ -17,7 +17,7 @@ class MuJoCoRemoteServer:
     def __init__(self):
         """初始化远程服务器"""
         self.name = "mujoco-mcp-remote"
-        self.version = "0.7.0"
+        self.version = "0.7.4"
         self.description = "MuJoCo Model Context Protocol Server - Remote mode connecting to external MuJoCo Viewer GUI"
         self.logger = get_logger("mujoco_mcp.remote_server")
         
@@ -128,6 +128,39 @@ class MuJoCoRemoteServer:
             },
             "handler": self._handle_list_menagerie_models
         }
+        
+        # UI关闭工具
+        self._tools["close_viewer"] = {
+            "name": "close_viewer",
+            "description": "Close the MuJoCo viewer GUI window",
+            "parameters": {},
+            "handler": self._handle_close_viewer
+        }
+        
+        # 渲染捕获工具
+        self._tools["capture_render"] = {
+            "name": "capture_render",
+            "description": "Capture current rendered image from MuJoCo viewer",
+            "parameters": {
+                "model_id": "Model ID",
+                "width": "(optional) Image width in pixels (default: 640)",
+                "height": "(optional) Image height in pixels (default: 480)"
+            },
+            "handler": self._handle_capture_render
+        }
+        
+        # 视频录制工具
+        self._tools["record_video"] = {
+            "name": "record_video",
+            "description": "Record simulation as video (MP4 or GIF)",
+            "parameters": {
+                "model_id": "Model ID",
+                "duration": "Recording duration in seconds",
+                "output_path": "(optional) Output file path (default: simulation.mp4)",
+                "fps": "(optional) Frames per second (default: 30)"
+            },
+            "handler": self._handle_record_video
+        }
     
     def _handle_get_server_info(self) -> Dict[str, Any]:
         """获取服务器信息"""
@@ -154,16 +187,18 @@ class MuJoCoRemoteServer:
         model_id = str(uuid.uuid4())
         
         # First try built-in scenes
-        model_xml = self._generate_scene_xml(scene_type, parameters or {})
+        model_source = self._generate_scene_xml(scene_type, parameters or {})
         
         # If not a built-in scene, try Menagerie
-        if not model_xml and self.menagerie.is_available():
+        if not model_source and self.menagerie.is_available():
             self.logger.info(f"Trying to load '{scene_type}' from Menagerie")
-            model_xml = self.menagerie.load_model_xml(scene_type)
-            if model_xml:
+            # load_model_xml现在返回文件路径而不是XML内容
+            model_path = self.menagerie.load_model_xml(scene_type)
+            if model_path:
                 self.logger.info(f"Successfully loaded '{scene_type}' from Menagerie")
+                model_source = model_path  # 使用文件路径
         
-        if not model_xml:
+        if not model_source:
             # Provide helpful error message
             error_msg = f"Model '{scene_type}' not found. "
             if self.menagerie.is_available():
@@ -190,8 +225,16 @@ class MuJoCoRemoteServer:
                 "error": "Viewer client not available"
             }
         
-        # 加载模型到viewer
-        response = client.load_model(model_xml, model_id)
+        # 加载模型到viewer - 如果已有模型则替换
+        if self._models:
+            # 已有模型，使用replace_model
+            self.logger.info(f"Replacing existing model with {scene_type}")
+            response = client.replace_model(model_source, model_id)
+        else:
+            # 首次加载模型
+            self.logger.info(f"Loading first model: {scene_type}")
+            response = client.load_model(model_source, model_id)
+            
         if not response.get("success"):
             return {
                 "success": False,
@@ -206,11 +249,13 @@ class MuJoCoRemoteServer:
                 "error": f"Failed to start viewer: {viewer_response.get('error')}"
             }
         
-        # 保存模型元数据
+        # 保存模型元数据 - 清除旧模型，只保留当前模型
         model_source = "built-in"
         if scene_type not in ["pendulum", "double_pendulum", "cart_pole", "robotic_arm"]:
             model_source = "menagerie"
-            
+        
+        # 清除所有旧模型，只保留当前模型
+        self._models.clear()
         self._models[model_id] = {
             "scene_type": scene_type,
             "source": model_source,
@@ -400,6 +445,17 @@ class MuJoCoRemoteServer:
             else:
                 return {"error": "No active simulation"}
         
+        # 关闭UI命令  
+        if any(word in command_lower for word in ["close", "exit", "quit", "shutdown"]):
+            if any(word in command_lower for word in ["viewer", "ui", "gui", "window"]):
+                return self._handle_close_viewer()
+            elif "server" in command_lower:
+                # 这里可以添加关闭整个服务器的逻辑
+                return {"message": "Server shutdown not implemented in natural language interface. Use close_viewer to close GUI."}
+            else:
+                # 默认关闭viewer
+                return self._handle_close_viewer()
+        
         # 帮助命令
         if any(word in command_lower for word in ["help", "?"]):
             return {
@@ -422,7 +478,12 @@ class MuJoCoRemoteServer:
                     "reset - Reset simulation to initial state",
                     "step [N] - Advance simulation by N steps (default 100)",
                     "set angle to X degrees - Set joint angle",
-                    "list models - Show all loaded models"
+                    "list models - Show all loaded models",
+                    "",
+                    "=== UI Control ===",
+                    "close viewer - Close the MuJoCo GUI window",
+                    "close ui - Close the MuJoCo GUI window",
+                    "exit - Close the MuJoCo GUI window"
                 ]
             }
         
@@ -463,6 +524,105 @@ class MuJoCoRemoteServer:
             "categories": sorted(by_category.keys()),
             "message": f"Found {len(models)} models in MuJoCo Menagerie"
         }
+    
+    def _handle_close_viewer(self) -> Dict[str, Any]:
+        """关闭MuJoCo viewer GUI窗口"""
+        if not self._models:
+            return {
+                "success": True,
+                "message": "No viewer is currently open"
+            }
+        
+        # 获取当前模型的客户端
+        model_id = list(self._models.keys())[0]  # 在单viewer模式下只有一个模型
+        client = viewer_manager.get_client(model_id)
+        
+        if not client:
+            return {
+                "success": False,
+                "error": "No viewer client available"
+            }
+        
+        # 发送关闭命令
+        response = client.close_viewer()
+        
+        if response.get("success"):
+            # 清理本地模型记录
+            self._models.clear()
+            # 移除客户端
+            viewer_manager.remove_client(model_id)
+            
+            return {
+                "success": True,
+                "message": "MuJoCo viewer GUI closed successfully"
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Failed to close viewer: {response.get('error', 'Unknown error')}"
+            }
+    
+    def _handle_capture_render(self, model_id: str, width: int = 640, height: int = 480) -> Dict[str, Any]:
+        """捕获当前渲染的图像"""
+        # 验证模型
+        if model_id not in self._models:
+            return {
+                "success": False,
+                "error": f"Model {model_id} not found"
+            }
+        
+        # 获取viewer客户端
+        client = viewer_manager.get_client(model_id)
+        if not client:
+            return {
+                "success": False,
+                "error": f"No viewer client available for model {model_id}"
+            }
+        
+        # 发送捕获命令
+        response = client.capture_render(model_id, width, height)
+        
+        if response.get("success"):
+            return {
+                "success": True,
+                "image_data": response.get("image_data"),
+                "width": response.get("width", width),
+                "height": response.get("height", height),
+                "format": response.get("format", "png"),
+                "message": "Image captured successfully"
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Failed to capture render: {response.get('error', 'Unknown error')}"
+            }
+    
+    def _handle_record_video(self, model_id: str, duration: float, 
+                           output_path: str = "simulation.mp4", fps: int = 30) -> Dict[str, Any]:
+        """录制仿真视频"""
+        # 验证模型
+        if model_id not in self._models:
+            return {
+                "success": False,
+                "error": f"Model {model_id} not found"
+            }
+        
+        try:
+            from .video_recorder import VideoRecorder
+            
+            # 创建录制器
+            recorder = VideoRecorder(self, model_id, fps)
+            
+            # 录制视频
+            result = recorder.record_simulation(duration, output_path=output_path)
+            
+            return result
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to record video: {str(e)}"
+            }
     
     def _generate_scene_xml(self, scene_type: str, parameters: Dict[str, Any]) -> Optional[str]:
         """生成场景的MuJoCo XML"""
@@ -674,6 +834,23 @@ class MuJoCoRemoteServer:
                 )
             elif tool_name == "get_loaded_models":
                 return handler()
+            elif tool_name == "close_viewer":
+                return handler()
+            elif tool_name == "list_menagerie_models":
+                return handler(parameters.get("category"))
+            elif tool_name == "capture_render":
+                return handler(
+                    parameters.get("model_id"),
+                    parameters.get("width", 640),
+                    parameters.get("height", 480)
+                )
+            elif tool_name == "record_video":
+                return handler(
+                    parameters.get("model_id"),
+                    parameters.get("duration", 5.0),
+                    parameters.get("output_path", "simulation.mp4"),
+                    parameters.get("fps", 30)
+                )
             else:
                 return {"success": False, "error": f"Handler not implemented for tool: {tool_name}"}
         

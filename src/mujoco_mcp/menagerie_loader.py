@@ -52,19 +52,72 @@ class MenagerieLoader:
         
         # Direct directory check first
         for item in os.listdir(self.menagerie_path):
-            if item.lower() == model_name or item.lower().replace("_", " ") == model_name:
-                # Prefer main model file over scene.xml
-                xml_path = os.path.join(self.menagerie_path, item, f"{item}.xml")
-                if os.path.exists(xml_path):
-                    return xml_path
-                # For some models, try without hand
-                nohand_path = os.path.join(self.menagerie_path, item, f"{item}_nohand.xml")
-                if os.path.exists(nohand_path):
-                    return nohand_path
-                # Last resort: scene.xml (has includes)
-                scene_path = os.path.join(self.menagerie_path, item, "scene.xml")
-                if os.path.exists(scene_path):
-                    return scene_path
+            item_lower = item.lower()
+            # Check exact match or with underscores replaced by spaces
+            if item_lower == model_name or item_lower.replace("_", " ") == model_name:
+                # Found exact match
+                pass
+            # Check if search term matches part of the model name
+            elif all(part in item_lower for part in model_name.split()):
+                # All parts of search term are in model name (e.g., "franka panda" matches "franka_emika_panda")
+                pass
+            else:
+                continue
+                
+            model_dir = os.path.join(self.menagerie_path, item)
+            
+            # ALWAYS prefer scene.xml first as it contains the complete scene setup
+            scene_path = os.path.join(model_dir, "scene.xml")
+            if os.path.exists(scene_path):
+                return scene_path
+            
+            # Special handling for models with scene variants
+            # Priority order: scene.xml > scene_left.xml > scene_right.xml > scene_*.xml
+            scene_variants = []
+            
+            # Hand models often have left/right variants
+            if "hand" in item.lower() or "allegro" in item.lower():
+                scene_variants.extend(["scene_left.xml", "scene_right.xml"])
+                
+            # Some models have actuation variants
+            scene_variants.extend([
+                "scene_motor.xml", "scene_position.xml", "scene_velocity.xml",
+                "scene_mjx.xml", "scene_external.xml"
+            ])
+            
+            # Check all scene variants
+            for variant in scene_variants:
+                variant_path = os.path.join(model_dir, variant)
+                if os.path.exists(variant_path):
+                    return variant_path
+            
+            # Fallback to main model file if no scene.xml
+            xml_path = os.path.join(model_dir, f"{item}.xml")
+            if os.path.exists(xml_path):
+                return xml_path
+            
+            # Try alternative naming (e.g., panda.xml for franka_emika_panda)
+            if "_" in item:
+                # Try last part of name (e.g., panda from franka_emika_panda)
+                last_part = item.split("_")[-1]
+                alt_path = os.path.join(model_dir, f"{last_part}.xml")
+                if os.path.exists(alt_path):
+                    return alt_path
+            
+            # For some models, try without hand
+            nohand_path = os.path.join(model_dir, f"{item}_nohand.xml")
+            if os.path.exists(nohand_path):
+                return nohand_path
+            
+            # Last resort: any XML file
+            xml_files = [f for f in os.listdir(model_dir) if f.endswith('.xml')]
+            if xml_files:
+                # Prefer files that match model name parts
+                for xml_file in xml_files:
+                    if any(part in xml_file.lower() for part in item.split('_')):
+                        return os.path.join(model_dir, xml_file)
+                # Return first XML if no match
+                return os.path.join(model_dir, xml_files[0])
         
         # Common variations
         variations = [
@@ -75,13 +128,13 @@ class MenagerieLoader:
             model_name.replace("_", "-")
         ]
         
-        # Search patterns
+        # Search patterns - prioritize scene.xml
         for variant in variations:
             patterns = [
-                f"{variant}/{variant}.xml",
-                f"*/{variant}/{variant}.xml",
                 f"{variant}/scene.xml",
                 f"*/{variant}/scene.xml",
+                f"{variant}/{variant}.xml",
+                f"*/{variant}/{variant}.xml",
                 f"**/{variant}.xml",
                 f"**/{variant}_*.xml"
             ]
@@ -106,71 +159,45 @@ class MenagerieLoader:
         return None
     
     def load_model_xml(self, model_name: str) -> Optional[str]:
-        """Load model XML with fixed paths"""
+        """Load model XML - return path instead of content for proper relative path handling"""
         xml_path = self.find_model(model_name)
         if not xml_path:
             return None
             
-        try:
-            with open(xml_path, 'r') as f:
-                xml_content = f.read()
-            
-            # Fix relative paths
-            xml_content = self._fix_paths(xml_content, xml_path)
-            return xml_content
-            
-        except Exception as e:
-            print(f"Error loading model {model_name}: {e}")
-            return None
+        # 重要：返回XML文件路径而不是内容
+        # 这样MuJoCo可以从正确的目录加载，正确处理所有相对路径
+        return xml_path
     
     def _fix_paths(self, xml_content: str, xml_path: str) -> str:
-        """Fix relative paths in XML to absolute paths"""
+        """Fix relative paths in XML - keep relative structure but ensure base path is correct"""
         try:
-            xml_dir = Path(xml_path).parent
+            # 对于scene.xml，我们需要确保工作目录是正确的
+            # MuJoCo会从XML文件所在的目录解析相对路径
+            xml_dir = os.path.dirname(os.path.abspath(xml_path))
+            
+            # 创建一个修改过的XML，添加基础路径信息
             root = ET.fromstring(xml_content)
             
-            # Fix include files first
+            # 检查是否已经有compiler标签
+            compiler = root.find(".//compiler")
+            if compiler is None:
+                # 如果没有compiler标签，创建一个
+                compiler = ET.SubElement(root, "compiler")
+            
+            # 如果这是一个scene.xml，确保include路径正确
             for include in root.findall(".//include"):
                 if "file" in include.attrib:
-                    rel_path = include.attrib["file"]
-                    if not os.path.isabs(rel_path):
-                        abs_path = (xml_dir / rel_path).resolve()
-                        include.attrib["file"] = str(abs_path)
+                    include_file = include.attrib["file"]
+                    # 保持相对路径，MuJoCo会从XML所在目录解析
+                    # 不需要改成绝对路径
             
-            # Fix compiler include paths
-            compiler = root.find(".//compiler")
-            if compiler is not None:
-                for attr in ["meshdir", "texturedir", "assetdir"]:
-                    if attr in compiler.attrib:
-                        rel_path = compiler.attrib[attr]
-                        if not os.path.isabs(rel_path):
-                            abs_path = (xml_dir / rel_path).resolve()
-                            compiler.attrib[attr] = str(abs_path)
-            
-            # Fix mesh paths
-            for mesh in root.findall(".//mesh"):
-                if "file" in mesh.attrib:
-                    self._fix_path_attribute(mesh, "file", xml_dir)
-            
-            # Fix texture paths
-            for texture in root.findall(".//texture"):
-                if "file" in texture.attrib:
-                    self._fix_path_attribute(texture, "file", xml_dir)
-            
-            # Fix heightfield paths
-            for hfield in root.findall(".//hfield"):
-                if "file" in hfield.attrib:
-                    self._fix_path_attribute(hfield, "file", xml_dir)
-            
-            # Fix other asset paths
-            for asset in root.findall(".//asset"):
-                if "file" in asset.attrib:
-                    self._fix_path_attribute(asset, "file", xml_dir)
+            # 重要：对于包含meshdir的模型，mesh文件路径是相对于meshdir的
+            # 我们不应该修改这些路径，让MuJoCo自己处理
             
             return ET.tostring(root, encoding='unicode')
             
         except Exception as e:
-            print(f"Warning: Could not fix paths in XML: {e}")
+            print(f"Warning: Could not process XML: {e}")
             return xml_content
     
     def _fix_path_attribute(self, element: ET.Element, attr: str, base_dir: Path):
@@ -272,4 +299,69 @@ class MenagerieLoader:
         if os.path.exists(license_path):
             info["has_license"] = True
             
+        # Check for available scene files
+        model_dir = os.path.dirname(xml_path)
+        scene_files = [f for f in os.listdir(model_dir) if f.startswith("scene") and f.endswith(".xml")]
+        if scene_files:
+            info["scene_files"] = scene_files
+            
         return info
+    
+    def get_all_models(self) -> Dict[str, List[str]]:
+        """Get all available models organized by category"""
+        if not self.menagerie_path:
+            return {}
+            
+        models_by_category = {
+            "robotic_arms": [],
+            "humanoids": [],
+            "quadrupeds": [],
+            "grippers_hands": [],
+            "mobile_robots": [],
+            "aerial_vehicles": [],
+            "special_purpose": [],
+            "soft_robots": [],
+            "sensors": []
+        }
+        
+        # Scan all directories
+        for item in os.listdir(self.menagerie_path):
+            if item.startswith('.') or item == 'assets':
+                continue
+                
+            item_path = os.path.join(self.menagerie_path, item)
+            if os.path.isdir(item_path):
+                # Check if it contains XML files
+                xml_files = [f for f in os.listdir(item_path) if f.endswith('.xml')]
+                if xml_files:
+                    category = self._guess_category([item], item)
+                    
+                    # Map to standardized categories
+                    if category == "arms":
+                        models_by_category["robotic_arms"].append(item)
+                    elif category == "humanoids":
+                        models_by_category["humanoids"].append(item)
+                    elif category == "quadrupeds":
+                        models_by_category["quadrupeds"].append(item)
+                    elif category in ["end_effectors", "grippers"]:
+                        models_by_category["grippers_hands"].append(item)
+                    elif category == "mobile_manipulators":
+                        models_by_category["mobile_robots"].append(item)
+                    elif category == "bipeds":
+                        models_by_category["humanoids"].append(item)
+                    else:
+                        # Determine by name patterns
+                        if "drone" in item or "crazyflie" in item or "skydio" in item:
+                            models_by_category["aerial_vehicles"].append(item)
+                        elif "soft" in item:
+                            models_by_category["soft_robots"].append(item)
+                        elif "realsense" in item:
+                            models_by_category["sensors"].append(item)
+                        else:
+                            models_by_category["special_purpose"].append(item)
+                            
+        # Sort each category
+        for category in models_by_category:
+            models_by_category[category].sort()
+            
+        return models_by_category

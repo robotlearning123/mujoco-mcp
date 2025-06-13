@@ -1,4 +1,4 @@
-#!/usr/bin/env mjpython
+#!/opt/miniconda3/bin/mjpython
 """
 MuJoCo Viewer Server - 增强版
 支持多模型并发管理
@@ -32,7 +32,7 @@ logger = logging.getLogger("mujoco_viewer_server")
 
 class ModelViewer:
     """单个模型的viewer管理器"""
-    def __init__(self, model_id: str, model_xml: str):
+    def __init__(self, model_id: str, model_source: str):
         self.model_id = model_id
         self.model = None
         self.data = None
@@ -40,8 +40,14 @@ class ModelViewer:
         self.simulation_running = False
         self.created_time = time.time()
         
-        # 加载模型
-        self.model = mujoco.MjModel.from_xml_string(model_xml)
+        # 加载模型 - 支持文件路径或XML字符串
+        if os.path.exists(model_source):
+            # 如果是文件路径，使用from_xml_path加载（这样相对路径会正确解析）
+            self.model = mujoco.MjModel.from_xml_path(model_source)
+        else:
+            # 否则假设是XML字符串
+            self.model = mujoco.MjModel.from_xml_string(model_source)
+        
         self.data = mujoco.MjData(self.model)
         
         # 启动viewer
@@ -90,49 +96,69 @@ class ModelViewer:
         """关闭viewer"""
         self.simulation_running = False
         if self.viewer:
-            # viewer会自动清理
-            self.viewer = None
+            try:
+                # Force close the viewer window
+                if hasattr(self.viewer, 'close'):
+                    self.viewer.close()
+                elif hasattr(self.viewer, '_window') and self.viewer._window:
+                    # For older MuJoCo versions, try to close the window directly
+                    try:
+                        self.viewer._window.close()
+                    except:
+                        pass
+                # Wait for simulation thread to finish
+                if hasattr(self, 'sim_thread') and self.sim_thread.is_alive():
+                    self.sim_thread.join(timeout=2.0)
+            except Exception as e:
+                logger.warning(f"Error closing viewer for {self.model_id}: {e}")
+            finally:
+                self.viewer = None
+        logger.info(f"Closed ModelViewer for {self.model_id}")
 
 class MuJoCoViewerServer:
-    """增强版MuJoCo Viewer服务器 - 支持多模型"""
+    """单一Viewer MuJoCo服务器 - 支持模型替换"""
     
     def __init__(self, port: int = 8888):
         self.port = port
         self.running = False
         self.socket_server = None
         
-        # 模型管理器 - 支持多个模型
-        self.models: Dict[str, ModelViewer] = {}
-        self.models_lock = threading.Lock()
+        # 单一模型管理器 - 只支持一个活跃的viewer
+        self.current_viewer: Optional[ModelViewer] = None
+        self.current_model_id: Optional[str] = None
+        self.viewer_lock = threading.Lock()
         
         # 客户端管理
         self.client_threads = []
         
     def handle_command(self, command: Dict[str, Any]) -> Dict[str, Any]:
-        """处理命令 - 支持多模型"""
+        """处理命令 - 单一Viewer模式"""
         cmd_type = command.get("type")
         
         try:
             if cmd_type == "load_model":
                 model_id = command.get("model_id", str(uuid.uuid4()))
-                model_xml = command.get("model_xml")
+                model_source = command.get("model_xml")  # 可以是XML字符串或文件路径
                 
-                with self.models_lock:
-                    # 如果模型已存在，先关闭
-                    if model_id in self.models:
-                        self.models[model_id].close()
-                        del self.models[model_id]
+                with self.viewer_lock:
+                    # 如果已有viewer，关闭它
+                    if self.current_viewer:
+                        logger.info(f"Closing existing viewer for {self.current_model_id}")
+                        self.current_viewer.close()
+                        time.sleep(2.0)  # Give time for viewer to close completely
                     
-                    # 创建新模型
-                    self.models[model_id] = ModelViewer(model_id, model_xml)
+                    # 创建新viewer
+                    logger.info(f"Creating new viewer for model {model_id}")
+                    self.current_viewer = ModelViewer(model_id, model_source)
+                    self.current_model_id = model_id
                 
                 return {
                     "success": True,
                     "model_id": model_id,
                     "model_info": {
-                        "nq": self.models[model_id].model.nq,
-                        "nv": self.models[model_id].model.nv,
-                        "nbody": self.models[model_id].model.nbody
+                        "nq": self.current_viewer.model.nq,
+                        "nv": self.current_viewer.model.nv,
+                        "nbody": self.current_viewer.model.nbody
                     }
                 }
                 
@@ -142,55 +168,191 @@ class MuJoCoViewerServer:
                 
             elif cmd_type == "get_state":
                 model_id = command.get("model_id")
-                if model_id not in self.models:
-                    return {"success": False, "error": f"Model {model_id} not found"}
+                if not self.current_viewer or (model_id and self.current_model_id != model_id):
+                    return {"success": False, "error": f"Model {model_id} not found or no active viewer"}
                 
-                state = self.models[model_id].get_state()
+                state = self.current_viewer.get_state()
                 return {"success": True, **state}
                 
             elif cmd_type == "set_joint_positions":
                 model_id = command.get("model_id")
                 positions = command.get("positions", [])
                 
-                if model_id not in self.models:
-                    return {"success": False, "error": f"Model {model_id} not found"}
+                if not self.current_viewer or (model_id and self.current_model_id != model_id):
+                    return {"success": False, "error": f"Model {model_id} not found or no active viewer"}
                 
-                self.models[model_id].set_joint_positions(positions)
+                self.current_viewer.set_joint_positions(positions)
                 return {"success": True, "positions_set": positions}
                 
             elif cmd_type == "reset":
                 model_id = command.get("model_id")
-                if model_id not in self.models:
-                    return {"success": False, "error": f"Model {model_id} not found"}
+                if not self.current_viewer or (model_id and self.current_model_id != model_id):
+                    return {"success": False, "error": f"Model {model_id} not found or no active viewer"}
                 
-                self.models[model_id].reset()
+                self.current_viewer.reset()
                 return {"success": True}
                 
             elif cmd_type == "close_model":
                 model_id = command.get("model_id")
-                with self.models_lock:
-                    if model_id in self.models:
-                        self.models[model_id].close()
-                        del self.models[model_id]
-                return {"success": True}
+                with self.viewer_lock:
+                    if self.current_viewer and (not model_id or self.current_model_id == model_id):
+                        logger.info(f"Closing current model {self.current_model_id}")
+                        self.current_viewer.close()
+                        self.current_viewer = None
+                        self.current_model_id = None
+                return {"success": True, "message": f"Model {model_id} closed successfully"}
+                
+            elif cmd_type == "replace_model":
+                model_id = command.get("model_id", str(uuid.uuid4()))
+                model_source = command.get("model_xml")  # 可以是XML字符串或文件路径
+                
+                with self.viewer_lock:
+                    # Close existing viewer if it exists
+                    if self.current_viewer:
+                        logger.info(f"Replacing existing model {self.current_model_id} with {model_id}")
+                        self.current_viewer.close()
+                        time.sleep(2.0)  # Give time for viewer to close completely
+                    
+                    # Create new viewer
+                    self.current_viewer = ModelViewer(model_id, model_source)
+                    self.current_model_id = model_id
+                
+                return {
+                    "success": True,
+                    "model_id": model_id,
+                    "message": f"Model {model_id} replaced successfully",
+                    "model_info": {
+                        "nq": self.current_viewer.model.nq,
+                        "nv": self.current_viewer.model.nv,
+                        "nbody": self.current_viewer.model.nbody
+                    }
+                }
                 
             elif cmd_type == "list_models":
                 models_info = {}
-                with self.models_lock:
-                    for model_id, viewer in self.models.items():
-                        models_info[model_id] = {
-                            "created_time": viewer.created_time,
-                            "viewer_running": viewer.viewer and viewer.viewer.is_running()
+                with self.viewer_lock:
+                    if self.current_viewer and self.current_model_id:
+                        models_info[self.current_model_id] = {
+                            "created_time": self.current_viewer.created_time,
+                            "viewer_running": self.current_viewer.viewer and self.current_viewer.viewer.is_running()
                         }
                 return {"success": True, "models": models_info}
                 
             elif cmd_type == "ping":
+                models_count = 1 if self.current_viewer else 0
                 return {
                     "success": True, 
                     "pong": True,
-                    "models_count": len(self.models),
-                    "server_running": self.running
+                    "models_count": models_count,
+                    "current_model": self.current_model_id,
+                    "server_running": self.running,
+                    "server_info": {
+                        "version": "0.7.4",
+                        "mode": "single_viewer",
+                        "port": self.port,
+                        "active_threads": len(self.client_threads)
+                    }
                 }
+                
+            elif cmd_type == "get_diagnostics":
+                model_id = command.get("model_id")
+                models_count = 1 if self.current_viewer else 0
+                diagnostics = {
+                    "success": True,
+                    "server_status": {
+                        "running": self.running,
+                        "mode": "single_viewer",
+                        "models_count": models_count,
+                        "current_model": self.current_model_id,
+                        "active_connections": len(self.client_threads),
+                        "port": self.port
+                    },
+                    "models": {}
+                }
+                
+                with self.viewer_lock:
+                    if self.current_viewer and self.current_model_id:
+                        diagnostics["models"][self.current_model_id] = {
+                            "created_time": self.current_viewer.created_time,
+                            "viewer_running": self.current_viewer.viewer and self.current_viewer.viewer.is_running(),
+                            "simulation_running": self.current_viewer.simulation_running,
+                            "thread_alive": hasattr(self.current_viewer, 'sim_thread') and self.current_viewer.sim_thread.is_alive()
+                        }
+                
+                if model_id and self.current_model_id == model_id:
+                    diagnostics["requested_model"] = diagnostics["models"][model_id]
+                
+                return diagnostics
+                
+            elif cmd_type == "capture_render":
+                """捕获当前渲染的图像"""
+                model_id = command.get("model_id")
+                width = command.get("width", 640)
+                height = command.get("height", 480)
+                
+                if not self.current_viewer or (model_id and self.current_model_id != model_id):
+                    return {"success": False, "error": f"Model {model_id} not found or no active viewer"}
+                
+                try:
+                    # 创建renderer
+                    renderer = mujoco.Renderer(self.current_viewer.model, height, width)
+                    
+                    # 更新场景
+                    renderer.update_scene(self.current_viewer.data)
+                    
+                    # 渲染图像
+                    pixels = renderer.render()
+                    
+                    # 转换为base64
+                    import base64
+                    from PIL import Image
+                    import io
+                    
+                    # 创建PIL图像
+                    image = Image.fromarray(pixels)
+                    
+                    # 保存到字节流
+                    img_buffer = io.BytesIO()
+                    image.save(img_buffer, format='PNG')
+                    img_data = img_buffer.getvalue()
+                    
+                    # 转换为base64
+                    img_base64 = base64.b64encode(img_data).decode('utf-8')
+                    
+                    return {
+                        "success": True,
+                        "image_data": img_base64,
+                        "width": width,
+                        "height": height,
+                        "format": "png"
+                    }
+                    
+                except Exception as e:
+                    logger.error(f"Failed to capture render: {e}")
+                    return {"success": False, "error": str(e)}
+                
+            elif cmd_type == "close_viewer":
+                """完全关闭viewer GUI窗口"""
+                with self.viewer_lock:
+                    if self.current_viewer:
+                        logger.info(f"Closing viewer GUI for model {self.current_model_id}")
+                        self.current_viewer.close()
+                        self.current_viewer = None
+                        self.current_model_id = None
+                        return {"success": True, "message": "Viewer GUI closed successfully"}
+                    else:
+                        return {"success": True, "message": "No viewer is currently open"}
+                
+            elif cmd_type == "shutdown_server":
+                """完全关闭服务器"""
+                logger.info("Shutdown command received")
+                self.running = False
+                with self.viewer_lock:
+                    if self.current_viewer:
+                        self.current_viewer.close()
+                        self.current_viewer = None
+                        self.current_model_id = None
+                return {"success": True, "message": "Server shutdown initiated"}
                 
             else:
                 return {"success": False, "error": f"Unknown command: {cmd_type}"}
@@ -254,29 +416,46 @@ class MuJoCoViewerServer:
     
     def start_socket_server(self):
         """启动Socket服务器 - 支持多连接"""
+        # 检查端口是否可用
+        try:
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.bind(('localhost', self.port))
+            test_socket.close()
+        except OSError as e:
+            if e.errno == 48:  # Address already in use
+                logger.error(f"Port {self.port} is already in use. Please choose a different port or kill the existing process.")
+                raise
+            else:
+                logger.error(f"Failed to bind to port {self.port}: {e}")
+                raise
+
         self.socket_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
-        self.socket_server.bind(('localhost', self.port))
-        self.socket_server.listen(10)  # 支持多个连接
-        logger.info(f"MuJoCo Viewer Server listening on port {self.port}")
-        
-        while self.running:
-            try:
-                client_socket, address = self.socket_server.accept()
-                
-                # 为每个客户端创建独立线程
-                client_thread = threading.Thread(
-                    target=self.handle_client,
-                    args=(client_socket, address),
-                    daemon=True
-                )
-                client_thread.start()
-                self.client_threads.append(client_thread)
-                
-            except Exception as e:
-                if self.running:
-                    logger.error(f"Error accepting connection: {e}")
+        try:
+            self.socket_server.bind(('localhost', self.port))
+            self.socket_server.listen(10)  # 支持多个连接
+            logger.info(f"MuJoCo Viewer Server listening on port {self.port}")
+            
+            while self.running:
+                try:
+                    client_socket, address = self.socket_server.accept()
+                    
+                    # 为每个客户端创建独立线程
+                    client_thread = threading.Thread(
+                        target=self.handle_client,
+                        args=(client_socket, address),
+                        daemon=True
+                    )
+                    client_thread.start()
+                    self.client_threads.append(client_thread)
+                    
+                except Exception as e:
+                    if self.running:
+                        logger.error(f"Error accepting connection: {e}")
+        except Exception as e:
+            logger.error(f"Failed to start socket server: {e}")
+            raise
     
     def start(self):
         """启动服务器"""
@@ -295,11 +474,13 @@ class MuJoCoViewerServer:
         logger.info("Stopping MuJoCo Viewer Server...")
         self.running = False
         
-        # 关闭所有模型
-        with self.models_lock:
-            for model_id in list(self.models.keys()):
-                self.models[model_id].close()
-            self.models.clear()
+        # 关闭当前viewer
+        with self.viewer_lock:
+            if self.current_viewer:
+                logger.info(f"Closing current viewer for {self.current_model_id}")
+                self.current_viewer.close()
+                self.current_viewer = None
+                self.current_model_id = None
         
         # 关闭socket
         if self.socket_server:
@@ -316,10 +497,23 @@ def main():
     
     parser = argparse.ArgumentParser(description="Enhanced MuJoCo Viewer Server")
     parser.add_argument("--port", type=int, default=8888, help="Socket server port")
+    parser.add_argument("--max-retries", type=int, default=3, help="Maximum number of port binding retries")
     args = parser.parse_args()
     
-    server = MuJoCoViewerServer(port=args.port)
-    server.start()
+    # Try different ports if the default one is in use
+    for retry in range(args.max_retries):
+        try:
+            port = args.port + retry if retry > 0 else args.port
+            server = MuJoCoViewerServer(port=port)
+            server.start()
+            break
+        except OSError as e:
+            if e.errno == 48 and retry < args.max_retries - 1:  # Address already in use
+                print(f"Port {port} is in use, trying port {port + 1}...")
+                continue
+            else:
+                print(f"Failed to start server: {e}")
+                sys.exit(1)
 
 if __name__ == "__main__":
     main()
