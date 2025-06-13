@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/opt/miniconda3/bin/mjpython
 """
 MuJoCo Viewer Server - Enhanced Version
 Supports concurrent multi-model management
