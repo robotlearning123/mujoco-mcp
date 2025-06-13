@@ -10,7 +10,6 @@ import argparse
 import os
 from typing import Optional
 
-from .server import MuJoCoServer
 from .version import __version__
 
 
@@ -80,36 +79,6 @@ Examples:
     return parser.parse_args()
 
 
-async def start_server(host: str, port: int, log_level: str) -> Optional[MuJoCoServer]:
-    """Start the MuJoCo MCP server"""
-    try:
-        # Setup logging
-        setup_logging(log_level)
-        logger = logging.getLogger("mujoco_mcp.main")
-        
-        # Create and initialize server
-        logger.info(f"Initializing MuJoCo MCP Server v{__version__}")
-        server = MuJoCoServer()
-        await server.initialize()
-        
-        # Log server info
-        info = server.get_server_info()
-        logger.info(f"Server: {info['name']} v{info['version']}")
-        logger.info(f"Description: {info['description']}")
-        logger.info(f"Capabilities: {', '.join(info['capabilities'].keys())}")
-        logger.info(f"Starting server on {host}:{port}")
-        
-        # Start the server
-        await server.run()
-        
-        return server
-        
-    except KeyboardInterrupt:
-        logger.info("Server shutdown requested")
-        return None
-    except Exception as e:
-        logger.error(f"Failed to start server: {e}")
-        raise
 
 
 def check_configuration():
@@ -155,7 +124,7 @@ def check_configuration():
 
 
 def main():
-    """Main entry point for CLI"""
+    """Main entry point for CLI - runs MCP server via stdio"""
     args = parse_args()
     
     # Handle debug flag
@@ -167,25 +136,15 @@ def main():
         success = check_configuration()
         sys.exit(0 if success else 1)
     
-    # Check if we're already in an event loop
+    # Import and run MCP server
     try:
-        # Try to get the current event loop
-        loop = asyncio.get_running_loop()
-        print("Warning: Already running in an event loop. Use 'await start_server()' instead.")
-        print("For CLI usage, run this script directly, not from within an async environment.")
-        sys.exit(1)
-    except RuntimeError:
-        # No event loop running, this is expected for CLI usage
-        pass
-    
-    # Start the server
-    try:
-        asyncio.run(start_server(args.host, args.port, args.log_level))
+        from .mcp_server import main as mcp_main
+        asyncio.run(mcp_main())
     except KeyboardInterrupt:
-        print("\nServer stopped by user")
+        print("\nMCP server stopped by user")
         sys.exit(0)
     except Exception as e:
-        print(f"Server failed: {e}")
+        print(f"MCP server failed: {e}")
         sys.exit(1)
 
 
