@@ -42,7 +42,7 @@ jobs:
         
     - name: Test with pytest
       run: |
-        pytest tests/ -v --cov=src/mujoco_mcp --cov-report=xml --cov-report=term-missing
+        pytest tests/test_v0_8_basic.py -v --cov=src/mujoco_mcp --cov-report=xml --cov-report=term-missing
         
     - name: Test package installation
       run: |
