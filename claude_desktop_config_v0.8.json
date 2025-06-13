@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mujoco-mcp": {
+      "command": "/opt/miniconda3/bin/python",
+      "args": ["-m", "mujoco_mcp"],
+      "cwd": "/Users/robert/workspace/04-code/03-mujoco/mujoco-mcp",
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "/Users/robert/workspace/04-code/03-mujoco/mujoco-mcp/src"
+      }
+    }
+  }
+}
