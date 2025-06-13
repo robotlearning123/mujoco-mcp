@@ -25,7 +25,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-cov pytest-asyncio ruff mypy bandit build
+        pip install pytest pytest-cov pytest-asyncio ruff mypy bandit build psutil
         pip install -e .
         
     - name: Lint with ruff
@@ -42,7 +42,7 @@ jobs:
         
     - name: Test with pytest
       run: |
-        pytest tests/test_v0_8_basic.py -v --cov=src/mujoco_mcp --cov-report=xml --cov-report=term-missing
+        pytest tests/test_v0_8_basic.py -v --cov=src/mujoco_mcp --cov-report=xml --cov-report=term-missing --ignore=tests/conftest.py
         
     - name: Test package installation
       run: |
