@@ -1,5 +1,5 @@
 #!/bin/bash
-# MuJoCo MCP Remote 快速启动脚本
+# MuJoCo MCP Remote Quick Start Script
 
 echo "🚀 MuJoCo MCP Remote 快速启动"
 echo "================================"

@@ -92,6 +92,6 @@ All scenes support the following control methods:
 ## Visualization
 
 Each scene is displayed in real-time in MuJoCo Viewer:
-- 彩色几何体表示不同组件
-- 实时物理仿真
-- 鼠标交互支持
+- Colored geometries represent different components
+- Real-time physics simulation
+- Mouse interaction support

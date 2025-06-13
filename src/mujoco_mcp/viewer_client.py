@@ -16,19 +16,19 @@ from typing import Dict, Any, Optional
 logger = logging.getLogger("mujoco_mcp.viewer_client")
 
 class MuJoCoViewerClient:
-    """连接到MuJoCo Viewer Server的客户端 - 增强版"""
+    """Client for connecting to MuJoCo Viewer Server - Enhanced version"""
     
     def __init__(self, host: str = 'localhost', port: int = 8888):
         self.host = host
         self.port = port
         self.socket = None
         self.connected = False
-        self.auto_start = True  # 自动启动viewer server
+        self.auto_start = True  # Auto-start viewer server
         self.reconnect_attempts = 3
         self.reconnect_delay = 2.0
     
     def connect(self) -> bool:
-        """连接到MuJoCo Viewer Server - 支持自动启动和重试"""
+        """Connect to MuJoCo Viewer Server - supports auto-start and retry"""
         for attempt in range(self.reconnect_attempts):
             try:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -40,11 +40,11 @@ class MuJoCoViewerClient:
             except Exception as e:
                 logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
                 
-                # 第一次失败后尝试启动viewer server
+                # Try to start viewer server after first failure
                 if attempt == 0 and self.auto_start:
                     logger.info("Attempting to start MuJoCo Viewer Server...")
                     if self._start_viewer_server():
-                        time.sleep(3)  # 等待服务器启动
+                        time.sleep(3)  # Wait for server to start
                         continue
                 
                 if attempt < self.reconnect_attempts - 1:

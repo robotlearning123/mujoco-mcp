@@ -1,47 +1,29 @@
 # MuJoCo MCP - Cursor Configuration
 
 ## Project Overview
-MuJoCo MCP is a Model Context Protocol server for controlling MuJoCo physics simulations through AI agents.
+MuJoCo MCP enables AI agents to control MuJoCo physics simulations through the Model Context Protocol.
 
-## MCP Server Configuration
-When working with this project, you can connect to the MuJoCo MCP server:
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "mujoco-mcp": {
-        "command": "python",
-        "args": ["-m", "mujoco_mcp.server"],
-        "env": {
-          "PYTHONUNBUFFERED": "1"
-        }
-      }
-    }
-  }
-}
-```
+## Key Features
+- Natural language control of physics simulations
+- Real-time visualization with MuJoCo viewer
+- Support for various robot models and scenes
+- Full MCP standard compliance
 
 ## Available MCP Tools
-- **Simulation Control**: load_model, start_simulation, step_simulation, reset_simulation
-- **Robot Control**: set_joint_positions, apply_control, move_to_position, grasp_object
-- **RL Integration**: create_rl_environment, train_policy, evaluate_policy
-- **Visualization**: render_frame, get_camera_image, visualize_contacts
-- **Analysis**: analyze_behavior, get_performance_metrics, optimize_parameters
+- `get_server_info` - Get server information
+- `create_scene` - Create physics simulations
+- `step_simulation` - Advance simulation time
+- `get_state` - Get current simulation state
+- `set_joint_positions` - Control joint angles
+- `reset_simulation` - Reset to initial state
+- `close_viewer` - Close viewer window
 
 ## Code Guidelines
-1. Follow test-driven development (TDD) approach
-2. Maintain backward compatibility
-3. Add comprehensive docstrings for all public APIs
-4. Ensure all new features have corresponding tests
-5. Use type hints for better code clarity
+1. Keep code simple and readable
+2. Follow PEP 8 style guide
+3. Add docstrings to all functions
+4. Use type hints where possible
+5. Test all new features
 
 ## Testing
-Run tests with: `pytest tests/`
-Check coverage with: `pytest --cov=mujoco_mcp tests/`
-
-## Natural Language Examples
-- "Create a pendulum and swing it to the upright position"
-- "Show me the current state of the robot"
-- "Optimize the controller parameters for energy efficiency"
-- "Train a policy to balance the cartpole"
+Run tests with: `python scripts/quick_internal_test.py`

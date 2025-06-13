@@ -1,27 +1,13 @@
 {
-  "name": "mujoco-mcp",
-  "displayName": "MuJoCo Physics Simulation",
-  "description": "Control MuJoCo physics simulations through natural language commands",
-  "icon": "🤖",
-  "command": "python",
-  "args": ["-m", "mujoco_mcp.server"],
-  "env": {
-    "PYTHONUNBUFFERED": "1",
-    "MUJOCO_MCP_LOG_LEVEL": "INFO"
-  },
-  "config": {
-    "host": "localhost",
-    "port": 8000,
-    "timeout": 30000,
-    "retries": 3,
-    "features": {
-      "reinforcement_learning": true,
-      "visualization": true,
-      "multi_agent": true,
-      "natural_language": true
+  "mcpServers": {
+    "mujoco-mcp": {
+      "command": "python",
+      "args": ["-m", "mujoco_mcp"],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "./src",
+        "MUJOCO_MCP_LOG_LEVEL": "INFO"
+      }
     }
-  },
-  "requiredVersion": ">=0.6.0",
-  "homepage": "https://github.com/mujoco-mcp/mujoco-mcp",
-  "documentation": "https://github.com/mujoco-mcp/mujoco-mcp/blob/main/README.md"
+  }
 }

@@ -1,5 +1,5 @@
 #!/bin/bash
-# MuJoCo-MCP 本地安装测试脚本
+# MuJoCo-MCP Local Installation Test Script
 
 echo "=== MuJoCo-MCP Local Installation Test ==="
 

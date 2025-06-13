@@ -1,6 +1,6 @@
 #!/bin/bash
 # MuJoCo-MCP Complete Test Suite
-# 在发布前运行此脚本进行全面测试
+# Run this script for comprehensive testing before release
 
 set -e  # Exit immediately on error
 

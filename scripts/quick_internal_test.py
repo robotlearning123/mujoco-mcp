@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-# 添加项目路径
+# Add project path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
@@ -24,7 +24,7 @@ async def test_core_functionality():
         "error_handling_test": False
     }
     
-    # 1. 导入测试
+    # 1. Import test
     print("1. Testing package import...")
     try:
         import mujoco_mcp
@@ -37,7 +37,7 @@ async def test_core_functionality():
         print(f"   ❌ Package import failed: {e}")
         return results
     
-    # 2. 工具列表测试
+    # 2. Tools list test
     print("\n2. Testing tools list...")
     try:
         tools = await handle_list_tools()
@@ -48,7 +48,7 @@ async def test_core_functionality():
     except Exception as e:
         print(f"   ❌ Failed to get tools list: {e}")
     
-    # 3. MCP 协议测试
+    # 3. MCP protocol test
     print("\n3. Testing MCP protocol...")
     try:
         result = await handle_call_tool("get_server_info", {})
@@ -61,7 +61,7 @@ async def test_core_functionality():
     except Exception as e:
         print(f"   ❌ MCP protocol test failed: {e}")
     
-    # 4. 错误处理测试
+    # 4. Error handling test
     print("\n4. Testing error handling...")
     try:
         result = await handle_call_tool("invalid_tool", {})
@@ -76,7 +76,7 @@ async def test_core_functionality():
     return results
 
 def print_summary(results):
-    """打印测试摘要"""
+    """Print test summary"""
     print("\n" + "="*50)
     print("Internal Test Summary")
     print("="*50)

@@ -19,8 +19,7 @@ from pydantic import BaseModel, Field
 from .simulation import MuJoCoSimulation
 from .version import __version__
 
-# Import all handlers from simple_server
-from .simple_server import MuJoCoMCPServer as SimpleMCPServer
+# Direct implementation without simple_server dependency
 
 
 # Pydantic models for tool parameters
@@ -99,8 +98,8 @@ class MuJoCoServer:
         self.version = __version__
         self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations"
         
-        # Use SimpleMCPServer for actual implementation
-        self._impl = SimpleMCPServer()
+        # Initialize simulations storage
+        self.simulations: Dict[str, MuJoCoSimulation] = {}
         self._impl.version = self.version  # Update version
         
         # Create FastMCP instance

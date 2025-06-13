@@ -138,10 +138,10 @@ class MuJoCoViewerServer:
         try:
             if cmd_type == "load_model":
                 model_id = command.get("model_id", str(uuid.uuid4()))
-                model_source = command.get("model_xml")  # 可以是XML字符串或文件路径
+                model_source = command.get("model_xml")  # Can be XML string or file path
                 
                 with self.viewer_lock:
-                    # 如果已有viewer，关闭它
+                    # If there's an existing viewer, close it
                     if self.current_viewer:
                         logger.info(f"Closing existing viewer for {self.current_model_id}")
                         self.current_viewer.close()
@@ -163,7 +163,7 @@ class MuJoCoViewerServer:
                 }
                 
             elif cmd_type == "start_viewer":
-                # 兼容旧版本，但viewer已经在load_model时启动
+                # Compatible with old version, but viewer is already started when load_model
                 return {"success": True, "message": "Viewer already started"}
                 
             elif cmd_type == "get_state":
@@ -204,7 +204,7 @@ class MuJoCoViewerServer:
                 
             elif cmd_type == "replace_model":
                 model_id = command.get("model_id", str(uuid.uuid4()))
-                model_source = command.get("model_xml")  # 可以是XML字符串或文件路径
+                model_source = command.get("model_xml")  # Can be XML string or file path
                 
                 with self.viewer_lock:
                     # Close existing viewer if it exists
@@ -332,7 +332,7 @@ class MuJoCoViewerServer:
                     return {"success": False, "error": str(e)}
                 
             elif cmd_type == "close_viewer":
-                """完全关闭viewer GUI窗口"""
+                """Completely close viewer GUI window"""
                 with self.viewer_lock:
                     if self.current_viewer:
                         logger.info(f"Closing viewer GUI for model {self.current_model_id}")
@@ -344,7 +344,7 @@ class MuJoCoViewerServer:
                         return {"success": True, "message": "No viewer is currently open"}
                 
             elif cmd_type == "shutdown_server":
-                """完全关闭服务器"""
+                """Completely shutdown server"""
                 logger.info("Shutdown command received")
                 self.running = False
                 with self.viewer_lock:
@@ -362,15 +362,15 @@ class MuJoCoViewerServer:
             return {"success": False, "error": str(e)}
     
     def handle_client(self, client_socket: socket.socket, address):
-        """处理单个客户端连接 - 在独立线程中"""
+        """Handle single client connection - in separate thread"""
         logger.info(f"Client connected from {address}")
         
-        # 设置更大的接收缓冲区
+        # Set larger receive buffer
         client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
         
         try:
             while self.running:
-                # 接收数据 - 支持大消息
+                # Receive data - support large messages
                 data = b""
                 while True:
                     chunk = client_socket.recv(8192)
@@ -378,28 +378,28 @@ class MuJoCoViewerServer:
                         if data:
                             break
                         else:
-                            # 连接关闭
+                            # Connection closed
                             return
                     data += chunk
                     
-                    # 检查是否收到完整的JSON
+                    # Check if complete JSON received
                     try:
                         json.loads(data.decode('utf-8'))
                         break
                     except:
-                        # 继续接收
-                        if len(data) > 1024 * 1024:  # 1MB限制
+                        # Continue receiving
+                        if len(data) > 1024 * 1024:  # 1MB limit
                             raise ValueError("Message too large")
                         continue
                 
-                # 解析命令
+                # Parse command
                 command = json.loads(data.decode('utf-8'))
                 logger.debug(f"Received command: {command.get('type', 'unknown')}")
                 
-                # 处理命令
+                # Process command
                 response = self.handle_command(command)
                 
-                # 发送响应
+                # Send response
                 response_json = json.dumps(response) + '\n'
                 client_socket.send(response_json.encode('utf-8'))
                 
@@ -415,8 +415,8 @@ class MuJoCoViewerServer:
             logger.info(f"Client {address} disconnected")
     
     def start_socket_server(self):
-        """启动Socket服务器 - 支持多连接"""
-        # 检查端口是否可用
+        """Start Socket server - supports multiple connections"""
+        # Check if port is available
         try:
             test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             test_socket.bind(('localhost', self.port))
@@ -434,14 +434,14 @@ class MuJoCoViewerServer:
         
         try:
             self.socket_server.bind(('localhost', self.port))
-            self.socket_server.listen(10)  # 支持多个连接
+            self.socket_server.listen(10)  # Support multiple connections
             logger.info(f"MuJoCo Viewer Server listening on port {self.port}")
             
             while self.running:
                 try:
                     client_socket, address = self.socket_server.accept()
                     
-                    # 为每个客户端创建独立线程
+                    # Create separate thread for each client
                     client_thread = threading.Thread(
                         target=self.handle_client,
                         args=(client_socket, address),
@@ -458,7 +458,7 @@ class MuJoCoViewerServer:
             raise
     
     def start(self):
-        """启动服务器"""
+        """Start server"""
         self.running = True
         logger.info("Starting Enhanced MuJoCo Viewer Server...")
         
@@ -470,11 +470,11 @@ class MuJoCoViewerServer:
             self.stop()
     
     def stop(self):
-        """停止服务器"""
+        """Stop server"""
         logger.info("Stopping MuJoCo Viewer Server...")
         self.running = False
         
-        # 关闭当前viewer
+        # Close current viewer
         with self.viewer_lock:
             if self.current_viewer:
                 logger.info(f"Closing current viewer for {self.current_model_id}")
@@ -482,7 +482,7 @@ class MuJoCoViewerServer:
                 self.current_viewer = None
                 self.current_model_id = None
         
-        # 关闭socket
+        # Close socket
         if self.socket_server:
             try:
                 self.socket_server.close()
@@ -492,7 +492,7 @@ class MuJoCoViewerServer:
         logger.info("Server stopped")
 
 def main():
-    """主函数"""
+    """Main function"""
     import argparse
     
     parser = argparse.ArgumentParser(description="Enhanced MuJoCo Viewer Server")
