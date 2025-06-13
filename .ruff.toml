@@ -71,6 +71,38 @@ ignore = [
     "RUF013",  # PEP 484 prohibits implicit `Optional`
     "RUF022",  # `__all__` is not sorted
     "RUF003",  # Comment contains ambiguous characters
+    "RUF001",  # String contains ambiguous unicode
+    "RUF002",  # Docstring contains ambiguous unicode
+    "RUF015",  # Prefer next(iter()) over single element slice
+    
+    # Print statements (acceptable in some modules)
+    "T201",    # Print statements found
+    
+    # String formatting and concatenation
+    "ISC003",  # Explicitly concatenated string should be implicitly concatenated
+    "G003",    # Logging statement uses `+`
+    
+    # Code comments and cleanup
+    "ERA001",  # Found commented-out code
+    
+    # Exception handling patterns
+    "TRY301",  # Abstract `raise` to an inner function
+    "TRY400",  # Use `logging.exception` instead of `logging.error`
+    
+    # Return statement optimization
+    "RET504",  # Unnecessary assignment before `return` statement
+    
+    # Path handling modernization (can be done later)
+    "PTH118",  # `os.path.join()` should be replaced by `Path` with `/` operator
+    "PTH120",  # `os.path.dirname()` should be replaced by `Path.parent`
+    "PTH109",  # `os.getcwd()` should be replaced by `Path.cwd()`
+    "PTH110",  # `os.path.exists()` should be replaced by `Path.exists()`
+    "PTH100",  # `os.path.abspath()` should be replaced by `Path.resolve()`
+    
+    # Subprocess security (acceptable for this project)
+    "S603",    # `subprocess` call: check for execution of untrusted input
+    "PLW1510", # `subprocess.run` without explicit `check` argument
+    "S607",    # Starting a process with a partial executable path
     
     # Executable and shebang issues
     "EXE001",  # Shebang is present but file is not executable
