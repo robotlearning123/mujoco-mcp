@@ -4,18 +4,18 @@
 [![MuJoCo](https://img.shields.io/badge/MuJoCo-2.3.0%2B-green.svg)](https://github.com/google-deepmind/mujoco)
 [![MCP](https://img.shields.io/badge/MCP-2024--11--05-blue.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.7.0-orange.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.1-orange.svg)](CHANGELOG.md)
 
 MuJoCo MCP enables AI agents to control MuJoCo physics simulations through the Model Context Protocol. It provides a bridge between language models (like Claude) and the MuJoCo physics engine, allowing natural language control of robotic simulations.
 
 ## 🌟 Key Features
 
-### v0.7.0 Highlights
+### v0.7.1 Highlights
+- **🤖 MuJoCo Menagerie Support**: Load real robot models from Google DeepMind's Menagerie
+- **🎯 Enhanced Natural Language**: Better command parsing and helpful suggestions
+- **📚 50+ Robot Models**: Access to robotic arms, quadrupeds, humanoids, and more
 - **🚀 Enhanced Socket Architecture**: Multi-threaded server supporting concurrent connections
 - **📡 Remote Viewer Mode**: External MuJoCo GUI process with real-time visualization
-- **🔌 Robust Communication**: Dynamic buffer management for large models
-- **🛡️ Improved Stability**: Better error handling and connection recovery
-- **🤖 Multi-Model Support**: Architecture ready for multiple simultaneous simulations
 
 ### Core Capabilities
 - **Natural Language Control**: Control simulations using plain English commands
@@ -96,23 +96,44 @@ Claude: I've reset the simulation to its initial state.
 [Simulation resets]
 ```
 
+### Using MuJoCo Menagerie Models
+
+```
+Human: Load the Franka Panda robot
+
+Claude: I'll load the Franka Emika Panda robot from MuJoCo Menagerie.
+[Loads 7-DOF robotic arm in viewer]
+```
+
 ## 🛠️ Available MCP Tools
 
 ### Core Tools
 - **get_server_info** - Get server information and capabilities
-- **create_scene** - Create physics scenes (pendulum, double_pendulum, cart_pole, robotic_arm)
+- **create_scene** - Create physics scenes (built-in: pendulum, double_pendulum, cart_pole, robotic_arm; Menagerie: 50+ real robots)
 - **step_simulation** - Advance simulation time
 - **get_state** - Get current simulation state
 - **set_joint_positions** - Control joint angles
 - **reset_simulation** - Reset to initial state
 - **execute_command** - Natural language command interface
 - **get_loaded_models** - List active simulations
+- **list_menagerie_models** - List available MuJoCo Menagerie robot models
 
-### Supported Scenes
+### Supported Models
+
+#### Built-in Scenes
 1. **Single Pendulum** - Classic pendulum with damping
 2. **Double Pendulum** - Chaotic double pendulum system
 3. **Cart-Pole** - Classic control problem
-4. **Robotic Arm** - Multi-joint robotic arm (coming soon)
+4. **Robotic Arm** - 2-DOF robotic arm
+
+#### MuJoCo Menagerie Models (50+ Real Robots)
+With [MuJoCo Menagerie](https://github.com/google-deepmind/mujoco_menagerie) installed:
+- **Robotic Arms**: Franka Panda, UR5e, KUKA iiwa, and more
+- **Quadrupeds**: Boston Dynamics Spot, Unitree robots, ANYmal, and more
+- **Humanoids**: Unitree H1, Apollo, and more
+- **Grippers**: Shadow Hand, Allegro Hand, and more
+
+Quick setup: `git clone https://github.com/google-deepmind/mujoco_menagerie.git ~/.mujoco/menagerie`
 
 ## 🏗️ Architecture
 

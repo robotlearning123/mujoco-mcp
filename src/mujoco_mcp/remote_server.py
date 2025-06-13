@@ -5,9 +5,11 @@ MuJoCo MCP 远程服务器实现 (v0.6.2)
 import uuid
 import time
 import json
+import os
 from typing import Dict, Any, List, Optional
 from .viewer_client import viewer_manager, ensure_viewer_connection
 from .logging_config import get_logger, error_handler, MCPErrorCode
+from .menagerie_loader import MenagerieLoader
 
 class MuJoCoRemoteServer:
     """MuJoCo远程MCP服务器，连接到外部MuJoCo Viewer"""
@@ -18,6 +20,9 @@ class MuJoCoRemoteServer:
         self.version = "0.7.0"
         self.description = "MuJoCo Model Context Protocol Server - Remote mode connecting to external MuJoCo Viewer GUI"
         self.logger = get_logger("mujoco_mcp.remote_server")
+        
+        # Initialize Menagerie loader
+        self.menagerie = MenagerieLoader()
         
         # 工具注册表
         self._tools = {}
@@ -113,6 +118,16 @@ class MuJoCoRemoteServer:
             "parameters": {},
             "handler": self._handle_get_loaded_models
         }
+        
+        # Menagerie model listing tool
+        self._tools["list_menagerie_models"] = {
+            "name": "list_menagerie_models",
+            "description": "List available MuJoCo Menagerie models",
+            "parameters": {
+                "category": "(optional) Filter by category (arms, quadrupeds, bipeds, etc.)"
+            },
+            "handler": self._handle_list_menagerie_models
+        }
     
     def _handle_get_server_info(self) -> Dict[str, Any]:
         """获取服务器信息"""
@@ -138,12 +153,26 @@ class MuJoCoRemoteServer:
         # 生成模型ID
         model_id = str(uuid.uuid4())
         
-        # 创建模型XML
+        # First try built-in scenes
         model_xml = self._generate_scene_xml(scene_type, parameters or {})
+        
+        # If not a built-in scene, try Menagerie
+        if not model_xml and self.menagerie.is_available():
+            self.logger.info(f"Trying to load '{scene_type}' from Menagerie")
+            model_xml = self.menagerie.load_model_xml(scene_type)
+            if model_xml:
+                self.logger.info(f"Successfully loaded '{scene_type}' from Menagerie")
+        
         if not model_xml:
+            # Provide helpful error message
+            error_msg = f"Model '{scene_type}' not found. "
+            if self.menagerie.is_available():
+                error_msg += "Try 'list_menagerie_models' to see available models."
+            else:
+                error_msg += "MuJoCo Menagerie not installed. Built-in models: pendulum, double_pendulum, cart_pole, robotic_arm"
             return {
                 "success": False,
-                "error": f"Unsupported scene type: {scene_type}"
+                "error": error_msg
             }
         
         # 确保viewer连接
@@ -178,8 +207,13 @@ class MuJoCoRemoteServer:
             }
         
         # 保存模型元数据
+        model_source = "built-in"
+        if scene_type not in ["pendulum", "double_pendulum", "cart_pole", "robotic_arm"]:
+            model_source = "menagerie"
+            
         self._models[model_id] = {
             "scene_type": scene_type,
+            "source": model_source,
             "parameters": parameters,
             "model_info": response.get("model_info", {}),
             "created_time": time.time()
@@ -258,39 +292,177 @@ class MuJoCoRemoteServer:
         # 简单的命令解析
         command_lower = command.lower()
         
+        # 获取默认 model_id
+        model_id = context.get("model_id")
+        if not model_id and self._models:
+            model_id = list(self._models.keys())[0]  # 使用第一个模型
+        
         # 创建场景命令
-        if "create" in command_lower and "pendulum" in command_lower:
-            return self._handle_create_scene("pendulum", context)
-        elif "create" in command_lower and "cart" in command_lower:
-            return self._handle_create_scene("cart_pole", context)
+        if "create" in command_lower or "load" in command_lower:
+            if "pendulum" in command_lower:
+                if "double" in command_lower:
+                    return self._handle_create_scene("double_pendulum", context)
+                else:
+                    return self._handle_create_scene("pendulum", context)
+            elif "cart" in command_lower:
+                return self._handle_create_scene("cart_pole", context)
+            elif "arm" in command_lower or "robot" in command_lower:
+                # Check if it's a specific robot name
+                if "franka" in command_lower or "panda" in command_lower:
+                    return self._handle_create_scene("franka_emika_panda", context)
+                else:
+                    return self._handle_create_scene("robotic_arm", context)
+            else:
+                # Try to extract model name from command
+                # Remove common words
+                words_to_remove = ["create", "load", "the", "a", "model", "robot"]
+                words = command_lower.split()
+                model_words = [w for w in words if w not in words_to_remove]
+                
+                if model_words:
+                    # Try common variations
+                    model_name = "_".join(model_words)
+                    result = self._handle_create_scene(model_name, context)
+                    if result.get("success"):
+                        return result
+                    
+                    # Try with hyphens
+                    model_name = "-".join(model_words)
+                    result = self._handle_create_scene(model_name, context)
+                    if result.get("success"):
+                        return result
+                    
+                    # Try as-is
+                    model_name = " ".join(model_words)
+                    return self._handle_create_scene(model_name, context)
         
         # 获取状态命令
-        if "state" in command_lower or "status" in command_lower:
-            model_id = context.get("model_id")
-            if not model_id and self._models:
-                model_id = list(self._models.keys())[0]  # 使用第一个模型
-            
+        if any(word in command_lower for word in ["state", "status", "show", "get"]):
             if model_id:
                 return self._handle_get_state(model_id)
+            else:
+                return {"error": "No active simulation"}
         
         # 重置命令
         if "reset" in command_lower:
-            model_id = context.get("model_id")
-            if not model_id and self._models:
-                model_id = list(self._models.keys())[0]
-            
             if model_id:
                 return self._handle_reset_simulation(model_id)
+            else:
+                return {"error": "No active simulation"}
+        
+        # 步进仿真
+        if any(word in command_lower for word in ["step", "advance", "run"]):
+            if model_id:
+                # 尝试从命令中提取步数
+                import re
+                numbers = re.findall(r'\d+', command)
+                steps = int(numbers[0]) if numbers else 100
+                return self._handle_step_simulation(model_id, steps)
+            else:
+                return {"error": "No active simulation"}
+        
+        # 设置关节位置
+        if any(word in command_lower for word in ["set", "move", "rotate"]):
+            if model_id:
+                # 尝试提取角度值
+                import re
+                numbers = re.findall(r'-?\d+\.?\d*', command)
+                if numbers:
+                    angle = float(numbers[0])
+                    # 如果命令中提到度数，转换为弧度
+                    if "degree" in command_lower or "°" in command:
+                        angle = angle * 3.14159 / 180.0
+                    
+                    # 简单逻辑：如果只有一个关节，设置第一个；否则根据命令判断
+                    positions = [angle]
+                    return self._handle_set_joint_positions(model_id, positions)
+            else:
+                return {"error": "No active simulation"}
+        
+        # 列出模型
+        if "list" in command_lower:
+            if "menagerie" in command_lower:
+                # Extract category if specified
+                category = None
+                for cat in ["arms", "quadrupeds", "bipeds", "humanoids", "end_effectors"]:
+                    if cat in command_lower:
+                        category = cat
+                        break
+                return self._handle_list_menagerie_models(category)
+            elif "model" in command_lower:
+                return self._handle_get_loaded_models()
+        
+        # 摆动命令（swing）
+        if "swing" in command_lower:
+            if model_id:
+                # 创建一个摆动序列
+                return {"message": "Swing command recognized. Use set_joint_positions or step_simulation for control."}
+            else:
+                return {"error": "No active simulation"}
+        
+        # 帮助命令
+        if any(word in command_lower for word in ["help", "?"]):
+            return {
+                "success": True,
+                "message": "Available commands:",
+                "commands": [
+                    "=== Built-in Models ===",
+                    "create pendulum - Create a single pendulum",
+                    "create double pendulum - Create a double pendulum",
+                    "create cart pole - Create a cart-pole system",
+                    "create robotic arm - Create a robotic arm",
+                    "",
+                    "=== MuJoCo Menagerie ===",
+                    "list menagerie models - Show all available Menagerie models",
+                    "list menagerie arms - Show robotic arms",
+                    "create [model_name] - Load any Menagerie model (e.g., 'create franka_emika_panda')",
+                    "",
+                    "=== Simulation Control ===",
+                    "show state - Display current simulation state",
+                    "reset - Reset simulation to initial state",
+                    "step [N] - Advance simulation by N steps (default 100)",
+                    "set angle to X degrees - Set joint angle",
+                    "list models - Show all loaded models"
+                ]
+            }
         
         return {
             "success": False,
             "error": f"Command not recognized: {command}",
-            "suggestion": "Try commands like 'create pendulum', 'show state', or 'reset simulation'"
+            "suggestion": "Try 'help' for available commands"
         }
     
     def _handle_get_loaded_models(self) -> Dict[str, Any]:
         """获取已加载的模型列表"""
         return self.get_loaded_models()
+    
+    def _handle_list_menagerie_models(self, category: Optional[str] = None) -> Dict[str, Any]:
+        """List available MuJoCo Menagerie models"""
+        if not self.menagerie.is_available():
+            return {
+                "success": False,
+                "error": "MuJoCo Menagerie not found. Please install it from https://github.com/google-deepmind/mujoco_menagerie",
+                "help": "Set MUJOCO_MENAGERIE_PATH environment variable or install in ~/.mujoco/menagerie"
+            }
+        
+        models = self.menagerie.list_models(category)
+        
+        # Group by category
+        by_category = {}
+        for model in models:
+            cat = model['category']
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(model['name'])
+        
+        return {
+            "success": True,
+            "total_models": len(models),
+            "menagerie_path": self.menagerie.menagerie_path,
+            "models_by_category": by_category,
+            "categories": sorted(by_category.keys()),
+            "message": f"Found {len(models)} models in MuJoCo Menagerie"
+        }
     
     def _generate_scene_xml(self, scene_type: str, parameters: Dict[str, Any]) -> Optional[str]:
         """生成场景的MuJoCo XML"""

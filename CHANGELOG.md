@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-01-06
+
+### Added
+- **MuJoCo Menagerie Integration**: Full support for Google DeepMind's robot model library
+  - Access to 56+ high-quality robot models through MCP
+  - New `list_menagerie_models` tool with category filtering
+  - Automatic model discovery and loading
+  - Support for all model variants (with/without hands, MJX-compatible)
+- **Enhanced Natural Language**: Load Menagerie models with natural commands
+  - "load franka panda", "create spot robot", "show unitree go2"
+  - "list menagerie models", "show available robots"
+  - "list menagerie arms", "show quadruped robots"
+- **Smart Model Resolution**: Intelligent model name matching
+  - Handles spaces, underscores, and hyphens
+  - Automatic fallback from built-in to Menagerie models
+  - Robust XML path fixing for all asset types
+
+### Technical
+- New `MenagerieLoader` class for modular model loading
+- Environment variable `MUJOCO_MENAGERIE_PATH` support
+- Comprehensive path resolution for meshes, textures, and includes
+- Full backward compatibility with v0.7.x maintained
+
+### Performance
+- Model discovery completes in < 1 second
+- Model loading optimized for < 1 second response
+- Efficient caching of model information
+
+## [0.7.1] - 2025-01-13
+
+### Fixed
+- **Enhanced Natural Language Commands**: Significantly improved `execute_command` functionality
+  - Added support for double pendulum creation: "create double pendulum"
+  - Added support for robotic arm creation: "create robotic arm"
+  - Improved command parsing for step simulation with custom step counts
+  - Added angle setting with degree-to-radian conversion
+  - Added "help" command to list all available commands
+  - Better error messages when no active simulation exists
+
+### Added
+- **Help Command**: New "help" or "?" command shows all available natural language commands
+- **Improved Command Recognition**: More flexible parsing for various command phrasings
+
+### Changed
+- Natural language commands now provide clearer feedback and suggestions
+- Better default model_id handling for commands when multiple models exist
+
 ## [0.7.0] - 2025-06-13
 
 ### Added

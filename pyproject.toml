@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mujoco-mcp"
-version = "0.7.0"
+version = "0.7.1"
 description = "MuJoCo Model Context Protocol server implementation"
 readme = "README.md"
 requires-python = ">=3.8"
