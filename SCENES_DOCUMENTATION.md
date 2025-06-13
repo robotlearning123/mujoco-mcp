@@ -1,14 +1,14 @@
 
-# MuJoCo MCP 支持的场景
+# MuJoCo MCP Supported Scenes
 
-## 1. 单摆 (Pendulum)
-**描述**: 经典单摆系统，研究周期运动和能量守恒
-**参数**:
-- `length`: 摆长 (默认: 0.5m)
-- `mass`: 摆锤质量 (默认: 0.5kg) 
-- `damping`: 阻尼系数 (默认: 0.1)
+## 1. Pendulum
+**Description**: Classic pendulum system for studying periodic motion and energy conservation
+**Parameters**:
+- `length`: length (default: 0.5m)
+- `mass`: pendulum mass (default: 0.5kg) 
+- `damping`: damping (default: 0.1)
 
-**使用示例**:
+**Usage Example**:
 ```json
 {
   "scene_type": "pendulum",
@@ -20,15 +20,15 @@
 }
 ```
 
-## 2. 双摆 (Double Pendulum)
-**描述**: 混沌双摆系统，展示复杂非线性动力学
-**参数**:
-- `length1`: 第一段摆长 (默认: 0.4m)
-- `length2`: 第二段摆长 (默认: 0.4m)
-- `mass1`: 第一段质量 (默认: 0.3kg)
-- `mass2`: 第二段质量 (默认: 0.3kg)
+## 2. Double Pendulum
+**Description**: Chaotic double pendulum system demonstrating complex nonlinear dynamics
+**Parameters**:
+- `length1`: first segment length (default: 0.4m)
+- `length2`: second segment length (default: 0.4m)
+- `mass1`: first segment mass (default: 0.3kg)
+- `mass2`: second segment mass (default: 0.3kg)
 
-**使用示例**:
+**Usage Example**:
 ```json
 {
   "scene_type": "double_pendulum", 
@@ -41,14 +41,14 @@
 }
 ```
 
-## 3. 倒立摆 (Cart Pole)
-**描述**: 经典控制问题，小车上的倒立摆平衡控制
-**参数**:
-- `cart_mass`: 小车质量 (默认: 1.0kg)
-- `pole_mass`: 摆杆质量 (默认: 0.1kg)
-- `pole_length`: 摆杆长度 (默认: 0.5m)
+## 3. Cart Pole
+**Description**: Classic control problem, balancing an inverted pendulum on a cart
+**Parameters**:
+- `cart_mass`: cart mass (default: 1.0kg)
+- `pole_mass`: pole mass (default: 0.1kg)
+- `pole_length`: pole length (default: 0.5m)
 
-**使用示例**:
+**Usage Example**:
 ```json
 {
   "scene_type": "cart_pole",
@@ -60,16 +60,16 @@
 }
 ```
 
-## 4. 机械臂 (Robotic Arm)
-**描述**: 2自由度机械臂，适合路径规划和逆运动学研究
-**参数**:
-- `link1_length`: 第一关节长度 (默认: 0.3m)
-- `link2_length`: 第二关节长度 (默认: 0.3m)
-- `base_mass`: 基座质量 (默认: 0.5kg)
-- `link1_mass`: 第一连杆质量 (默认: 0.3kg)
-- `link2_mass`: 第二连杆质量 (默认: 0.2kg)
+## 4. Robotic Arm
+**Description**: 2-DOF manipulator, suitable for path planning and inverse kinematics research
+**Parameters**:
+- `link1_length`: first joint length (default: 0.3m)
+- `link2_length`: second joint length (default: 0.3m)
+- `base_mass`: base mass (default: 0.5kg)
+- `link1_mass`: first link mass (default: 0.3kg)
+- `link2_mass`: second link mass (default: 0.2kg)
 
-**使用示例**:
+**Usage Example**:
 ```json
 {
   "scene_type": "robotic_arm",
@@ -81,17 +81,17 @@
 }
 ```
 
-## 控制接口
+## Control Interface
 
-所有场景都支持以下控制方法:
-- `get_state`: 获取当前状态
-- `set_joint_positions`: 设置关节位置
-- `reset_simulation`: 重置仿真
-- `execute_command`: 自然语言控制
+All scenes support the following control methods:
+- `get_state`: Get current state
+- `set_joint_positions`: Set joint positions
+- `reset_simulation`: Reset simulation
+- `execute_command`: Natural language control
 
-## 可视化
+## Visualization
 
-每个场景都会在MuJoCo Viewer中实时显示:
+Each scene is displayed in real-time in MuJoCo Viewer:
 - 彩色几何体表示不同组件
 - 实时物理仿真
 - 鼠标交互支持

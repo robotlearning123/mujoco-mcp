@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-MuJoCo 简化演示脚本
-展示MuJoCo的基本功能
+MuJoCo Simplified Demo Script
+Demonstrates basic MuJoCo functionality
 
-使用方法:
+Usage:
 python simple_demo.py
 """
 
@@ -16,21 +16,21 @@ import argparse
 import logging
 from typing import Dict, Any, List, Optional
 
-# 设置日志
+# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('mujoco_simple_demo')
 
-# 示例MuJoCo模型XML (简单的机械臂和几个物体)
+# Example MuJoCo model XML (simple manipulator and some objects)
 EXAMPLE_MODEL_XML = """
 <mujoco>
     <worldbody>
         <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1"/>
         <geom name="floor" type="plane" size="5 5 0.1" rgba=".9 .9 .9 1"/>
         
-        <!-- 简单机器人 -->
+        <!-- Simple robot -->
         <body name="robot1" pos="0 0 0.5">
             <joint name="robot1_base_rot" type="ball"/>
             <geom name="robot1_base" type="cylinder" size="0.1 0.1" rgba="0.7 0.7 0.7 1"/>
@@ -93,17 +93,17 @@ class MuJoCoSimulation:
         logger.info("模拟初始化完成")
     
     def _find_bodies(self):
-        """查找场景中的物体和机器人部件"""
+        """Find objects and robot parts in the scene"""
         self.body_names = {}
         self.robot_parts = {}
         
-        # 获取所有刚体索引和名称
+        # Get all body indices and names
         for i in range(self.model.nbody):
             name = self.model.body(i).name
             if name:
                 self.body_names[name] = i
                 
-                # 识别机器人部件
+                # Identify robot parts
                 if name.startswith("robot1_"):
                     self.robot_parts[name] = i
         
@@ -337,7 +337,7 @@ def main():
     parser.add_argument("--verbose", "-v", action="store_true", help="输出详细信息")
     args = parser.parse_args()
     
-    # 设置日志级别
+    # Setup logging级别
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
     

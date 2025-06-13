@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-MuJoCo-MCP 项目结构验证工具
+MuJoCo-MCP Project Structure Verification Tool
 
 此脚本检查项目是否完整、结构是否合理
-使用方法: python tools/project_verify.py
+Usage: python tools/project_verify.py
 """
 
 import os
@@ -16,21 +16,21 @@ import argparse
 from typing import List, Dict, Any, Tuple, Optional
 from pathlib import Path
 
-# 添加项目根目录到Python路径
+# Add project root to Python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 repo_root = os.path.dirname(script_dir)
 sys.path.insert(0, repo_root)
 
 
 class ProjectVerifier:
-    """MuJoCo-MCP 项目结构验证工具"""
+    """MuJoCo-MCP Project Structure Verification Tool"""
     
     def __init__(self, verbose: bool = False):
         """
         初始化验证工具
         
         Args:
-            verbose: 是否输出详细信息
+            verbose: Whether to output detailed information
         """
         self.verbose = verbose
         self.repo_root = repo_root
@@ -267,7 +267,7 @@ class ProjectVerifier:
             
             # 检查测试结果
             if result.returncode == 0:
-                self.add_result("success", "所有测试通过")
+                self.add_result("success", "All测试通过")
                 if self.verbose:
                     print(result.stdout)
                 return True
@@ -283,7 +283,7 @@ class ProjectVerifier:
     
     def verify_all(self) -> Tuple[bool, Dict[str, List[str]]]:
         """
-        运行所有验证
+        运行All验证
         
         Returns:
             验证是否通过，详细结果
@@ -304,13 +304,13 @@ class ProjectVerifier:
         # 打印摘要信息
         print("\n=== 验证摘要 ===\n")
         print(f"成功: {len(self.results['success'])}")
-        print(f"警告: {len(self.results['warnings'])}")
+        print(f"Warning: {len(self.results['warnings'])}")
         print(f"错误: {len(self.results['errors'])}")
         
         if all_ok:
             print("\n✅ 验证通过：项目结构完整且可正常工作")
         else:
-            print("\n⚠️ 验证未完全通过：请查看上面的错误和警告")
+            print("\n⚠️ 验证未完全通过：请查看上面的错误和Warning")
         
         return all_ok, self.results
 
@@ -321,7 +321,7 @@ def main():
     parser.add_argument("--verbose", "-v", action="store_true", help="输出详细信息")
     args = parser.parse_args()
     
-    # 创建验证器并运行所有验证
+    # 创建验证器并运行All验证
     verifier = ProjectVerifier(verbose=args.verbose)
     success, _ = verifier.verify_all()
     

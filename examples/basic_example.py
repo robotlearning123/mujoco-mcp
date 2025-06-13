@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-基本示例: 演示如何启动MuJoCo MCP服务器并与之交互
+Basic example: Demonstrates how to start and interact with MuJoCo MCP server
 """
 
 import sys
@@ -9,19 +9,19 @@ import threading
 import logging
 from model_context_protocol import MCPClient
 
-# 导入mujoco_mcp模块
+# Import mujoco_mcp module
 try:
     import mujoco_mcp
 except ImportError:
-    print("未找到mujoco_mcp模块。请确保已经安装该模块。")
-    print("尝试执行: pip install -e .")
+    print("mujoco_mcp module not found. Please ensure the module is installed.")
+    print("Try running: pip install -e .")
     sys.exit(1)
 
-# 配置日志
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mcp_example")
 
-# MuJoCo模型XML - 简单的pendulum
+# MuJoCo model XML - simple pendulum
 PENDULUM_XML = """
 <mujoco model="pendulum">
   <option timestep="0.01" />
@@ -101,7 +101,7 @@ def run_client():
         time.sleep(0.01)  # 稍微减慢循环以便观察
     
     # 清理
-    logger.info("正在删除模拟...")
+    logger.info("正在Delete模拟...")
     client.call_tool("delete_simulation", {"simulation_id": sim_id})
     logger.info("示例完成!")
 

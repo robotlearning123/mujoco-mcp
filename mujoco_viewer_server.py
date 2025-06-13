@@ -1,15 +1,15 @@
-#!/opt/miniconda3/bin/mjpython
+#!/usr/bin/env python3
 """
-MuJoCo Viewer Server - 增强版
-支持多模型并发管理
-使用官方 mujoco.viewer.launch_passive() API
-通过Socket与MCP服务器通信
+MuJoCo Viewer Server - Enhanced Version
+Supports concurrent multi-model management
+Uses official mujoco.viewer.launch_passive() API
+Communicates with MCP server via Socket
 
-修复的问题:
-1. 支持多个并发连接
-2. 增加接收缓冲区大小
-3. 改进错误处理和超时管理
-4. 支持多个模型的独立管理
+Fixed issues:
+1. Support for multiple concurrent connections
+2. Increased receive buffer size
+3. Improved error handling and timeout management
+4. Support for independent management of multiple models
 """
 
 import time
@@ -26,12 +26,12 @@ import mujoco
 import mujoco.viewer
 import numpy as np
 
-# 设置日志
+# Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("mujoco_viewer_server")
 
 class ModelViewer:
-    """单个模型的viewer管理器"""
+    """Viewer manager for a single model"""
     def __init__(self, model_id: str, model_source: str):
         self.model_id = model_id
         self.model = None
@@ -40,20 +40,20 @@ class ModelViewer:
         self.simulation_running = False
         self.created_time = time.time()
         
-        # 加载模型 - 支持文件路径或XML字符串
+        # Load model - supports file path or XML string
         if os.path.exists(model_source):
-            # 如果是文件路径，使用from_xml_path加载（这样相对路径会正确解析）
+            # If it's a file path, use from_xml_path to load (so relative paths are resolved correctly)
             self.model = mujoco.MjModel.from_xml_path(model_source)
         else:
-            # 否则假设是XML字符串
+            # Otherwise assume it's an XML string
             self.model = mujoco.MjModel.from_xml_string(model_source)
         
         self.data = mujoco.MjData(self.model)
         
-        # 启动viewer
+        # Start viewer
         self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
         
-        # 启动仿真循环
+        # Start simulation loop
         self.simulation_running = True
         self.sim_thread = threading.Thread(target=self._simulation_loop, daemon=True)
         self.sim_thread.start()
@@ -61,7 +61,7 @@ class ModelViewer:
         logger.info(f"Created ModelViewer for {model_id}")
     
     def _simulation_loop(self):
-        """仿真循环"""
+        """Simulation loop"""
         while self.simulation_running and self.viewer and self.viewer.is_running():
             with self.viewer.lock():
                 mujoco.mj_step(self.model, self.data)
@@ -69,7 +69,7 @@ class ModelViewer:
             time.sleep(0.002)  # ~500Hz
     
     def get_state(self) -> Dict[str, Any]:
-        """获取状态"""
+        """Get state"""
         with self.viewer.lock():
             state = {
                 "time": self.data.time,
@@ -80,7 +80,7 @@ class ModelViewer:
         return state
     
     def set_joint_positions(self, positions: list) -> bool:
-        """设置关节位置"""
+        """Set joint positions"""
         with self.viewer.lock():
             for i, pos in enumerate(positions[:self.model.nq]):
                 self.data.qpos[i] = pos
@@ -88,12 +88,12 @@ class ModelViewer:
         return True
     
     def reset(self):
-        """重置仿真"""
+        """Reset simulation"""
         with self.viewer.lock():
             mujoco.mj_resetData(self.model, self.data)
         
     def close(self):
-        """关闭viewer"""
+        """Close viewer"""
         self.simulation_running = False
         if self.viewer:
             try:
@@ -116,23 +116,23 @@ class ModelViewer:
         logger.info(f"Closed ModelViewer for {self.model_id}")
 
 class MuJoCoViewerServer:
-    """单一Viewer MuJoCo服务器 - 支持模型替换"""
+    """Single Viewer MuJoCo Server - supports model replacement"""
     
     def __init__(self, port: int = 8888):
         self.port = port
         self.running = False
         self.socket_server = None
         
-        # 单一模型管理器 - 只支持一个活跃的viewer
+        # Single model manager - only supports one active viewer
         self.current_viewer: Optional[ModelViewer] = None
         self.current_model_id: Optional[str] = None
         self.viewer_lock = threading.Lock()
         
-        # 客户端管理
+        # Client management
         self.client_threads = []
         
     def handle_command(self, command: Dict[str, Any]) -> Dict[str, Any]:
-        """处理命令 - 单一Viewer模式"""
+        """Handle command - Single Viewer mode"""
         cmd_type = command.get("type")
         
         try:
@@ -147,7 +147,7 @@ class MuJoCoViewerServer:
                         self.current_viewer.close()
                         time.sleep(2.0)  # Give time for viewer to close completely
                     
-                    # 创建新viewer
+                    # Create new viewer
                     logger.info(f"Creating new viewer for model {model_id}")
                     self.current_viewer = ModelViewer(model_id, model_source)
                     self.current_model_id = model_id
@@ -285,7 +285,7 @@ class MuJoCoViewerServer:
                 return diagnostics
                 
             elif cmd_type == "capture_render":
-                """捕获当前渲染的图像"""
+                """Capture current rendered image"""
                 model_id = command.get("model_id")
                 width = command.get("width", 640)
                 height = command.get("height", 480)
@@ -294,29 +294,29 @@ class MuJoCoViewerServer:
                     return {"success": False, "error": f"Model {model_id} not found or no active viewer"}
                 
                 try:
-                    # 创建renderer
+                    # Create renderer
                     renderer = mujoco.Renderer(self.current_viewer.model, height, width)
                     
-                    # 更新场景
+                    # Update scene
                     renderer.update_scene(self.current_viewer.data)
                     
-                    # 渲染图像
+                    # Render image
                     pixels = renderer.render()
                     
-                    # 转换为base64
+                    # Convert to base64
                     import base64
                     from PIL import Image
                     import io
                     
-                    # 创建PIL图像
+                    # Create PIL image
                     image = Image.fromarray(pixels)
                     
-                    # 保存到字节流
+                    # Save to byte stream
                     img_buffer = io.BytesIO()
                     image.save(img_buffer, format='PNG')
                     img_data = img_buffer.getvalue()
                     
-                    # 转换为base64
+                    # Convert to base64
                     img_base64 = base64.b64encode(img_data).decode('utf-8')
                     
                     return {

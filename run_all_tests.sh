@@ -1,26 +1,26 @@
 #!/bin/bash
-# MuJoCo-MCP 完整测试套件
+# MuJoCo-MCP Complete Test Suite
 # 在发布前运行此脚本进行全面测试
 
-set -e  # 遇到错误立即退出
+set -e  # Exit immediately on error
 
 echo "=========================================="
 echo "MuJoCo-MCP Pre-Release Test Suite"
 echo "=========================================="
 echo ""
 
-# 1. 环境检查
+# 1. Environment check
 echo "1. Checking environment..."
 python --version
 pip --version
 echo ""
 
-# 2. 安装测试依赖
+# 2. Install test dependencies
 echo "2. Installing test dependencies..."
 pip install pytest pytest-cov pytest-asyncio ruff mypy bandit build twine
 echo ""
 
-# 3. 代码质量检查
+# 3. Code quality check
 echo "3. Running code quality checks..."
 echo "   - Linting..."
 ruff check src/ || true

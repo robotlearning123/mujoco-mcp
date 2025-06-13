@@ -1,7 +1,7 @@
 """
-MuJoCo Viewer Client - Socket通信模块
-连接到独立的MuJoCo Viewer Server进程
-增强版：包含自动重连、健康检查和进程管理
+MuJoCo Viewer Client - Socket communication module
+Connect to standalone MuJoCo Viewer Server process
+Enhanced version: includes auto-reconnect, health check and process management
 """
 
 import json
@@ -114,30 +114,30 @@ class MuJoCoViewerClient:
             return False
     
     def load_model(self, model_source: str, model_id: str = None) -> Dict[str, Any]:
-        """加载MuJoCo模型到viewer
+        """Load MuJoCo model to viewer
         
         Args:
-            model_source: XML字符串或XML文件路径
-            model_id: 模型ID
+            model_source: XML string or XML file path
+            model_id: model ID
         """
         cmd = {
             "type": "load_model",
-            "model_xml": model_source  # 保持向后兼容，但实际可以是文件路径
+            "model_xml": model_source  # Keep backward compatibility, but can actually be file path
         }
         if model_id:
             cmd["model_id"] = model_id
         return self.send_command(cmd)
     
     def replace_model(self, model_source: str, model_id: str = None) -> Dict[str, Any]:
-        """替换当前模型（关闭现有viewer并加载新模型）
+        """Replace current model (close existing viewer and load new model)
         
         Args:
-            model_source: XML字符串或XML文件路径
-            model_id: 模型ID
+            model_source: XML string or XML file path
+            model_id: model ID
         """
         cmd = {
             "type": "replace_model",
-            "model_xml": model_source  # 保持向后兼容，但实际可以是文件路径
+            "model_xml": model_source  # Keep backward compatibility, but can actually be file path
         }
         if model_id:
             cmd["model_id"] = model_id
@@ -304,14 +304,14 @@ class ViewerManager:
         return self.clients.get(model_id)
     
     def remove_client(self, model_id: str):
-        """移除viewer客户端"""
+        """Remove viewer client"""
         if model_id in self.clients:
             self.clients[model_id].disconnect()
             del self.clients[model_id]
             logger.info(f"Removed viewer client for model {model_id}")
     
     def disconnect_all(self):
-        """断开所有连接"""
+        """Disconnect all connections"""
         for model_id in list(self.clients.keys()):
             self.remove_client(model_id)
 

@@ -89,7 +89,7 @@ pip3 install mujoco>=2.3.0
 if python3 -c "import mujoco; print(f'MuJoCo {mujoco.__version__} 已安装')" &>/dev/null; then
     echo -e "${GREEN}MuJoCo安装成功${NC}"
 else
-    echo -e "${RED}警告: MuJoCo安装可能有问题${NC}"
+    echo -e "${RED}Warning: MuJoCo安装可能有问题${NC}"
     echo "请参考MuJoCo文档: https://github.com/deepmind/mujoco"
 fi
 
@@ -100,7 +100,7 @@ pip3 install model-context-protocol>=0.1.0
 if python3 -c "import mcp; print('MCP已安装')" &>/dev/null; then
     echo -e "${GREEN}MCP安装成功${NC}"
 else
-    echo -e "${RED}警告: MCP安装可能有问题${NC}"
+    echo -e "${RED}Warning: MCP安装可能有问题${NC}"
 fi
 
 echo -e "${GREEN}=== 安装MuJoCo-MCP ===${NC}"
@@ -111,7 +111,7 @@ pip3 install -e .
 if python3 -c "import mujoco_mcp; print('MuJoCo-MCP已安装')" &>/dev/null; then
     echo -e "${GREEN}MuJoCo-MCP安装成功${NC}"
 else
-    echo -e "${RED}警告: MuJoCo-MCP安装可能有问题${NC}"
+    echo -e "${RED}Warning: MuJoCo-MCP安装可能有问题${NC}"
 fi
 
 echo -e "${GREEN}=== 安装可选依赖 ===${NC}"

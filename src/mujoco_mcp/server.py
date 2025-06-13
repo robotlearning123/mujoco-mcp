@@ -1,6 +1,6 @@
 """
 MuJoCo MCP Server - FastMCP Implementation
-v0.5.0 - 基于FastMCP框架的MCP服务器
+v0.5.0 - MCP server based on FastMCP framework
 """
 import asyncio
 import logging

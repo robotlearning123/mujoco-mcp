@@ -13,8 +13,8 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 async def test_core_functionality():
-    """测试核心功能"""
-    print("=== MuJoCo-MCP 快速内测 ===\n")
+    """Test core functionality"""
+    print("=== MuJoCo-MCP Quick Internal Test ===\n")
     
     results = {
         "import_test": False,
@@ -25,83 +25,83 @@ async def test_core_functionality():
     }
     
     # 1. 导入测试
-    print("1. 测试包导入...")
+    print("1. Testing package import...")
     try:
         import mujoco_mcp
         from mujoco_mcp.version import __version__
         from mujoco_mcp.mcp_server import handle_list_tools, handle_call_tool
-        print(f"   ✅ 包导入成功，版本: {__version__}")
+        print(f"   ✅ Package imported successfully, version: {__version__}")
         results["import_test"] = True
         results["version_test"] = True
     except Exception as e:
-        print(f"   ❌ 包导入失败: {e}")
+        print(f"   ❌ Package import failed: {e}")
         return results
     
     # 2. 工具列表测试
-    print("\n2. 测试工具列表...")
+    print("\n2. Testing tools list...")
     try:
         tools = await handle_list_tools()
-        print(f"   ✅ 获取到 {len(tools)} 个工具:")
+        print(f"   ✅ Found {len(tools)}  tools:")
         for tool in tools:
             print(f"      - {tool.name}: {tool.description[:50]}...")
         results["tools_test"] = True
     except Exception as e:
-        print(f"   ❌ 工具列表获取失败: {e}")
+        print(f"   ❌ Failed to get tools list: {e}")
     
     # 3. MCP 协议测试
-    print("\n3. 测试 MCP 协议...")
+    print("\n3. Testing MCP protocol...")
     try:
         result = await handle_call_tool("get_server_info", {})
         if result and len(result) > 0:
-            print(f"   ✅ 服务器信息获取成功")
-            print(f"      响应长度: {len(result[0].text)} 字符")
+            print(f"   ✅ Server info retrieved successfully")
+            print(f"      Response length: {len(result[0].text)}  characters")
             results["mcp_protocol_test"] = True
         else:
-            print(f"   ❌ 服务器信息响应为空")
+            print(f"   ❌ Server info response is empty")
     except Exception as e:
-        print(f"   ❌ MCP 协议测试失败: {e}")
+        print(f"   ❌ MCP protocol test failed: {e}")
     
     # 4. 错误处理测试
-    print("\n4. 测试错误处理...")
+    print("\n4. Testing error handling...")
     try:
         result = await handle_call_tool("invalid_tool", {})
         if result and "Unknown tool" in result[0].text:
-            print(f"   ✅ 错误处理正常")
+            print(f"   ✅ Error handling working properly")
             results["error_handling_test"] = True
         else:
-            print(f"   ⚠️  错误处理异常: {result[0].text if result else 'No result'}")
+            print(f"   ⚠️  Error handling abnormal: {result[0].text if result else 'No result'}")
     except Exception as e:
-        print(f"   ❌ 错误处理测试失败: {e}")
+        print(f"   ❌ Error handling test failed: {e}")
     
     return results
 
 def print_summary(results):
     """打印测试摘要"""
     print("\n" + "="*50)
-    print("内测摘要")
+    print("Internal Test Summary")
     print("="*50)
     
     total_tests = len(results)
     passed_tests = sum(1 for success in results.values() if success)
     
-    print(f"测试项目: {total_tests}")
-    print(f"通过测试: {passed_tests}")
-    print(f"失败测试: {total_tests - passed_tests}")
-    print(f"成功率: {(passed_tests/total_tests)*100:.1f}%")
+    print(f"Test items: {total_tests}")
+    print(f"Tests passed: {passed_tests}")
+    print(f"Tests failed: {total_tests - passed_tests}")
+    print(f"Success rate: {(passed_tests/total_tests)*100:.1f}%")
     
-    print(f"\n详细结果:")
+    print(f"\nDetailed results:")
     status_map = {True: "✅ PASS", False: "❌ FAIL"}
     for test_name, success in results.items():
         print(f"  {status_map[success]} {test_name}")
     
     if passed_tests == total_tests:
-        print(f"\n🎉 所有测试通过！项目准备就绪。")
+        print(f"\n🎉 All tests passed! Project is ready.")
         return True
     elif passed_tests >= total_tests * 0.8:
-        print(f"\n⚠️  大部分测试通过，存在少量问题。")
+        print(f"\n⚠️  Most tests passed, minor issues exist.")
         return True
     else:
-        print(f"\n❌ 多个测试失败，需要修复后再发布。")
+        print(f"\n❌ Multiple tests failed, need fixes before release.")
         return False
 
 async def main():
@@ -112,15 +112,15 @@ async def main():
         success = print_summary(results)
         
         end_time = time.time()
-        print(f"\n测试耗时: {end_time - start_time:.2f}s")
+        print(f"\nTest duration: {end_time - start_time:.2f}s")
         
         return 0 if success else 1
         
     except KeyboardInterrupt:
-        print("\n\n测试被用户中断")
+        print("\n\nTest interrupted by user")
         return 1
     except Exception as e:
-        print(f"\n\n测试过程中发生严重错误: {e}")
+        print(f"\n\nSerious error occurred during testing: {e}")
         return 1
 
 if __name__ == "__main__":
