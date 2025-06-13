@@ -1,0 +1,144 @@
+# Ruff configuration for MuJoCo MCP
+target-version = "py310"
+line-length = 100
+
+[lint]
+# Enable specific rule sets
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "YTT", # flake8-2020
+    "S",   # flake8-bandit
+    "BLE", # flake8-blind-except
+    "B",   # flake8-bugbear
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "T10", # flake8-debugger
+    "EXE", # flake8-executable
+    "ISC", # flake8-implicit-str-concat
+    "ICN", # flake8-import-conventions
+    "G",   # flake8-logging-format
+    "PIE", # flake8-pie
+    "T20", # flake8-print
+    "PT",  # flake8-pytest-style
+    "Q",   # flake8-quotes
+    "RSE", # flake8-raise
+    "RET", # flake8-return
+    "SLF", # flake8-self
+    "SIM", # flake8-simplify
+    "TID", # flake8-tidy-imports
+    "TCH", # flake8-type-checking
+    "ARG", # flake8-unused-arguments
+    "PTH", # flake8-use-pathlib
+    "ERA", # eradicate
+    "PD",  # pandas-vet
+    "PGH", # pygrep-hooks
+    "PL",  # pylint
+    "TRY", # tryceratops
+    "FLY", # flynt
+    "NPY", # numpy
+    "RUF", # ruff-specific rules
+]
+
+# Ignore specific rules that are too strict for this project
+ignore = [
+    "S101",   # Use of assert
+    "S311",   # Standard pseudo-random generators are not suitable for security/cryptographic purposes
+    "PLR0913", # Too many arguments to function call
+    "PLR0912", # Too many branches
+    "PLR0915", # Too many statements
+    "PLR2004", # Magic value used in comparison
+    "SIM108",  # Use ternary operator instead of if-else-block
+    "TRY003",  # Avoid specifying long messages outside the exception class
+    "EM101",   # Exception must not use a string literal
+    "EM102",   # Exception must not use an f-string literal
+    "G004",    # Logging statement uses f-string
+    "PD901",   # Avoid using the generic variable name `df` for DataFrames
+    "RET505",  # Unnecessary `else` after `return` statement
+    "RET506",  # Unnecessary `else` after `raise` statement
+    "RET507",  # Unnecessary `else` after `continue` statement
+    "RET508",  # Unnecessary `else` after `break` statement
+    "SIM102",  # Use a single if-statement instead of nested if-statements
+    "SIM117",  # Combine multiple isinstance checks
+    "UP007",   # Use `X | Y` for type annotations (Python 3.10+ syntax)
+    "F401",    # Imported but unused (temporary - until we clean up imports)
+    "F841",    # Local variable assigned but never used (temporary)
+    "E722",    # Bare except (temporary - for legacy code)
+    "F821",    # Undefined name (temporary - for legacy code)
+]
+
+# Exclude specific files/directories
+exclude = [
+    ".git",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".venv",
+    "test_envs",
+    "test_install",
+    # Exclude legacy/experimental files during development
+    "src/mujoco_mcp/server_old.py",
+    "src/mujoco_mcp/server_new.py", 
+    "src/mujoco_mcp/server_v0_1_1.py",
+    "src/mujoco_mcp/simple_server.py",
+    "src/mujoco_mcp/enhanced_auth_manager.py",
+    "src/mujoco_mcp/menagerie_loader.py",
+    "src/mujoco_mcp/remote_server.py",
+    "src/mujoco_mcp/video_recorder.py",
+    "tests/test_*.py",  # Exclude tests from some rules temporarily
+]
+
+[lint.per-file-ignores]
+# Test files can have some relaxed rules
+"tests/**/*.py" = [
+    "S101",    # Use of assert
+    "PLR2004", # Magic values in tests are OK
+    "ARG001",  # Unused function arguments in tests
+    "F401",    # Unused imports in tests
+]
+
+# Scripts can have relaxed rules
+"scripts/**/*.py" = [
+    "T201",    # Print statements are OK in scripts
+    "S101",    # Assert is OK in scripts
+    "PLR2004", # Magic values are OK in scripts
+]
+
+# Main module files
+"src/mujoco_mcp/__main__.py" = [
+    "T201",    # Print statements are OK in CLI
+]
+
+# MCP server module - core functionality
+"src/mujoco_mcp/mcp_server.py" = [
+    "F401",    # Allow unused imports temporarily
+]
+
+[lint.isort]
+known-first-party = ["mujoco_mcp"]
+force-single-line = true
+force-sort-within-sections = true
+
+[lint.flake8-quotes]
+inline-quotes = "double"
+multiline-quotes = "double"
+
+[format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"

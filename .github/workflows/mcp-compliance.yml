@@ -41,7 +41,7 @@ jobs:
         
     - name: Upload compliance report
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: mcp-compliance-report
         path: mcp_compliance_report.json
