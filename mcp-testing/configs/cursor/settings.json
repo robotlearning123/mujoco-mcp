@@ -1,0 +1,19 @@
+{
+  "mcp.servers": {
+    "mujoco-mcp": {
+      "command": "python",
+      "args": ["-m", "mujoco_mcp"],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "MUJOCO_MCP_LOG_LEVEL": "INFO",
+        "MUJOCO_GL": "egl"
+      },
+      "cwd": "${workspaceFolder}",
+      "timeout": 45000
+    }
+  },
+  "mcp.enabled": true,
+  "mcp.autoStart": true,
+  "mcp.debug": false,
+  "mcp.logLevel": "info"
+}
