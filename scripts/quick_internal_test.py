@@ -53,11 +53,11 @@ async def test_core_functionality():
     try:
         result = await handle_call_tool("get_server_info", {})
         if result and len(result) > 0:
-            print(f"   ✅ Server info retrieved successfully")
+            print("   ✅ Server info retrieved successfully")
             print(f"      Response length: {len(result[0].text)}  characters")
             results["mcp_protocol_test"] = True
         else:
-            print(f"   ❌ Server info response is empty")
+            print("   ❌ Server info response is empty")
     except Exception as e:
         print(f"   ❌ MCP protocol test failed: {e}")
     
@@ -66,7 +66,7 @@ async def test_core_functionality():
     try:
         result = await handle_call_tool("invalid_tool", {})
         if result and "Unknown tool" in result[0].text:
-            print(f"   ✅ Error handling working properly")
+            print("   ✅ Error handling working properly")
             results["error_handling_test"] = True
         else:
             print(f"   ⚠️  Error handling abnormal: {result[0].text if result else 'No result'}")
@@ -89,19 +89,19 @@ def print_summary(results):
     print(f"Tests failed: {total_tests - passed_tests}")
     print(f"Success rate: {(passed_tests/total_tests)*100:.1f}%")
     
-    print(f"\nDetailed results:")
+    print("\nDetailed results:")
     status_map = {True: "✅ PASS", False: "❌ FAIL"}
     for test_name, success in results.items():
         print(f"  {status_map[success]} {test_name}")
     
     if passed_tests == total_tests:
-        print(f"\n🎉 All tests passed! Project is ready.")
+        print("\n🎉 All tests passed! Project is ready.")
         return True
     elif passed_tests >= total_tests * 0.8:
-        print(f"\n⚠️  Most tests passed, minor issues exist.")
+        print("\n⚠️  Most tests passed, minor issues exist.")
         return True
     else:
-        print(f"\n❌ Multiple tests failed, need fixes before release.")
+        print("\n❌ Multiple tests failed, need fixes before release.")
         return False
 
 async def main():

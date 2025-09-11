@@ -8,18 +8,16 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import time
-from typing import Dict, List, Tuple, Any, Union, Callable
-from dataclasses import dataclass, field
+from typing import Dict, Tuple, Any, Union, Callable
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
-import threading
-import queue
 import logging
 from collections import deque
 import json
+from pathlib import Path
 
 from .viewer_client import MuJoCoViewerClient
-from .advanced_controllers import RobotController
-from .sensor_feedback import SensorManager, SensorReading
+from .sensor_feedback import SensorManager
 
 
 @dataclass
@@ -639,7 +637,7 @@ class RLTrainer:
             
             while not done:
                 action = self.env.action_space.sample()
-                obs, reward, terminated, truncated, info = self.env.step(action)
+                _obs, reward, terminated, truncated, _info = self.env.step(action)
                 episode_reward += reward
                 episode_length += 1
                 done = terminated or truncated
@@ -669,7 +667,7 @@ class RLTrainer:
         rewards = []
         episode_lengths = []
         
-        for episode in range(num_episodes):
+        for _episode in range(num_episodes):
             obs, _ = self.env.reset()
             episode_reward = 0
             episode_length = 0
@@ -677,7 +675,7 @@ class RLTrainer:
             
             while not done:
                 action = policy_fn(obs)
-                obs, reward, terminated, truncated, info = self.env.step(action)
+                obs, reward, terminated, truncated, _info = self.env.step(action)
                 episode_reward += reward
                 episode_length += 1
                 done = terminated or truncated
@@ -704,7 +702,7 @@ class RLTrainer:
             }
         }
         
-        with open(filepath, 'w') as f:
+        with Path(filepath).open('w') as f:
             json.dump(data, f, indent=2)
 
 

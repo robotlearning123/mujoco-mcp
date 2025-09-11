@@ -6,7 +6,7 @@ Implements PID controllers, trajectory planning, and optimization-based control
 
 import numpy as np
 import math
-from typing import List, Dict, Tuple, Optional, Callable
+from typing import Dict, Tuple, Callable
 from dataclasses import dataclass
 from scipy.optimize import minimize
 from scipy.interpolate import CubicSpline

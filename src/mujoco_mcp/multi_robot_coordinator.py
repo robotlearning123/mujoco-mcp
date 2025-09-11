@@ -4,7 +4,6 @@ Multi-Robot Coordination System for MuJoCo MCP
 Enables coordinated control of multiple robots with collision avoidance and task allocation
 """
 
-import asyncio
 import numpy as np
 import time
 from typing import Dict, List, Tuple, Any, Callable

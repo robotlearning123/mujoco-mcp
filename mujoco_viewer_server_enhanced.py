@@ -83,7 +83,7 @@ class ModelViewer:
                 logger.info(f"Loaded model from file: {model_source}")
             else:
                 self.model = mujoco.MjModel.from_xml_string(model_source)
-                logger.info(f"Loaded model from XML string")
+                logger.info("Loaded model from XML string")
             
             self.data = mujoco.MjData(self.model)
             
@@ -449,7 +449,7 @@ class EnhancedMuJoCoViewerServer:
                         client_socket.close()
                         logger.warning(f"Rejected connection from {address} - too many connections")
                 
-                except socket.timeout:
+                except TimeoutError:
                     continue  # Normal timeout, check shutdown event
                 except Exception as e:
                     if self.running:
@@ -532,7 +532,7 @@ class EnhancedMuJoCoViewerServer:
                     if response_time > 1.0:
                         logger.warning(f"Slow request from {address}: {response_time:.2f}s")
                 
-                except socket.timeout:
+                except TimeoutError:
                     logger.warning(f"Client {address} timed out")
                     break
                 except ConnectionResetError:

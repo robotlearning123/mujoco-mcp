@@ -156,7 +156,7 @@ def run_mcp_compliance_tests():
     with open("mcp_compliance_report.json", "w") as f:
         json.dump(report, f, indent=2)
     
-    print(f"📄 Compliance report saved to: mcp_compliance_report.json")
+    print("📄 Compliance report saved to: mcp_compliance_report.json")
     
     # Exit with appropriate code
     if passed >= total * 0.75:  # 75% pass rate minimum

@@ -8,7 +8,6 @@ import sys
 import logging
 import argparse
 import os
-from typing import Optional
 
 # Import all optional dependencies at top level
 try:

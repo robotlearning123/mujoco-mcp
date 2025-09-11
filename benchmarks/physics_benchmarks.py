@@ -33,7 +33,7 @@ class BenchmarkResult:
     success: bool
     execution_time: float
     metrics: Dict[str, float] = field(default_factory=dict)
-    error_message: Optional[str] = None
+    error_message: str | None = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
