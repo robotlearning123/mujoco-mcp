@@ -13,16 +13,28 @@ def run_basic_benchmark():
     """Run basic performance benchmark"""
     start_time = time.time()
     
-    # Basic package import test
-    sys.path.insert(0, str(Path(__file__).parent / "src"))
+    # Basic package import test - use installed package first, fallback to local src
+    import_success = False
+    import_error = None
     
     try:
+        # Try installed package first (for CI environment)
         import mujoco_mcp
         from mujoco_mcp.version import __version__
         import_success = True
+        print(f"✅ Package imported successfully (installed package)")
     except Exception as e:
-        import_success = False
-        print(f"Import failed: {e}")
+        import_error = str(e)
+        # Fallback to local development setup
+        try:
+            sys.path.insert(0, str(Path(__file__).parent / "src"))
+            import mujoco_mcp
+            from mujoco_mcp.version import __version__
+            import_success = True
+            print(f"✅ Package imported successfully (local src)")
+        except Exception as e2:
+            import_success = False
+            print(f"❌ Import failed: {e} (installed), {e2} (local)")
     
     execution_time = time.time() - start_time
     
