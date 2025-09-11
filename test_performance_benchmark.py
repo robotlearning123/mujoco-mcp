@@ -1,32 +1,65 @@
 #!/usr/bin/env python3
 """
-Lightweight performance benchmark placeholder for CI.
-
-This script generates a minimal performance_benchmark_report.json
-with fields expected by .github/workflows/performance.yml, so the
-workflow can validate thresholds without requiring heavy runtime.
+Minimal performance benchmark for CI/CD
+This file exists to satisfy the GitHub Actions workflow requirements
 """
 
 import json
+import time
+import sys
 from pathlib import Path
 
-
-def main() -> int:
-    report = {
-        "startup_time": {
-            "mean": 1.2,  # seconds; must be <= 5.0 per workflow check
-            "samples": [1.2]
+def run_basic_benchmark():
+    """Run basic performance benchmark"""
+    start_time = time.time()
+    
+    # Basic package import test - use installed package first, fallback to local src
+    import_success = False
+    import_error = None
+    
+    try:
+        # Try installed package first (for CI environment)
+        import mujoco_mcp
+        from mujoco_mcp.version import __version__
+        import_success = True
+        print(f"✅ Package imported successfully (installed package)")
+    except Exception as e:
+        import_error = str(e)
+        # Fallback to local development setup
+        try:
+            sys.path.insert(0, str(Path(__file__).parent / "src"))
+            import mujoco_mcp
+            from mujoco_mcp.version import __version__
+            import_success = True
+            print(f"✅ Package imported successfully (local src)")
+        except Exception as e2:
+            import_success = False
+            print(f"❌ Import failed: {e} (installed), {e2} (local)")
+    
+    execution_time = time.time() - start_time
+    
+    # Generate minimal benchmark report
+    results = {
+        "summary": {
+            "success_rate": 1.0 if import_success else 0.0,
+            "total_execution_time": execution_time
         },
-        "notes": "Synthetic CI placeholder to keep workflow green."
+        "tests": [
+            {
+                "test_name": "package_import",
+                "success": import_success,
+                "execution_time": execution_time
+            }
+        ]
     }
-
-    Path("performance_benchmark_report.json").write_text(
-        json.dumps(report, indent=2)
-    )
-
-    print("✅ Wrote performance_benchmark_report.json for CI checks")
-    return 0
-
+    
+    # Save report
+    with open('performance_benchmark_report.json', 'w') as f:
+        json.dump(results, f, indent=2)
+    
+    print(f"✅ Basic benchmark completed in {execution_time:.3f}s")
+    print(f"   Import success: {import_success}")
+    return 0 if import_success else 1
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    exit(run_basic_benchmark())
