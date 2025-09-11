@@ -88,40 +88,40 @@ class _MuJoCoServerImpl:
         self.version = __version__
         self._tools: Dict[str, Dict[str, Any]] = {}
 
-    def _handle_load_model(self, model_string: str, name: str | None = None) -> Dict[str, Any]:
+    def _handle_load_model(self, _model_string: str, _name: str | None = None) -> Dict[str, Any]:
         return {}
 
     def _handle_get_loaded_models(self) -> Dict[str, Any]:
         return {}
 
-    def _handle_step_simulation(self, model_id: str, steps: int = 1) -> Dict[str, Any]:
+    def _handle_step_simulation(self, _model_id: str, _steps: int = 1) -> Dict[str, Any]:
         return {}
 
-    def _handle_reset_simulation(self, model_id: str) -> Dict[str, Any]:
+    def _handle_reset_simulation(self, _model_id: str) -> Dict[str, Any]:
         return {}
 
-    def _handle_get_state(self, model_id: str, components: List[str] | None = None) -> Dict[str, Any]:
+    def _handle_get_state(self, _model_id: str, _components: List[str] | None = None) -> Dict[str, Any]:
         return {}
 
-    def _handle_set_joint_positions(self, model_id: str, positions: List[float]) -> Dict[str, Any]:
+    def _handle_set_joint_positions(self, _model_id: str, _positions: List[float]) -> Dict[str, Any]:
         return {}
 
-    def _handle_set_joint_velocities(self, model_id: str, velocities: List[float]) -> Dict[str, Any]:
+    def _handle_set_joint_velocities(self, _model_id: str, _velocities: List[float]) -> Dict[str, Any]:
         return {}
 
-    def _handle_apply_control(self, model_id: str, control: List[float]) -> Dict[str, Any]:
+    def _handle_apply_control(self, _model_id: str, _control: List[float]) -> Dict[str, Any]:
         return {}
 
-    def _handle_get_observations(self, model_id: str) -> Dict[str, Any]:
+    def _handle_get_observations(self, _model_id: str) -> Dict[str, Any]:
         return {}
 
-    def _handle_render_frame(self, model_id: str) -> Dict[str, Any]:
+    def _handle_render_frame(self, _model_id: str) -> Dict[str, Any]:
         return {}
 
-    def _handle_pendulum_demo(self, action: str, duration: float | None = None) -> Dict[str, Any]:
+    def _handle_pendulum_demo(self, _action: str, _duration: float | None = None) -> Dict[str, Any]:
         return {}
 
-    def _handle_execute_command(self, command: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_execute_command(self, _command: str, _context: Dict[str, Any] | None = None) -> Dict[str, Any]:
         return {}
 
     def _handle_design_robot(self, **kwargs) -> Dict[str, Any]:
