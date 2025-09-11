@@ -10,6 +10,22 @@ import argparse
 import os
 from typing import Optional
 
+# Import all optional dependencies at top level
+try:
+    import mujoco
+except ImportError:
+    mujoco = None
+
+try:
+    import mcp
+except ImportError:
+    mcp = None
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
 from .version import __version__
 
 
@@ -91,24 +107,21 @@ def check_configuration():
     print(f"✓ Python version: {python_version}")
     
     # Check dependencies
-    try:
-        import mujoco
+    if mujoco is not None:
         print(f"✓ MuJoCo version: {mujoco.__version__}")
-    except ImportError:
+    else:
         print("✗ MuJoCo not installed")
         return False
     
-    try:
-        import mcp
+    if mcp is not None:
         print("✓ MCP package available")
-    except ImportError:
+    else:
         print("✗ MCP package not installed")
         return False
     
-    try:
-        import numpy as np
+    if np is not None:
         print(f"✓ NumPy version: {np.__version__}")
-    except ImportError:
+    else:
         print("✗ NumPy not installed")
         return False
     
@@ -136,7 +149,7 @@ def main():
         success = check_configuration()
         sys.exit(0 if success else 1)
     
-    # Import and run MCP server
+    # Run MCP server
     try:
         from .mcp_server import main as mcp_main
         asyncio.run(mcp_main())

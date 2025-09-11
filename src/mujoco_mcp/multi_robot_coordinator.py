@@ -7,7 +7,7 @@ Enables coordinated control of multiple robots with collision avoidance and task
 import asyncio
 import numpy as np
 import time
-from typing import Dict, List, Tuple, Optional, Any, Callable
+from typing import Dict, List, Tuple, Any, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
@@ -34,8 +34,8 @@ class RobotState:
     model_type: str
     joint_positions: np.ndarray
     joint_velocities: np.ndarray
-    end_effector_pos: Optional[np.ndarray] = None
-    end_effector_vel: Optional[np.ndarray] = None
+    end_effector_pos: np.ndarray | None = None
+    end_effector_vel: np.ndarray | None = None
     status: str = "idle"
     last_update: float = field(default_factory=time.time)
     
@@ -54,8 +54,8 @@ class CoordinatedTask:
     priority: int = 1
     timeout: float = 30.0
     status: str = "pending"
-    start_time: Optional[float] = None
-    completion_callback: Optional[Callable] = None
+    start_time: float | None = None
+    completion_callback: Callable | None = None
 
 
 class CollisionChecker:
@@ -80,7 +80,7 @@ class CollisionChecker:
     
     def find_collision_free_path(
         self,
-        robot_id: str,
+        _robot_id: str,  # Unused but kept for API compatibility
         start_pos: np.ndarray,
         goal_pos: np.ndarray,
         other_robots: List[RobotState],
@@ -175,7 +175,7 @@ class TaskAllocator:
 class MultiRobotCoordinator:
     """Main coordinator for multi-robot systems"""
     
-    def __init__(self, viewer_client: Optional[MuJoCoViewerClient] = None):
+    def __init__(self, viewer_client: MuJoCoViewerClient | None = None):
         self.viewer_client = viewer_client or MuJoCoViewerClient()
         
         # Robot management
@@ -312,7 +312,7 @@ class MultiRobotCoordinator:
         # This would typically read from MuJoCo simulation
         # For now, we'll just mark stale states
         with self.state_lock:
-            for robot_id, state in self.robot_states.items():
+            for _robot_id, state in self.robot_states.items():
                 if state.is_stale():
                     state.status = "stale"
     
@@ -376,13 +376,13 @@ class MultiRobotCoordinator:
         # Generate formation positions
         if formation_type == "line":
             positions = []
-            for i, robot_id in enumerate(robots):
+            for i, _robot_id in enumerate(robots):
                 x = (i - n_robots/2) * spacing
                 positions.append([x, 0, 0])
         elif formation_type == "circle":
             radius = spacing
             positions = []
-            for i, robot_id in enumerate(robots):
+            for i, _robot_id in enumerate(robots):
                 angle = 2 * np.pi * i / n_robots
                 x = radius * np.cos(angle)
                 y = radius * np.sin(angle)
@@ -405,12 +405,12 @@ class MultiRobotCoordinator:
     def _execute_sequential_tasks(self, task: CoordinatedTask):
         """Execute tasks in sequence"""
         # Implementation for sequential task execution
-        pass
+        logging.info(f"Executing sequential task: {task.task_id}")
     
     def _execute_parallel_tasks(self, task: CoordinatedTask):
         """Execute tasks in parallel"""
         # Implementation for parallel task execution
-        pass
+        logging.info(f"Executing parallel task: {task.task_id}")
     
     def _check_collisions(self):
         """Check for potential collisions"""
@@ -505,7 +505,7 @@ class MultiRobotCoordinator:
         self.task_allocator.add_task(task)
         return task.task_id
     
-    def get_task_status(self, task_id: str) -> Optional[str]:
+    def get_task_status(self, task_id: str) -> str | None:
         """Get status of a task"""
         with self.task_lock:
             if task_id in self.task_allocator.active_tasks:
@@ -521,7 +521,7 @@ class MultiRobotCoordinator:
         
         return None
     
-    def get_robot_status(self, robot_id: str) -> Optional[Dict[str, Any]]:
+    def get_robot_status(self, robot_id: str) -> Dict[str, Any] | None:
         """Get status of a robot"""
         with self.state_lock:
             if robot_id in self.robot_states:

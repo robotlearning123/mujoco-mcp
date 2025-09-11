@@ -37,7 +37,7 @@ class PIDController:
         self.integral = 0.0
         self.prev_time = None
     
-    def update(self, target: float, current: float, dt: Optional[float] = None) -> float:
+    def update(self, target: float, current: float, dt: float | None = None) -> float:
         """Update PID controller"""
         if dt is None:
             current_time = time.time()
@@ -86,8 +86,8 @@ class TrajectoryPlanner:
         start_pos: np.ndarray,
         end_pos: np.ndarray,
         duration: float,
-        start_vel: Optional[np.ndarray] = None,
-        end_vel: Optional[np.ndarray] = None,
+        start_vel: np.ndarray | None = None,
+        end_vel: np.ndarray | None = None,
         frequency: float = 100.0
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Generate minimum jerk trajectory"""
@@ -108,20 +108,20 @@ class TrajectoryPlanner:
         for i in range(len(start_pos)):
             p0, pf = start_pos[i], end_pos[i]
             v0, vf = start_vel[i], end_vel[i]
-            T = duration
+            t = duration
             
             # Solve for polynomial coefficients
-            A = np.array([
+            a_matrix = np.array([
                 [1, 0, 0, 0, 0, 0],
                 [0, 1, 0, 0, 0, 0],
-                [1, T, T**2, T**3, T**4, T**5],
-                [0, 1, 2*T, 3*T**2, 4*T**3, 5*T**4],
-                [0, 0, 2, 6*T, 12*T**2, 20*T**3],
-                [0, 0, 0, 6, 24*T, 60*T**2]
+                [1, t, t**2, t**3, t**4, t**5],
+                [0, 1, 2*t, 3*t**2, 4*t**3, 5*t**4],
+                [0, 0, 2, 6*t, 12*t**2, 20*t**3],
+                [0, 0, 0, 6, 24*t, 60*t**2]
             ])
             
             b = np.array([p0, v0, pf, vf, 0, 0])  # Zero acceleration at endpoints
-            coeffs = np.linalg.solve(A, b)
+            coeffs = np.linalg.solve(a_matrix, b)
             
             # Generate trajectory
             pos = np.polyval(coeffs[::-1], t)
@@ -195,7 +195,7 @@ class OptimizationController:
         current_state: np.ndarray,
         target_state: np.ndarray,
         dynamics_func: Callable,
-        constraints: Optional[Dict] = None
+        constraints: Dict | None = None
     ) -> np.ndarray:
         """Solve quadratic programming problem for optimal control"""
         
@@ -332,7 +332,7 @@ class RobotController:
         self.trajectory_start_time = time.time()
         self.trajectory_index = 0
     
-    def get_trajectory_command(self, current_time: Optional[float] = None) -> Optional[np.ndarray]:
+    def get_trajectory_command(self, current_time: float | None = None) -> np.ndarray | None:
         """Get current trajectory command"""
         if self.current_trajectory is None:
             return None
