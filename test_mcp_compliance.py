@@ -6,12 +6,9 @@ Tests MuJoCo MCP server compliance with Model Context Protocol specification
 
 import asyncio
 import json
-import subprocess
-import tempfile
 import time
 import sys
 from pathlib import Path
-from typing import Dict, Any
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -32,18 +29,18 @@ async def test_tools_listing():
     try:
         from mujoco_mcp.server import MuJoCoServer
         server = MuJoCoServer()
-        
+
         # Check that server has required attributes
         assert hasattr(server, 'name')
         assert hasattr(server, 'version')
         assert hasattr(server, 'description')
-        
+
         # Check server info
         info = server.get_server_info()
         assert 'name' in info
         assert 'version' in info
         assert 'capabilities' in info
-        
+
         return True
     except Exception as e:
         print(f"❌ Tools listing test failed: {e}")
@@ -54,19 +51,19 @@ async def test_protocol_messages():
     try:
         from mujoco_mcp.server import MuJoCoServer
         server = MuJoCoServer()
-        
+
         # Test server info
         info = server.get_server_info()
-        
+
         # Verify required fields
         required_fields = ['name', 'version', 'description', 'capabilities']
         for field in required_fields:
             assert field in info, f"Missing required field: {field}"
-        
+
         # Test capabilities
         capabilities = info['capabilities']
         assert isinstance(capabilities, dict), "Capabilities should be a dict"
-        
+
         return True
     except Exception as e:
         print(f"❌ Protocol messages test failed: {e}")
@@ -77,10 +74,10 @@ async def test_error_handling():
     try:
         from mujoco_mcp.server import MuJoCoServer
         server = MuJoCoServer()
-        
+
         # Test that server handles initialization gracefully
         assert server is not None
-        
+
         return True
     except Exception as e:
         print(f"❌ Error handling test failed: {e}")
@@ -90,18 +87,18 @@ async def run_compliance_tests():
     """Run all MCP compliance tests"""
     print("🧪 MCP Protocol Compliance Test Suite")
     print("=" * 50)
-    
+
     tests = [
         ("Server Startup", test_mcp_server_startup),
-        ("Tools Listing", test_tools_listing), 
+        ("Tools Listing", test_tools_listing),
         ("Protocol Messages", test_protocol_messages),
         ("Error Handling", test_error_handling)
     ]
-    
+
     results = {}
     passed = 0
     total = len(tests)
-    
+
     for test_name, test_func in tests:
         print(f"\nTesting {test_name}...")
         try:
@@ -115,7 +112,7 @@ async def run_compliance_tests():
         except Exception as e:
             print(f"❌ {test_name} ERROR: {e}")
             results[test_name] = False
-    
+
     # Generate compliance report
     compliance_report = {
         "timestamp": time.time(),
@@ -130,18 +127,18 @@ async def run_compliance_tests():
             "version": "0.8.2"
         }
     }
-    
+
     # Save report
     with open("mcp_compliance_report.json", "w") as f:
         json.dump(compliance_report, f, indent=2)
-    
+
     print("\n" + "=" * 50)
-    print(f"📊 MCP Compliance Test Results")
+    print("📊 MCP Compliance Test Results")
     print(f"Total Tests: {total}")
     print(f"✅ Passed: {passed}")
     print(f"❌ Failed: {total - passed}")
     print(f"Success Rate: {(passed/total)*100:.1f}%")
-    
+
     if passed == total:
         print("\n🎉 All MCP compliance tests passed!")
         return True
