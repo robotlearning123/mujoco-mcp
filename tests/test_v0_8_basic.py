@@ -10,7 +10,8 @@ def test_package_import():
     try:
         import mujoco_mcp
         from mujoco_mcp.version import __version__
-        assert __version__ == "0.8.0"
+        # 接受 0.8.x 小版本，避免补丁版本变化导致脆弱失败
+        assert __version__.startswith("0.8."), f"Unexpected version: {__version__}"
     except ImportError as e:
         pytest.fail(f"Package import failed: {e}")
 
