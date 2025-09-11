@@ -27,6 +27,7 @@ except ImportError:
     np = None
 
 from .version import __version__
+from .mcp_server import main as mcp_main
 
 
 def setup_logging(level: str = "INFO"):
@@ -151,7 +152,6 @@ def main():
     
     # Run MCP server
     try:
-        from .mcp_server import main as mcp_main
         asyncio.run(mcp_main())
     except KeyboardInterrupt:
         print("\nMCP server stopped by user")

@@ -457,7 +457,7 @@ class MuJoCoRLEnvironment(gym.Env):
         </mujoco>
         """
     
-    def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None) -> Tuple[np.ndarray, Dict]:
+    def reset(self, seed: int | None = None, _options: Dict | None = None) -> Tuple[np.ndarray, Dict]:
         """Reset environment for new episode"""
         super().reset(seed=seed)
         
@@ -658,7 +658,7 @@ class RLTrainer:
             "max_reward": np.max(rewards)
         }
         
-        print(f"\nRandom Policy Baseline Results:")
+        print("\nRandom Policy Baseline Results:")
         for key, value in results.items():
             print(f"  {key}: {value:.4f}")
         
@@ -767,7 +767,7 @@ def example_training():
     # Evaluate PID policy
     pid_results = trainer.evaluate_policy(pid_policy, num_episodes=5)
     
-    print(f"\nPID Policy Results:")
+    print("\nPID Policy Results:")
     for key, value in pid_results.items():
         print(f"  {key}: {value:.4f}")
     
