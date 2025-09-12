@@ -9,6 +9,7 @@ from typing import Dict, Any, List
 import mujoco
 import time
 
+
 class RobotController:
     """Advanced robot control interface for MuJoCo"""
 
@@ -27,7 +28,7 @@ class RobotController:
             "arm": self._get_arm_robot_xml(),
             "gripper": self._get_gripper_robot_xml(),
             "mobile": self._get_mobile_robot_xml(),
-            "humanoid": self._get_humanoid_robot_xml()
+            "humanoid": self._get_humanoid_robot_xml(),
         }
 
         if robot_type not in robot_xmls:
@@ -46,7 +47,7 @@ class RobotController:
                 "control_mode": "position",
                 "target_positions": np.zeros(model.nu),
                 "target_velocities": np.zeros(model.nu),
-                "target_torques": np.zeros(model.nu)
+                "target_torques": np.zeros(model.nu),
             }
 
             return {
@@ -56,7 +57,7 @@ class RobotController:
                 "num_sensors": model.nsensor,
                 "joint_names": [model.joint(i).name for i in range(model.njnt)],
                 "actuator_names": [model.actuator(i).name for i in range(model.nu)],
-                "status": "loaded"
+                "status": "loaded",
             }
 
         except Exception as e:
@@ -85,7 +86,7 @@ class RobotController:
             "robot_id": robot_id,
             "positions_set": positions,
             "control_mode": "position",
-            "status": "success"
+            "status": "success",
         }
 
     def set_joint_velocities(self, robot_id: str, velocities: List[float]) -> Dict[str, Any]:
@@ -106,7 +107,7 @@ class RobotController:
 
         # Apply velocity control (simplified PD controller)
         kp = 100.0  # Position gain
-        kv = 10.0   # Velocity gain
+        kv = 10.0  # Velocity gain
 
         for i in range(model.nu):
             error_vel = velocities[i] - data.qvel[i]
@@ -116,7 +117,7 @@ class RobotController:
             "robot_id": robot_id,
             "velocities_set": velocities,
             "control_mode": "velocity",
-            "status": "success"
+            "status": "success",
         }
 
     def set_joint_torques(self, robot_id: str, torques: List[float]) -> Dict[str, Any]:
@@ -141,7 +142,7 @@ class RobotController:
             "robot_id": robot_id,
             "torques_set": torques,
             "control_mode": "torque",
-            "status": "success"
+            "status": "success",
         }
 
     def get_robot_state(self, robot_id: str) -> Dict[str, Any]:
@@ -154,18 +155,18 @@ class RobotController:
         controller = self.controllers[robot_id]
 
         # Get joint positions and velocities
-        joint_positions = data.qpos[:model.nq].tolist()
-        joint_velocities = data.qvel[:model.nv].tolist()
+        joint_positions = data.qpos[: model.nq].tolist()
+        joint_velocities = data.qvel[: model.nv].tolist()
 
         # Get actuator forces
-        actuator_forces = data.ctrl[:model.nu].tolist()
+        actuator_forces = data.ctrl[: model.nu].tolist()
 
         # Get sensor data if available
         sensor_data = {}
         if model.nsensor > 0:
             sensor_data = {
                 "sensor_values": data.sensordata.tolist(),
-                "sensor_names": [model.sensor(i).name for i in range(model.nsensor)]
+                "sensor_names": [model.sensor(i).name for i in range(model.nsensor)],
             }
 
         # Get end-effector position (if applicable)
@@ -187,12 +188,9 @@ class RobotController:
             "target_positions": controller["target_positions"].tolist(),
             "target_velocities": controller["target_velocities"].tolist(),
             "target_torques": controller["target_torques"].tolist(),
-            "end_effector": {
-                "position": ee_pos,
-                "orientation": ee_orient
-            } if ee_pos else None,
+            "end_effector": {"position": ee_pos, "orientation": ee_orient} if ee_pos else None,
             "sensors": sensor_data,
-            "simulation_time": data.time
+            "simulation_time": data.time,
         }
 
     def step_robot(self, robot_id: str, steps: int = 1) -> Dict[str, Any]:
@@ -211,13 +209,14 @@ class RobotController:
                 "robot_id": robot_id,
                 "steps_completed": steps,
                 "simulation_time": data.time,
-                "status": "success"
+                "status": "success",
             }
         except Exception as e:
             return {"error": str(e)}
 
-    def execute_trajectory(self, robot_id: str, trajectory: List[List[float]],
-                          time_steps: int = 10) -> Dict[str, Any]:
+    def execute_trajectory(
+        self, robot_id: str, trajectory: List[List[float]], time_steps: int = 10
+    ) -> Dict[str, Any]:
         """Execute a trajectory of joint positions"""
         if robot_id not in self.models:
             return {"error": f"Robot {robot_id} not found"}
@@ -232,18 +231,20 @@ class RobotController:
 
             # Get state
             state = self.get_robot_state(robot_id)
-            results.append({
-                "waypoint": waypoint,
-                "achieved_positions": state["joint_positions"],
-                "time": state["simulation_time"]
-            })
+            results.append(
+                {
+                    "waypoint": waypoint,
+                    "achieved_positions": state["joint_positions"],
+                    "time": state["simulation_time"],
+                }
+            )
 
         return {
             "robot_id": robot_id,
             "trajectory_executed": True,
             "num_waypoints": len(trajectory),
             "results": results,
-            "status": "success"
+            "status": "success",
         }
 
     def reset_robot(self, robot_id: str) -> Dict[str, Any]:
@@ -262,11 +263,7 @@ class RobotController:
         self.controllers[robot_id]["target_velocities"] = np.zeros(model.nu)
         self.controllers[robot_id]["target_torques"] = np.zeros(model.nu)
 
-        return {
-            "robot_id": robot_id,
-            "status": "reset",
-            "simulation_time": 0.0
-        }
+        return {"robot_id": robot_id, "status": "reset", "simulation_time": 0.0}
 
     def _get_arm_robot_xml(self) -> str:
         """Get XML for a simple robot arm"""

@@ -28,6 +28,7 @@ server = Server("mujoco-mcp-headless")
 # Global simulation storage (no viewer needed)
 simulations = {}
 
+
 class HeadlessSimulation:
     """Headless MuJoCo simulation without viewer"""
 
@@ -54,7 +55,7 @@ class HeadlessSimulation:
             "nq": self.model.nq,
             "nv": self.model.nv,
             "nu": self.model.nu,
-            "nbody": self.model.nbody
+            "nbody": self.model.nbody,
         }
 
     def reset(self):
@@ -64,6 +65,7 @@ class HeadlessSimulation:
     def close(self):
         """Clean up (no viewer to close in headless mode)"""
 
+
 @server.list_tools()
 async def handle_list_tools() -> List[types.Tool]:
     """Return list of available MuJoCo MCP tools"""
@@ -71,11 +73,7 @@ async def handle_list_tools() -> List[types.Tool]:
         types.Tool(
             name="get_server_info",
             description="Get information about the MuJoCo MCP server",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
+            inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         types.Tool(
             name="create_scene",
@@ -86,11 +84,11 @@ async def handle_list_tools() -> List[types.Tool]:
                     "scene_type": {
                         "type": "string",
                         "description": "Type of scene to create",
-                        "enum": ["pendulum", "double_pendulum", "cart_pole", "arm"]
+                        "enum": ["pendulum", "double_pendulum", "cart_pole", "arm"],
                     }
                 },
-                "required": ["scene_type"]
-            }
+                "required": ["scene_type"],
+            },
         ),
         types.Tool(
             name="step_simulation",
@@ -98,18 +96,15 @@ async def handle_list_tools() -> List[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "model_id": {
-                        "type": "string",
-                        "description": "ID of the model to step"
-                    },
+                    "model_id": {"type": "string", "description": "ID of the model to step"},
                     "steps": {
                         "type": "integer",
                         "description": "Number of simulation steps",
-                        "default": 1
-                    }
+                        "default": 1,
+                    },
                 },
-                "required": ["model_id"]
-            }
+                "required": ["model_id"],
+            },
         ),
         types.Tool(
             name="get_state",
@@ -119,11 +114,11 @@ async def handle_list_tools() -> List[types.Tool]:
                 "properties": {
                     "model_id": {
                         "type": "string",
-                        "description": "ID of the model to get state from"
+                        "description": "ID of the model to get state from",
                     }
                 },
-                "required": ["model_id"]
-            }
+                "required": ["model_id"],
+            },
         ),
         types.Tool(
             name="reset_simulation",
@@ -131,13 +126,10 @@ async def handle_list_tools() -> List[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "model_id": {
-                        "type": "string",
-                        "description": "ID of the model to reset"
-                    }
+                    "model_id": {"type": "string", "description": "ID of the model to reset"}
                 },
-                "required": ["model_id"]
-            }
+                "required": ["model_id"],
+            },
         ),
         types.Tool(
             name="close_simulation",
@@ -145,15 +137,13 @@ async def handle_list_tools() -> List[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "model_id": {
-                        "type": "string",
-                        "description": "ID of the model to close"
-                    }
+                    "model_id": {"type": "string", "description": "ID of the model to close"}
                 },
-                "required": ["model_id"]
-            }
-        )
+                "required": ["model_id"],
+            },
+        ),
     ]
+
 
 def get_scene_xml(scene_type: str) -> str:
     """Get XML string for different scene types"""
@@ -238,29 +228,32 @@ def get_scene_xml(scene_type: str) -> str:
     else:
         raise ValueError(f"Unknown scene type: {scene_type}")
 
+
 @server.call_tool()
 async def handle_call_tool(
-    name: str,
-    arguments: Dict[str, Any]
+    name: str, arguments: Dict[str, Any]
 ) -> List[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Handle tool calls"""
 
     try:
         if name == "get_server_info":
-            result = json.dumps({
-                "name": "MuJoCo MCP Server (Headless)",
-                "version": __version__,
-                "description": "Control MuJoCo physics simulations through MCP - No GUI required",
-                "status": "ready",
-                "mode": "headless",
-                "capabilities": [
-                    "create_scene",
-                    "step_simulation",
-                    "get_state",
-                    "reset",
-                    "no_viewer_required"
-                ]
-            }, indent=2)
+            result = json.dumps(
+                {
+                    "name": "MuJoCo MCP Server (Headless)",
+                    "version": __version__,
+                    "description": "Control MuJoCo physics simulations through MCP - No GUI required",
+                    "status": "ready",
+                    "mode": "headless",
+                    "capabilities": [
+                        "create_scene",
+                        "step_simulation",
+                        "get_state",
+                        "reset",
+                        "no_viewer_required",
+                    ],
+                },
+                indent=2,
+            )
 
         elif name == "create_scene":
             scene_type = arguments["scene_type"]
@@ -268,7 +261,9 @@ async def handle_call_tool(
 
             # Check if already exists
             if model_id in simulations:
-                result = f"⚠️ Scene '{model_id}' already exists. Use a different ID or close it first."
+                result = (
+                    f"⚠️ Scene '{model_id}' already exists. Use a different ID or close it first."
+                )
             else:
                 # Create headless simulation
                 xml_string = get_scene_xml(scene_type)
@@ -330,17 +325,12 @@ async def handle_call_tool(
         else:
             result = f"❌ Unknown tool: {name}"
 
-        return [types.TextContent(
-            type="text",
-            text=str(result)
-        )]
+        return [types.TextContent(type="text", text=str(result))]
 
     except Exception as e:
         logger.exception(f"Error in tool {name}: {e}")
-        return [types.TextContent(
-            type="text",
-            text=f"❌ Error: {str(e)}"
-        )]
+        return [types.TextContent(type="text", text=f"❌ Error: {str(e)}")]
+
 
 async def main():
     """Main entry point for MCP server"""
@@ -357,6 +347,7 @@ async def main():
                 ),
             ),
         )
+
 
 if __name__ == "__main__":
     asyncio.run(main())

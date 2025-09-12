@@ -9,6 +9,7 @@ import subprocess
 import logging
 from pathlib import Path
 
+
 def main():
     """Main entry point for viewer server"""
     logging.basicConfig(level=logging.INFO)
@@ -23,7 +24,9 @@ def main():
 
     if not script_path.exists():
         logger.error("Could not find mujoco_viewer_server.py")
-        logger.error("Please run from the mujoco-mcp directory or ensure the viewer server is in your PATH")
+        logger.error(
+            "Please run from the mujoco-mcp directory or ensure the viewer server is in your PATH"
+        )
         sys.exit(1)
 
     logger.info(f"Starting MuJoCo Viewer Server from {script_path}")
@@ -39,6 +42,7 @@ def main():
     except Exception as e:
         logger.exception(f"Unexpected error: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

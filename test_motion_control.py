@@ -117,7 +117,7 @@ async def run_all_tests():
         ("Connection", test_basic_connection),
         ("Model Loading", test_model_loading),
         ("Basic Motions", test_basic_motions),
-        ("MCP Integration", test_mcp_integration)
+        ("MCP Integration", test_mcp_integration),
     ]
 
     results = {}

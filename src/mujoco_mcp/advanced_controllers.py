@@ -16,6 +16,7 @@ import time
 @dataclass
 class PIDConfig:
     """PID controller configuration"""
+
     kp: float = 1.0  # Proportional gain
     ki: float = 0.0  # Integral gain
     kd: float = 0.0  # Derivative gain
@@ -88,7 +89,7 @@ class TrajectoryPlanner:
         duration: float,
         start_vel: np.ndarray | None = None,
         end_vel: np.ndarray | None = None,
-        frequency: float = 100.0
+        frequency: float = 100.0,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Generate minimum jerk trajectory"""
 
@@ -111,14 +112,16 @@ class TrajectoryPlanner:
             T = duration
 
             # Solve for polynomial coefficients
-            A = np.array([
-                [1, 0, 0, 0, 0, 0],
-                [0, 1, 0, 0, 0, 0],
-                [1, T, T**2, T**3, T**4, T**5],
-                [0, 1, 2*T, 3*T**2, 4*T**3, 5*T**4],
-                [0, 0, 2, 6*T, 12*T**2, 20*T**3],
-                [0, 0, 0, 6, 24*T, 60*T**2]
-            ])
+            A = np.array(
+                [
+                    [1, 0, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 0, 0],
+                    [1, T, T**2, T**3, T**4, T**5],
+                    [0, 1, 2 * T, 3 * T**2, 4 * T**3, 5 * T**4],
+                    [0, 0, 2, 6 * T, 12 * T**2, 20 * T**3],
+                    [0, 0, 0, 6, 24 * T, 60 * T**2],
+                ]
+            )
 
             b = np.array([p0, v0, pf, vf, 0, 0])  # Zero acceleration at endpoints
             coeffs = np.linalg.solve(A, b)
@@ -136,9 +139,7 @@ class TrajectoryPlanner:
 
     @staticmethod
     def spline_trajectory(
-        waypoints: np.ndarray,
-        times: np.ndarray,
-        frequency: float = 100.0
+        waypoints: np.ndarray, times: np.ndarray, frequency: float = 100.0
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Generate smooth spline trajectory through waypoints"""
 
@@ -150,7 +151,7 @@ class TrajectoryPlanner:
 
         for joint_idx in range(waypoints.shape[1]):
             # Fit cubic spline
-            spline = CubicSpline(times, waypoints[:, joint_idx], bc_type='natural')
+            spline = CubicSpline(times, waypoints[:, joint_idx], bc_type="natural")
 
             # Evaluate spline
             pos = spline(t_dense)
@@ -168,7 +169,7 @@ class TrajectoryPlanner:
         cartesian_waypoints: np.ndarray,
         robot_kinematics: Callable,
         times: np.ndarray,
-        frequency: float = 100.0
+        frequency: float = 100.0,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Convert Cartesian trajectory to joint space"""
 
@@ -195,7 +196,7 @@ class OptimizationController:
         current_state: np.ndarray,
         target_state: np.ndarray,
         dynamics_func: Callable,
-        constraints: Dict | None = None
+        constraints: Dict | None = None,
     ) -> np.ndarray:
         """Solve quadratic programming problem for optimal control"""
 
@@ -227,12 +228,12 @@ class OptimizationController:
 
         # Set up constraints
         bounds = None
-        if constraints and 'control_bounds' in constraints:
-            control_bounds = constraints['control_bounds']
+        if constraints and "control_bounds" in constraints:
+            control_bounds = constraints["control_bounds"]
             bounds = [control_bounds] * (self.horizon * n_controls)
 
         # Solve optimization
-        result = minimize(objective, u0, bounds=bounds, method='SLSQP')
+        result = minimize(objective, u0, bounds=bounds, method="SLSQP")
 
         # Return first control action
         optimal_controls = result.x.reshape(self.horizon, n_controls)
@@ -275,7 +276,7 @@ class ForceController:
         target_pos: np.ndarray,
         current_force: np.ndarray,
         target_force: np.ndarray,
-        selection_matrix: np.ndarray
+        selection_matrix: np.ndarray,
     ) -> np.ndarray:
         """Hybrid position/force control"""
 
@@ -292,13 +293,12 @@ class ForceController:
         return selection_matrix * force_command + (1 - selection_matrix) * pos_command
 
 
-
 class RobotController:
     """High-level robot controller combining multiple control strategies"""
 
     def __init__(self, robot_config: Dict):
         self.config = robot_config
-        self.n_joints = robot_config.get('joints', 6)
+        self.n_joints = robot_config.get("joints", 6)
 
         # Initialize PID controllers for each joint
         pid_config = PIDConfig(kp=10.0, ki=0.1, kd=1.0)
@@ -322,11 +322,11 @@ class RobotController:
         )
 
         self.current_trajectory = {
-            'positions': positions,
-            'velocities': velocities,
-            'accelerations': accelerations,
-            'times': times,
-            'dt': times[1] - times[0] if len(times) > 1 else 0.02
+            "positions": positions,
+            "velocities": velocities,
+            "accelerations": accelerations,
+            "times": times,
+            "dt": times[1] - times[0] if len(times) > 1 else 0.02,
         }
         self.trajectory_start_time = time.time()
         self.trajectory_index = 0
@@ -342,15 +342,17 @@ class RobotController:
         elapsed = current_time - self.trajectory_start_time
 
         # Find trajectory index
-        dt = self.current_trajectory['dt']
+        dt = self.current_trajectory["dt"]
         index = int(elapsed / dt)
 
-        if index >= len(self.current_trajectory['positions']):
+        if index >= len(self.current_trajectory["positions"]):
             return None  # Trajectory complete
 
-        return self.current_trajectory['positions'][index]
+        return self.current_trajectory["positions"][index]
 
-    def pid_control(self, target_positions: np.ndarray, current_positions: np.ndarray) -> np.ndarray:
+    def pid_control(
+        self, target_positions: np.ndarray, current_positions: np.ndarray
+    ) -> np.ndarray:
         """Apply PID control to reach target positions"""
         commands = []
 
@@ -369,13 +371,12 @@ class RobotController:
         target_pos: np.ndarray,
         current_vel: np.ndarray,
         stiffness: np.ndarray,
-        damping: np.ndarray
+        damping: np.ndarray,
     ) -> np.ndarray:
         """Impedance control for compliant motion"""
 
         pos_error = target_pos - current_pos
         return stiffness * pos_error - damping * current_vel
-
 
     def reset_controllers(self):
         """Reset all controller states"""
@@ -396,14 +397,14 @@ def create_arm_controller(robot_type: str = "franka_panda") -> RobotController:
             "joints": 7,
             "kp": [100, 100, 100, 100, 50, 50, 25],
             "ki": [0.1, 0.1, 0.1, 0.1, 0.05, 0.05, 0.01],
-            "kd": [10, 10, 10, 10, 5, 5, 2.5]
+            "kd": [10, 10, 10, 10, 5, 5, 2.5],
         },
         "ur5e": {
             "joints": 6,
             "kp": [150, 150, 100, 100, 50, 50],
             "ki": [0.2, 0.2, 0.1, 0.1, 0.05, 0.05],
-            "kd": [15, 15, 10, 10, 5, 5]
-        }
+            "kd": [15, 15, 10, 10, 5, 5],
+        },
     }
 
     config = arm_configs.get(robot_type, arm_configs["franka_panda"])
@@ -418,14 +419,9 @@ def create_quadruped_controller(robot_type: str = "anymal_c") -> RobotController
             "joints": 12,
             "kp": [200] * 12,  # Higher gains for stability
             "ki": [0.5] * 12,
-            "kd": [20] * 12
+            "kd": [20] * 12,
         },
-        "go2": {
-            "joints": 12,
-            "kp": [180] * 12,
-            "ki": [0.3] * 12,
-            "kd": [18] * 12
-        }
+        "go2": {"joints": 12, "kp": [180] * 12, "ki": [0.3] * 12, "kd": [18] * 12},
     }
 
     config = quadruped_configs.get(robot_type, quadruped_configs["anymal_c"])
@@ -440,14 +436,9 @@ def create_humanoid_controller(robot_type: str = "g1") -> RobotController:
             "joints": 37,
             "kp": [100] * 37,  # Variable gains per joint group
             "ki": [0.1] * 37,
-            "kd": [10] * 37
+            "kd": [10] * 37,
         },
-        "h1": {
-            "joints": 25,
-            "kp": [120] * 25,
-            "ki": [0.15] * 25,
-            "kd": [12] * 25
-        }
+        "h1": {"joints": 25, "kp": [120] * 25, "ki": [0.15] * 25, "kd": [12] * 25},
     }
 
     config = humanoid_configs.get(robot_type, humanoid_configs["g1"])

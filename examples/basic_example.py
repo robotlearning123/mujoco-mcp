@@ -44,17 +44,19 @@ PENDULUM_XML = """
 </mujoco>
 """
 
+
 def start_server():
     """在单独的线程中启动MCP服务器"""
     logger.info("正在启动MuJoCo MCP服务器...")
     server_thread = threading.Thread(
         target=mujoco_mcp.start,
         kwargs={"host": "localhost", "port": 8000, "blocking": True},
-        daemon=True
+        daemon=True,
     )
     server_thread.start()
     time.sleep(1)  # 给服务器一些启动时间
     return server_thread
+
 
 def run_client():
     """运行MCP客户端示例"""
@@ -83,10 +85,7 @@ def run_client():
 
         # 应用简单的控制 - 向下拉动摆锤
         control = [1.0 * (i % 10)]  # 每10步改变方向
-        client.call_tool("apply_control", {
-            "simulation_id": sim_id,
-            "control": control
-        })
+        client.call_tool("apply_control", {"simulation_id": sim_id, "control": control})
 
         # 获取传感器数据
         sensors = client.get_resource("sensor_data", {"simulation_id": sim_id})
@@ -104,6 +103,7 @@ def run_client():
     logger.info("正在Delete模拟...")
     client.call_tool("delete_simulation", {"simulation_id": sim_id})
     logger.info("示例完成!")
+
 
 def main():
     """主程序"""
@@ -124,6 +124,7 @@ def main():
         # 等待服务器线程结束
         server_thread.join(timeout=2)
         logger.info("程序退出")
+
 
 if __name__ == "__main__":
     main()

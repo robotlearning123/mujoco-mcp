@@ -35,7 +35,6 @@ class MuJoCoSimulation:
         self._initialized = True
         logger.info(f"Loaded model from XML string, sim_id: {self.sim_id}")
 
-
     def load_model_from_string(self, xml_string: str):
         """Alias for load_from_xml_string for backward compatibility."""
         return self.load_from_xml_string(xml_string)
@@ -105,7 +104,7 @@ class MuJoCoSimulation:
         sensor_data = {}
         for i in range(self.model.nsensor):
             name = self.model.sensor(i).name
-            sensor_data[name] = self.data.sensordata[i:i+1].tolist()
+            sensor_data[name] = self.data.sensordata[i : i + 1].tolist()
         return sensor_data
 
     def get_rigid_body_states(self) -> Dict[str, Dict[str, List[float]]]:
@@ -119,10 +118,7 @@ class MuJoCoSimulation:
             if name:  # Skip unnamed bodies
                 pos = self.data.xpos[i].tolist()
                 quat = self.data.xquat[i].tolist()
-                body_states[name] = {
-                    "position": pos,
-                    "orientation": quat
-                }
+                body_states[name] = {"position": pos, "orientation": quat}
         return body_states
 
     def get_time(self) -> float:
@@ -165,25 +161,25 @@ class MuJoCoSimulation:
             return ""
         return self.model.meta.model_name or "unnamed"
 
-
     def get_model_info(self) -> Dict[str, Any]:
         """Get model information."""
         if not self._initialized:
             raise RuntimeError("Simulation not initialized")
 
         return {
-            "nq": self.model.nq,      # number of generalized coordinates
-            "nv": self.model.nv,      # number of degrees of freedom
+            "nq": self.model.nq,  # number of generalized coordinates
+            "nv": self.model.nv,  # number of degrees of freedom
             "nbody": self.model.nbody,  # number of bodies
             "njoint": self.model.njnt,  # number of joints
             "ngeom": self.model.ngeom,  # number of geoms
             "nsensor": self.model.nsensor,  # number of sensors
-            "nu": self.model.nu,      # number of actuators
-            "timestep": self.model.opt.timestep
+            "nu": self.model.nu,  # number of actuators
+            "timestep": self.model.opt.timestep,
         }
 
-    def render_frame(self, width: int = 640, height: int = 480,
-                    camera_id: int = -1, scene_option=None) -> np.ndarray:
+    def render_frame(
+        self, width: int = 640, height: int = 480, camera_id: int = -1, scene_option=None
+    ) -> np.ndarray:
         """Render a frame from the simulation."""
         if not self._initialized:
             raise RuntimeError("Simulation not initialized")
@@ -197,7 +193,6 @@ class MuJoCoSimulation:
 
             # Render and return RGB array
             return renderer.render()
-
 
         except Exception as e:
             logger.warning(f"Hardware rendering failed: {e}, falling back to software rendering")
@@ -281,7 +276,7 @@ class MuJoCoSimulation:
         cx, cy = center
         for y in range(max(0, cy - radius), min(image.shape[0], cy + radius + 1)):
             for x in range(max(0, cx - radius), min(image.shape[1], cx + radius + 1)):
-                if (x - cx) ** 2 + (y - cy) ** 2 <= radius ** 2:
+                if (x - cx) ** 2 + (y - cy) ** 2 <= radius**2:
                     image[y, x] = color
 
     def _draw_text(self, image, text, position):
@@ -293,7 +288,7 @@ class MuJoCoSimulation:
             if char_x + 8 < image.shape[1] and y + 10 < image.shape[0]:
                 # Draw a simple character representation
                 if char.isdigit() or char.isalpha() or char in ".:-°":
-                    image[y:y+8, char_x:char_x+6] = [50, 50, 50]
+                    image[y : y + 8, char_x : char_x + 6] = [50, 50, 50]
 
     def render_ascii(self, width: int = 60, height: int = 20) -> str:
         """Render ASCII art representation of the simulation."""
@@ -309,7 +304,7 @@ class MuJoCoSimulation:
         import math
 
         # Create ASCII grid
-        grid = [[' ' for _ in range(width)] for _ in range(height)]
+        grid = [[" " for _ in range(width)] for _ in range(height)]
 
         # Draw pendulum in ASCII
         center_x, center_y = width // 2, height // 4
@@ -324,18 +319,18 @@ class MuJoCoSimulation:
         end_y = max(0, min(height - 1, end_y))
 
         # Draw pendulum rod
-        self._draw_ascii_line(grid, (center_x, center_y), (end_x, end_y), '|')
+        self._draw_ascii_line(grid, (center_x, center_y), (end_x, end_y), "|")
 
         # Draw pivot and mass
         if 0 <= center_y < height and 0 <= center_x < width:
-            grid[center_y][center_x] = '+'
+            grid[center_y][center_x] = "+"
         if 0 <= end_y < height and 0 <= end_x < width:
-            grid[end_y][end_x] = 'O'
+            grid[end_y][end_x] = "O"
 
         # Convert grid to string
-        result = '\n'.join(''.join(row) for row in grid)
-        result += f'\nAngle: {math.degrees(joint_pos):.1f}°'
-        result += f'\nTime: {self.data.time:.2f}s'
+        result = "\n".join("".join(row) for row in grid)
+        result += f"\nAngle: {math.degrees(joint_pos):.1f}°"
+        result += f"\nTime: {self.data.time:.2f}s"
 
         return result
 
@@ -357,4 +352,5 @@ class MuJoCoSimulation:
             if 0 <= y < len(grid) and 0 <= x < len(grid[0]):
                 grid[y][x] = char
 
-__all__ = ['MuJoCoSimulation']
+
+__all__ = ["MuJoCoSimulation"]

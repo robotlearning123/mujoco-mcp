@@ -13,6 +13,7 @@ from pathlib import Path
 # Add src to path for testing
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+
 async def demo_menagerie_mcp():
     """Interactive demo of MCP server with Menagerie models"""
     print("🚀 MuJoCo Menagerie MCP Demo")
@@ -39,18 +40,21 @@ async def demo_menagerie_mcp():
         models_result = await handle_call_tool("list_menagerie_models", {})
         models_data = json.loads(models_result[0].text)
 
-        print(f"✅ Found {models_data['categories']} categories with {models_data['total_models']} total models")
+        print(
+            f"✅ Found {models_data['categories']} categories with "
+            f"{models_data['total_models']} total models"
+        )
 
         # Show models by category
         all_models = []
-        for category, info in models_data['models'].items():
+        for category, info in models_data["models"].items():
             print(f"\n  🏷️  {category.upper()}: {info['count']} models")
-            for model in info['models'][:3]:  # Show first 3
+            for model in info["models"][:3]:  # Show first 3
                 print(f"     • {model}")
                 all_models.append(model)
-            if len(info['models']) > 3:
+            if len(info["models"]) > 3:
                 print(f"     ... and {len(info['models']) - 3} more")
-                all_models.extend(info['models'][3:])
+                all_models.extend(info["models"][3:])
 
         # Step 3: Select random model
         print("\n🎲 Step 3: Random Model Selection")
@@ -63,9 +67,9 @@ async def demo_menagerie_mcp():
         print("\n🔬 Step 4: Model Validation")
         print("-" * 30)
 
-        validation_result = await handle_call_tool("validate_menagerie_model", {
-            "model_name": random_model
-        })
+        validation_result = await handle_call_tool(
+            "validate_menagerie_model", {"model_name": random_model}
+        )
 
         validation_text = validation_result[0].text
         print(f"📊 Validation result: {validation_text}")
@@ -75,10 +79,9 @@ async def demo_menagerie_mcp():
         print("-" * 25)
 
         scene_name = f"demo_{random_model}"
-        scene_result = await handle_call_tool("create_menagerie_scene", {
-            "model_name": random_model,
-            "scene_name": scene_name
-        })
+        scene_result = await handle_call_tool(
+            "create_menagerie_scene", {"model_name": random_model, "scene_name": scene_name}
+        )
 
         scene_text = scene_result[0].text
         print(f"🏗️  Scene creation: {scene_text}")
@@ -88,26 +91,25 @@ async def demo_menagerie_mcp():
         print("-" * 30)
 
         # Try to step simulation
-        step_result = await handle_call_tool("step_simulation", {
-            "model_id": scene_name,
-            "steps": 5
-        })
+        step_result = await handle_call_tool(
+            "step_simulation", {"model_id": scene_name, "steps": 5}
+        )
 
         step_text = step_result[0].text
         print(f"🔄 Simulation step: {step_text}")
 
         # Try to get state
-        state_result = await handle_call_tool("get_state", {
-            "model_id": scene_name
-        })
+        state_result = await handle_call_tool("get_state", {"model_id": scene_name})
 
         state_text = state_result[0].text
-        print(f"📊 State query: {state_text[:200]}..." if len(state_text) > 200 else f"📊 State query: {state_text}")
+        print(
+            f"📊 State query: {state_text[:200]}..."
+            if len(state_text) > 200
+            else f"📊 State query: {state_text}"
+        )
 
         # Try to reset simulation
-        reset_result = await handle_call_tool("reset_simulation", {
-            "model_id": scene_name
-        })
+        reset_result = await handle_call_tool("reset_simulation", {"model_id": scene_name})
 
         reset_text = reset_result[0].text
         print(f"🔄 Reset simulation: {reset_text}")
@@ -120,10 +122,13 @@ async def demo_menagerie_mcp():
         another_model = random.choice([m for m in all_models if m != random_model])
         print(f"🎯 Using enhanced create_scene with: {another_model}")
 
-        enhanced_result = await handle_call_tool("create_scene", {
-            "scene_type": "pendulum",  # Required parameter
-            "menagerie_model": another_model  # Our enhancement!
-        })
+        enhanced_result = await handle_call_tool(
+            "create_scene",
+            {
+                "scene_type": "pendulum",  # Required parameter
+                "menagerie_model": another_model,  # Our enhancement!
+            },
+        )
 
         enhanced_text = enhanced_result[0].text
         print(f"✨ Enhanced scene: {enhanced_text}")
@@ -132,9 +137,7 @@ async def demo_menagerie_mcp():
         print("\n🧹 Step 8: Cleanup")
         print("-" * 20)
 
-        cleanup_result = await handle_call_tool("close_viewer", {
-            "model_id": scene_name
-        })
+        cleanup_result = await handle_call_tool("close_viewer", {"model_id": scene_name})
 
         cleanup_text = cleanup_result[0].text
         print(f"🚮 Cleanup: {cleanup_text}")
@@ -155,8 +158,10 @@ async def demo_menagerie_mcp():
     except Exception as e:
         print(f"\n❌ Demo failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 async def interactive_menagerie_demo():
     """Interactive version where user can choose models"""
@@ -171,19 +176,19 @@ async def interactive_menagerie_demo():
         models_data = json.loads(models_result[0].text)
 
         print("\n📦 Available Categories:")
-        categories = list(models_data['models'].keys())
+        categories = list(models_data["models"].keys())
         for i, category in enumerate(categories, 1):
-            count = models_data['models'][category]['count']
+            count = models_data["models"][category]["count"]
             print(f"  {i}. {category.upper()} ({count} models)")
 
         # Let user choose category
         print(f"\n🎯 Choose a category (1-{len(categories)}) or 'r' for random:")
         choice = input("Your choice: ").strip().lower()
 
-        if choice == 'r':
+        if choice == "r":
             # Random category and model
             category = random.choice(categories)
-            available_models = models_data['models'][category]['models']
+            available_models = models_data["models"][category]["models"]
             selected_model = random.choice(available_models)
             print(f"🎲 Random selection: {selected_model} from {category}")
         else:
@@ -191,15 +196,17 @@ async def interactive_menagerie_demo():
                 cat_index = int(choice) - 1
                 if 0 <= cat_index < len(categories):
                     category = categories[cat_index]
-                    available_models = models_data['models'][category]['models']
+                    available_models = models_data["models"][category]["models"]
 
                     print(f"\n📋 Models in {category.upper()}:")
                     for i, model in enumerate(available_models, 1):
                         print(f"  {i}. {model}")
 
-                    model_choice = input(f"\nChoose model (1-{len(available_models)}) or 'r' for random: ").strip()
+                    model_choice = input(
+                        f"\nChoose model (1-{len(available_models)}) or 'r' for random: "
+                    ).strip()
 
-                    if model_choice.lower() == 'r':
+                    if model_choice.lower() == "r":
                         selected_model = random.choice(available_models)
                     else:
                         model_index = int(model_choice) - 1
@@ -211,27 +218,27 @@ async def interactive_menagerie_demo():
                 else:
                     print("Invalid choice, using random")
                     category = random.choice(categories)
-                    selected_model = random.choice(models_data['models'][category]['models'])
+                    selected_model = random.choice(models_data["models"][category]["models"])
             except ValueError:
                 print("Invalid input, using random")
                 category = random.choice(categories)
-                selected_model = random.choice(models_data['models'][category]['models'])
+                selected_model = random.choice(models_data["models"][category]["models"])
 
         print(f"\n🎯 Selected: {selected_model}")
         print(f"📂 Category: {category}")
 
         # Validate and create scene
         print(f"\n🔬 Validating {selected_model}...")
-        validation_result = await handle_call_tool("validate_menagerie_model", {
-            "model_name": selected_model
-        })
+        validation_result = await handle_call_tool(
+            "validate_menagerie_model", {"model_name": selected_model}
+        )
         print(f"✅ {validation_result[0].text}")
 
         print("\n🏗️  Creating scene...")
-        scene_result = await handle_call_tool("create_menagerie_scene", {
-            "model_name": selected_model,
-            "scene_name": f"interactive_{selected_model}"
-        })
+        scene_result = await handle_call_tool(
+            "create_menagerie_scene",
+            {"model_name": selected_model, "scene_name": f"interactive_{selected_model}"},
+        )
         print(f"🎭 {scene_result[0].text}")
 
         print("\n🎉 Interactive demo complete!")
@@ -242,6 +249,7 @@ async def interactive_menagerie_demo():
     except Exception as e:
         print(f"\n❌ Interactive demo failed: {e}")
         return False
+
 
 async def main():
     """Main demo runner"""
@@ -255,21 +263,22 @@ async def main():
 
     success = True
 
-    if choice in ['1', '3']:
+    if choice in ["1", "3"]:
         success &= await demo_menagerie_mcp()
 
-    if choice in ['2', '3']:
-        if choice == '3':
-            print("\n" + "="*60)
+    if choice in ["2", "3"]:
+        if choice == "3":
+            print("\n" + "=" * 60)
             print("STARTING INTERACTIVE DEMO")
-            print("="*60)
+            print("=" * 60)
         success &= await interactive_menagerie_demo()
 
-    if choice not in ['1', '2', '3']:
+    if choice not in ["1", "2", "3"]:
         print("Invalid choice, running automatic demo...")
         success = await demo_menagerie_mcp()
 
     return success
+
 
 if __name__ == "__main__":
     try:

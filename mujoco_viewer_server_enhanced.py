@@ -31,11 +31,8 @@ import builtins
 # Setup enhanced logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - [%(threadName)s] %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('mujoco_viewer_server.log')
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - [%(threadName)s] %(message)s",
+    handlers=[logging.StreamHandler(), logging.FileHandler("mujoco_viewer_server.log")],
 )
 logger = logging.getLogger("enhanced_mujoco_viewer_server")
 
@@ -43,6 +40,7 @@ logger = logging.getLogger("enhanced_mujoco_viewer_server")
 @dataclass
 class ConnectionStats:
     """Connection statistics"""
+
     created_time: float
     requests_handled: int = 0
     bytes_sent: int = 0
@@ -54,6 +52,7 @@ class ConnectionStats:
 @dataclass
 class PerformanceStats:
     """Performance statistics"""
+
     cpu_usage: float = 0.0
     memory_usage: float = 0.0
     active_connections: int = 0
@@ -89,10 +88,7 @@ class ModelViewer:
 
             # Launch passive viewer
             self.viewer = mujoco.viewer.launch_passive(
-                self.model,
-                self.data,
-                show_left_ui=True,
-                show_right_ui=True
+                self.model, self.data, show_left_ui=True, show_right_ui=True
             )
 
             # Start simulation thread
@@ -138,9 +134,9 @@ class ModelViewer:
                     "time": self.data.time,
                     "qpos": self.data.qpos.copy(),
                     "qvel": self.data.qvel.copy(),
-                    "qacc": self.data.qacc.copy() if hasattr(self.data, 'qacc') else [],
-                    "ctrl": self.data.ctrl.copy() if hasattr(self.data, 'ctrl') else [],
-                    "xpos": self.data.xpos.copy() if hasattr(self.data, 'xpos') else []
+                    "qacc": self.data.qacc.copy() if hasattr(self.data, "qacc") else [],
+                    "ctrl": self.data.ctrl.copy() if hasattr(self.data, "ctrl") else [],
+                    "xpos": self.data.xpos.copy() if hasattr(self.data, "xpos") else [],
                 }
         except Exception as e:
             logger.exception(f"Error getting state for {self.model_id}: {e}")
@@ -194,7 +190,7 @@ class ModelViewer:
         try:
             self.simulation_running = False
 
-            if hasattr(self, 'sim_thread') and self.sim_thread.is_alive():
+            if hasattr(self, "sim_thread") and self.sim_thread.is_alive():
                 self.sim_thread.join(timeout=1.0)
 
             if self.viewer:
@@ -224,7 +220,7 @@ class ModelViewer:
             "access_count": self.access_count,
             "simulation_running": self.simulation_running,
             "viewer_running": self.viewer.is_running() if self.viewer else False,
-            "thread_alive": hasattr(self, 'sim_thread') and self.sim_thread.is_alive()
+            "thread_alive": hasattr(self, "sim_thread") and self.sim_thread.is_alive(),
         }
 
 
@@ -245,13 +241,14 @@ class ConnectionManager:
                 return False
 
             self.connections[conn_id] = ConnectionStats(
-                created_time=time.time(),
-                last_activity=time.time()
+                created_time=time.time(), last_activity=time.time()
             )
             logger.info(f"Registered connection {conn_id}")
             return True
 
-    def update_connection_activity(self, conn_id: str, bytes_sent: int = 0, bytes_received: int = 0, error: bool = False):
+    def update_connection_activity(
+        self, conn_id: str, bytes_sent: int = 0, bytes_received: int = 0, error: bool = False
+    ):
         """Update connection activity"""
         with self.connection_lock:
             if conn_id in self.connections:
@@ -303,7 +300,7 @@ class ConnectionManager:
                 "total_requests": total_requests,
                 "total_errors": total_errors,
                 "error_rate": total_errors / max(total_requests, 1),
-                "requests_per_second": rps
+                "requests_per_second": rps,
             }
 
 
@@ -325,10 +322,7 @@ class PerformanceMonitor:
                 memory_info = self.process.memory_info()
                 memory_mb = memory_info.rss / (1024 * 1024)
 
-                stats = PerformanceStats(
-                    cpu_usage=cpu_percent,
-                    memory_usage=memory_mb
-                )
+                stats = PerformanceStats(cpu_usage=cpu_percent, memory_usage=memory_mb)
 
                 self.stats_history.append(stats)
 
@@ -358,7 +352,7 @@ class PerformanceMonitor:
 
         return PerformanceStats(
             cpu_usage=np.mean([s.cpu_usage for s in recent_stats]),
-            memory_usage=np.mean([s.memory_usage for s in recent_stats])
+            memory_usage=np.mean([s.memory_usage for s in recent_stats]),
         )
 
     def stop(self):
@@ -433,7 +427,7 @@ class EnhancedMuJoCoViewerServer:
                         client_thread = threading.Thread(
                             target=self._handle_client,
                             args=(client_socket, address, conn_id),
-                            daemon=True
+                            daemon=True,
                         )
 
                         with self.threads_lock:
@@ -515,11 +509,11 @@ class EnhancedMuJoCoViewerServer:
 
                     # Process command
                     response_start = time.time()
-                    response = self._process_command(data.decode('utf-8'))
+                    response = self._process_command(data.decode("utf-8"))
                     response_time = time.time() - response_start
 
                     # Send response
-                    response_data = json.dumps(response).encode('utf-8')
+                    response_data = json.dumps(response).encode("utf-8")
                     client_socket.sendall(response_data)
 
                     self.connection_manager.update_connection_activity(
@@ -595,8 +589,8 @@ class EnhancedMuJoCoViewerServer:
                 "requests_per_second": conn_stats["requests_per_second"],
                 "cpu_usage": perf_stats.cpu_usage,
                 "memory_usage": perf_stats.memory_usage,
-                "uptime": time.time() - self.performance_monitor.process.create_time()
-            }
+                "uptime": time.time() - self.performance_monitor.process.create_time(),
+            },
         }
 
     def _handle_load_model(self, command: Dict[str, Any]) -> Dict[str, Any]:
@@ -625,8 +619,8 @@ class EnhancedMuJoCoViewerServer:
                     "nq": model_viewer.model.nq,
                     "nv": model_viewer.model.nv,
                     "nbody": model_viewer.model.nbody,
-                    "ngeom": model_viewer.model.ngeom
-                }
+                    "ngeom": model_viewer.model.ngeom,
+                },
             }
 
         except Exception as e:
@@ -703,10 +697,7 @@ class EnhancedMuJoCoViewerServer:
         perf_stats = self.performance_monitor.get_average_stats()
 
         with self.models_lock:
-            model_stats = {
-                model_id: viewer.get_stats()
-                for model_id, viewer in self.models.items()
-            }
+            model_stats = {model_id: viewer.get_stats() for model_id, viewer in self.models.items()}
 
         return {
             "success": True,
@@ -715,16 +706,16 @@ class EnhancedMuJoCoViewerServer:
                     "running": self.running,
                     "host": self.host,
                     "port": self.port,
-                    "uptime": time.time() - self.performance_monitor.process.create_time()
+                    "uptime": time.time() - self.performance_monitor.process.create_time(),
                 },
                 "performance": {
                     "cpu_usage": perf_stats.cpu_usage,
                     "memory_usage": perf_stats.memory_usage,
-                    "requests_per_second": conn_stats["requests_per_second"]
+                    "requests_per_second": conn_stats["requests_per_second"],
                 },
                 "connections": conn_stats,
-                "models": model_stats
-            }
+                "models": model_stats,
+            },
         }
 
     def _handle_shutdown(self) -> Dict[str, Any]:
@@ -779,10 +770,10 @@ def main():
     """Main entry point"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Enhanced MuJoCo Viewer Server')
-    parser.add_argument('--host', default='localhost', help='Host to bind to')
-    parser.add_argument('--port', type=int, default=8888, help='Port to bind to')
-    parser.add_argument('--log-level', default='INFO', help='Logging level')
+    parser = argparse.ArgumentParser(description="Enhanced MuJoCo Viewer Server")
+    parser.add_argument("--host", default="localhost", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8888, help="Port to bind to")
+    parser.add_argument("--log-level", default="INFO", help="Logging level")
 
     args = parser.parse_args()
 

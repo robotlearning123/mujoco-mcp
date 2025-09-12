@@ -27,6 +27,7 @@ server = Server("mujoco-robot-mcp")
 # Global robot controller
 robot_controller = RobotController()
 
+
 @server.list_tools()
 async def handle_list_tools() -> List[types.Tool]:
     """Return list of robot control tools"""
@@ -35,13 +36,8 @@ async def handle_list_tools() -> List[types.Tool]:
         types.Tool(
             name="get_server_info",
             description="Get MuJoCo Robot MCP server information",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
+            inputSchema={"type": "object", "properties": {}, "required": []},
         ),
-
         # Robot loading and initialization
         types.Tool(
             name="load_robot",
@@ -52,17 +48,16 @@ async def handle_list_tools() -> List[types.Tool]:
                     "robot_type": {
                         "type": "string",
                         "description": "Type of robot to load",
-                        "enum": ["arm", "gripper", "mobile", "humanoid"]
+                        "enum": ["arm", "gripper", "mobile", "humanoid"],
                     },
                     "robot_id": {
                         "type": "string",
-                        "description": "Optional unique ID for the robot"
-                    }
+                        "description": "Optional unique ID for the robot",
+                    },
                 },
-                "required": ["robot_type"]
-            }
+                "required": ["robot_type"],
+            },
         ),
-
         # Joint control
         types.Tool(
             name="set_joint_positions",
@@ -70,76 +65,58 @@ async def handle_list_tools() -> List[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "robot_id": {
-                        "type": "string",
-                        "description": "ID of the robot to control"
-                    },
+                    "robot_id": {"type": "string", "description": "ID of the robot to control"},
                     "positions": {
                         "type": "array",
                         "items": {"type": "number"},
-                        "description": "Target joint positions in radians"
-                    }
+                        "description": "Target joint positions in radians",
+                    },
                 },
-                "required": ["robot_id", "positions"]
-            }
+                "required": ["robot_id", "positions"],
+            },
         ),
-
         types.Tool(
             name="set_joint_velocities",
             description="Set target joint velocities for the robot",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "robot_id": {
-                        "type": "string",
-                        "description": "ID of the robot to control"
-                    },
+                    "robot_id": {"type": "string", "description": "ID of the robot to control"},
                     "velocities": {
                         "type": "array",
                         "items": {"type": "number"},
-                        "description": "Target joint velocities in rad/s"
-                    }
+                        "description": "Target joint velocities in rad/s",
+                    },
                 },
-                "required": ["robot_id", "velocities"]
-            }
+                "required": ["robot_id", "velocities"],
+            },
         ),
-
         types.Tool(
             name="set_joint_torques",
             description="Set joint torques for direct force control",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "robot_id": {
-                        "type": "string",
-                        "description": "ID of the robot to control"
-                    },
+                    "robot_id": {"type": "string", "description": "ID of the robot to control"},
                     "torques": {
                         "type": "array",
                         "items": {"type": "number"},
-                        "description": "Joint torques in Nm"
-                    }
+                        "description": "Joint torques in Nm",
+                    },
                 },
-                "required": ["robot_id", "torques"]
-            }
+                "required": ["robot_id", "torques"],
+            },
         ),
-
         # State queries
         types.Tool(
             name="get_robot_state",
             description="Get complete robot state including positions, velocities, and sensors",
             inputSchema={
                 "type": "object",
-                "properties": {
-                    "robot_id": {
-                        "type": "string",
-                        "description": "ID of the robot"
-                    }
-                },
-                "required": ["robot_id"]
-            }
+                "properties": {"robot_id": {"type": "string", "description": "ID of the robot"}},
+                "required": ["robot_id"],
+            },
         ),
-
         # Simulation control
         types.Tool(
             name="step_robot",
@@ -147,20 +124,16 @@ async def handle_list_tools() -> List[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "robot_id": {
-                        "type": "string",
-                        "description": "ID of the robot"
-                    },
+                    "robot_id": {"type": "string", "description": "ID of the robot"},
                     "steps": {
                         "type": "integer",
                         "description": "Number of simulation steps",
-                        "default": 1
-                    }
+                        "default": 1,
+                    },
                 },
-                "required": ["robot_id"]
-            }
+                "required": ["robot_id"],
+            },
         ),
-
         # Trajectory execution
         types.Tool(
             name="execute_trajectory",
@@ -168,28 +141,21 @@ async def handle_list_tools() -> List[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "robot_id": {
-                        "type": "string",
-                        "description": "ID of the robot"
-                    },
+                    "robot_id": {"type": "string", "description": "ID of the robot"},
                     "trajectory": {
                         "type": "array",
-                        "items": {
-                            "type": "array",
-                            "items": {"type": "number"}
-                        },
-                        "description": "List of waypoints (joint positions)"
+                        "items": {"type": "array", "items": {"type": "number"}},
+                        "description": "List of waypoints (joint positions)",
                     },
                     "time_steps": {
                         "type": "integer",
                         "description": "Simulation steps between waypoints",
-                        "default": 10
-                    }
+                        "default": 10,
+                    },
                 },
-                "required": ["robot_id", "trajectory"]
-            }
+                "required": ["robot_id", "trajectory"],
+            },
         ),
-
         # Reset
         types.Tool(
             name="reset_robot",
@@ -197,20 +163,17 @@ async def handle_list_tools() -> List[types.Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "robot_id": {
-                        "type": "string",
-                        "description": "ID of the robot to reset"
-                    }
+                    "robot_id": {"type": "string", "description": "ID of the robot to reset"}
                 },
-                "required": ["robot_id"]
-            }
-        )
+                "required": ["robot_id"],
+            },
+        ),
     ]
+
 
 @server.call_tool()
 async def handle_call_tool(
-    name: str,
-    arguments: Dict[str, Any]
+    name: str, arguments: Dict[str, Any]
 ) -> List[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Handle tool calls for robot control"""
 
@@ -227,49 +190,36 @@ async def handle_call_tool(
                     "joint_torque_control",
                     "trajectory_execution",
                     "sensor_feedback",
-                    "state_queries"
+                    "state_queries",
                 ],
-                "supported_robots": ["arm", "gripper", "mobile", "humanoid"]
+                "supported_robots": ["arm", "gripper", "mobile", "humanoid"],
             }
 
         elif name == "load_robot":
-            result = robot_controller.load_robot(
-                arguments["robot_type"],
-                arguments.get("robot_id")
-            )
+            result = robot_controller.load_robot(arguments["robot_type"], arguments.get("robot_id"))
 
         elif name == "set_joint_positions":
             result = robot_controller.set_joint_positions(
-                arguments["robot_id"],
-                arguments["positions"]
+                arguments["robot_id"], arguments["positions"]
             )
 
         elif name == "set_joint_velocities":
             result = robot_controller.set_joint_velocities(
-                arguments["robot_id"],
-                arguments["velocities"]
+                arguments["robot_id"], arguments["velocities"]
             )
 
         elif name == "set_joint_torques":
-            result = robot_controller.set_joint_torques(
-                arguments["robot_id"],
-                arguments["torques"]
-            )
+            result = robot_controller.set_joint_torques(arguments["robot_id"], arguments["torques"])
 
         elif name == "get_robot_state":
             result = robot_controller.get_robot_state(arguments["robot_id"])
 
         elif name == "step_robot":
-            result = robot_controller.step_robot(
-                arguments["robot_id"],
-                arguments.get("steps", 1)
-            )
+            result = robot_controller.step_robot(arguments["robot_id"], arguments.get("steps", 1))
 
         elif name == "execute_trajectory":
             result = robot_controller.execute_trajectory(
-                arguments["robot_id"],
-                arguments["trajectory"],
-                arguments.get("time_steps", 10)
+                arguments["robot_id"], arguments["trajectory"], arguments.get("time_steps", 10)
             )
 
         elif name == "reset_robot":
@@ -278,17 +228,12 @@ async def handle_call_tool(
         else:
             result = {"error": f"Unknown tool: {name}"}
 
-        return [types.TextContent(
-            type="text",
-            text=json.dumps(result, indent=2)
-        )]
+        return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
     except Exception as e:
         logger.exception(f"Error in tool {name}: {e}")
-        return [types.TextContent(
-            type="text",
-            text=json.dumps({"error": str(e)}, indent=2)
-        )]
+        return [types.TextContent(type="text", text=json.dumps({"error": str(e)}, indent=2))]
+
 
 async def main():
     """Main entry point for MCP server"""
@@ -305,6 +250,7 @@ async def main():
                 ),
             ),
         )
+
 
 if __name__ == "__main__":
     asyncio.run(main())

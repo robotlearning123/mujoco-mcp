@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 try:
     import mujoco
+
     MUJOCO_AVAILABLE = True
 except ImportError:
     MUJOCO_AVAILABLE = False
@@ -42,7 +43,7 @@ MENAGERIE_MODELS = {
         "fanuc_m20ia",
         "kuka_iiwa_14",
         "rethink_sawyer",
-        "widowx_250"
+        "widowx_250",
     ],
     "quadrupeds": [
         "unitree_go2",
@@ -52,7 +53,7 @@ MENAGERIE_MODELS = {
         "anybotics_anymal_c",
         "anybotics_anymal_b",
         "google_barkour_v0",
-        "mit_mini_cheetah"
+        "mit_mini_cheetah",
     ],
     "humanoids": [
         "unitree_h1",
@@ -64,28 +65,26 @@ MENAGERIE_MODELS = {
         "nasa_valkyrie",
         "honda_asimo",
         "boston_dynamics_atlas",
-        "agility_cassie"
+        "agility_cassie",
     ],
     "mobile_manipulators": [
         "google_robot",
         "hello_robot_stretch",
         "clearpath_ridgeback_ur5e",
         "fetch_robotics",
-        "pr2"
+        "pr2",
     ],
-    "drones": [
-        "skydio_x2",
-        "crazyflie_2"
-    ],
+    "drones": ["skydio_x2", "crazyflie_2"],
     "grippers": [
         "robotiq_2f85",
         "robotiq_2f140",
         "shadow_hand",
         "leap_hand",
         "wonik_allegro",
-        "barrett_hand"
-    ]
+        "barrett_hand",
+    ],
 }
+
 
 class MenagerieModelTester:
     """Test MuJoCo Menagerie models for compatibility"""
@@ -97,11 +96,11 @@ class MenagerieModelTester:
                 "successful_loads": 0,
                 "failed_loads": 0,
                 "compatibility_score": 0.0,
-                "test_duration": 0.0
+                "test_duration": 0.0,
             },
             "model_results": {},
             "category_performance": {},
-            "recommendations": []
+            "recommendations": [],
         }
         self.start_time = time.time()
 
@@ -113,7 +112,7 @@ class MenagerieModelTester:
         possible_files = [
             f"{model_name}/{model_name}.xml",
             f"{model_name}/scene.xml",
-            f"{model_name}/{model_name}_mjx.xml"
+            f"{model_name}/{model_name}_mjx.xml",
         ]
 
         result = {
@@ -123,7 +122,7 @@ class MenagerieModelTester:
             "available_files": [],
             "primary_xml": None,
             "file_size": 0,
-            "load_time": 0.0
+            "load_time": 0.0,
         }
 
         for xml_file in possible_files:
@@ -132,7 +131,7 @@ class MenagerieModelTester:
                 start = time.time()
                 with urllib.request.urlopen(url, timeout=10) as response:
                     if response.getcode() == 200:
-                        content_length = response.headers.get('Content-Length')
+                        content_length = response.headers.get("Content-Length")
                         result["url_accessible"] = True
                         result["available_files"].append(xml_file)
                         result["load_time"] = time.time() - start
@@ -157,7 +156,7 @@ class MenagerieModelTester:
             "n_bodies": 0,
             "n_joints": 0,
             "n_actuators": 0,
-            "error": None
+            "error": None,
         }
 
         if not MUJOCO_AVAILABLE:
@@ -166,9 +165,9 @@ class MenagerieModelTester:
 
         try:
             # Download XML to temporary file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as tmp_file:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as tmp_file:
                 with urllib.request.urlopen(xml_url, timeout=30) as response:
-                    xml_content = response.read().decode('utf-8')
+                    xml_content = response.read().decode("utf-8")
                     tmp_file.write(xml_content)
                     tmp_path = tmp_file.name
 
@@ -198,7 +197,7 @@ class MenagerieModelTester:
             "mcp_compatible": False,
             "scene_creation": False,
             "tools_available": False,
-            "error": None
+            "error": None,
         }
 
         try:
@@ -213,10 +212,10 @@ class MenagerieModelTester:
             category_mapping = {
                 "arms": "arm",
                 "quadrupeds": "pendulum",  # Could extend to quadruped scene
-                "humanoids": "pendulum",   # Could extend to humanoid scene
+                "humanoids": "pendulum",  # Could extend to humanoid scene
                 "mobile_manipulators": "arm",
                 "drones": "pendulum",
-                "grippers": "arm"
+                "grippers": "arm",
             }
 
             if category in category_mapping:
@@ -231,7 +230,9 @@ class MenagerieModelTester:
     def run_comprehensive_test(self) -> Dict[str, Any]:
         """Run comprehensive testing of all Menagerie models"""
         print("🚀 Starting MuJoCo Menagerie Model Compatibility Testing...")
-        print(f"📊 Testing {sum(len(models) for models in MENAGERIE_MODELS.values())} models across {len(MENAGERIE_MODELS)} categories")
+        print(
+            f"📊 Testing {sum(len(models) for models in MENAGERIE_MODELS.values())} models across {len(MENAGERIE_MODELS)} categories"
+        )
 
         total_models = 0
         successful_loads = 0
@@ -243,7 +244,7 @@ class MenagerieModelTester:
                 "models_tested": len(models),
                 "successful_loads": 0,
                 "avg_load_time": 0.0,
-                "compatibility_rate": 0.0
+                "compatibility_rate": 0.0,
             }
 
             category_load_times = []
@@ -259,12 +260,14 @@ class MenagerieModelTester:
                     "category": category,
                     "url_test": url_result,
                     "mujoco_test": {},
-                    "mcp_test": {}
+                    "mcp_test": {},
                 }
 
                 # Test MuJoCo compatibility if URL is accessible
                 if url_result["url_accessible"] and url_result["primary_xml"]:
-                    base_url = "https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main"
+                    base_url = (
+                        "https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main"
+                    )
                     xml_url = f"{base_url}/{url_result['primary_xml']}"
 
                     mujoco_result = self.test_model_mujoco_compatibility(model_name, xml_url)
@@ -283,20 +286,22 @@ class MenagerieModelTester:
 
                 # Status indicator
                 status = (
-                    "✅" if (
-                        url_result["url_accessible"] and
-                        model_result["mujoco_test"].get("mujoco_compatible", False)
-                    ) else "❌"
+                    "✅"
+                    if (
+                        url_result["url_accessible"]
+                        and model_result["mujoco_test"].get("mujoco_compatible", False)
+                    )
+                    else "❌"
                 )
                 print(f"    {status} {model_name}")
 
             # Calculate category metrics
             if category_load_times:
-                category_results["avg_load_time"] = (
-                    sum(category_load_times) / len(category_load_times)
+                category_results["avg_load_time"] = sum(category_load_times) / len(
+                    category_load_times
                 )
-            category_results["compatibility_rate"] = (
-                category_results["successful_loads"] / len(models)
+            category_results["compatibility_rate"] = category_results["successful_loads"] / len(
+                models
             )
 
             self.results["category_performance"][category] = category_results
@@ -311,7 +316,9 @@ class MenagerieModelTester:
         self.results["test_summary"]["total_models"] = total_models
         self.results["test_summary"]["successful_loads"] = successful_loads
         self.results["test_summary"]["failed_loads"] = total_models - successful_loads
-        self.results["test_summary"]["compatibility_score"] = successful_loads / total_models if total_models > 0 else 0.0
+        self.results["test_summary"]["compatibility_score"] = (
+            successful_loads / total_models if total_models > 0 else 0.0
+        )
         self.results["test_summary"]["test_duration"] = time.time() - self.start_time
 
         # Generate recommendations
@@ -324,24 +331,35 @@ class MenagerieModelTester:
         compatibility_score = self.results["test_summary"]["compatibility_score"]
 
         if compatibility_score >= 0.8:
-            self.results["recommendations"].append("✅ Excellent compatibility! MCP server ready for production use with Menagerie models")
+            self.results["recommendations"].append(
+                "✅ Excellent compatibility! MCP server ready for production use with Menagerie models"
+            )
         elif compatibility_score >= 0.6:
-            self.results["recommendations"].append("⚠️ Good compatibility. Consider adding support for failed models")
+            self.results["recommendations"].append(
+                "⚠️ Good compatibility. Consider adding support for failed models"
+            )
         else:
-            self.results["recommendations"].append("❌ Low compatibility. Significant work needed for Menagerie integration")
+            self.results["recommendations"].append(
+                "❌ Low compatibility. Significant work needed for Menagerie integration"
+            )
 
         # Category-specific recommendations
         for category, perf in self.results["category_performance"].items():
             if perf["compatibility_rate"] < 0.5:
-                self.results["recommendations"].append(f"🔧 Improve {category} support (only {perf['compatibility_rate']:.1%} compatible)")
+                self.results["recommendations"].append(
+                    f"🔧 Improve {category} support (only {perf['compatibility_rate']:.1%} compatible)"
+                )
 
         # Technical recommendations
-        self.results["recommendations"].extend([
-            "🚀 Consider adding direct Menagerie integration to MCP server",
-            "📦 Add model auto-discovery from GitHub repository",
-            "🎯 Implement category-specific scene templates",
-            "🔄 Add model caching for faster loading"
-        ])
+        self.results["recommendations"].extend(
+            [
+                "🚀 Consider adding direct Menagerie integration to MCP server",
+                "📦 Add model auto-discovery from GitHub repository",
+                "🎯 Implement category-specific scene templates",
+                "🔄 Add model caching for faster loading",
+            ]
+        )
+
 
 def main():
     """Main test execution"""
@@ -353,9 +371,9 @@ def main():
         json.dump(results, f, indent=2)
 
     # Print summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("🎯 MUJOCO MENAGERIE COMPATIBILITY REPORT")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     summary = results["test_summary"]
     print(f"📊 Total Models Tested: {summary['total_models']}")
@@ -366,7 +384,9 @@ def main():
 
     print("\n📈 CATEGORY PERFORMANCE:")
     for category, perf in results["category_performance"].items():
-        print(f"  {category.upper()}: {perf['successful_loads']}/{perf['models_tested']} ({perf['compatibility_rate']:.1%})")
+        print(
+            f"  {category.upper()}: {perf['successful_loads']}/{perf['models_tested']} ({perf['compatibility_rate']:.1%})"
+        )
 
     print("\n💡 RECOMMENDATIONS:")
     for rec in results["recommendations"]:
@@ -374,7 +394,8 @@ def main():
 
     print("\n📄 Detailed report saved to: menagerie_compatibility_report.json")
 
-    return 0 if summary['compatibility_score'] >= 0.7 else 1
+    return 0 if summary["compatibility_score"] >= 0.7 else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -9,6 +9,7 @@ import json
 import sys
 from pathlib import Path
 
+
 async def demo_mcp_interaction():
     """Demo: Test, load, control models via MCP protocol"""
     print("🚀 MCP Protocol Demo: Testing, Loading, and Controlling Models")
@@ -26,7 +27,7 @@ async def demo_mcp_interaction():
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        cwd=Path(__file__).parent
+        cwd=Path(__file__).parent,
     )
 
     print("✅ MCP server process started")
@@ -43,14 +44,9 @@ async def demo_mcp_interaction():
             "method": "initialize",
             "params": {
                 "protocolVersion": "2024-11-05",
-                "capabilities": {
-                    "tools": {}
-                },
-                "clientInfo": {
-                    "name": "demo-client",
-                    "version": "1.0.0"
-                }
-            }
+                "capabilities": {"tools": {}},
+                "clientInfo": {"name": "demo-client", "version": "1.0.0"},
+            },
         }
 
         # Send initialize request
@@ -65,10 +61,7 @@ async def demo_mcp_interaction():
         print(f"   Server info: {init_response.get('result', {}).get('serverInfo', {})}")
 
         # Send initialized notification
-        initialized_notification = {
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized"
-        }
+        initialized_notification = {"jsonrpc": "2.0", "method": "notifications/initialized"}
 
         notif_line = json.dumps(initialized_notification) + "\n"
         process.stdin.write(notif_line.encode())
@@ -80,12 +73,7 @@ async def demo_mcp_interaction():
         print("\n🔧 Step 3: Discovering Available Tools")
         print("-" * 40)
 
-        tools_request = {
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": "tools/list",
-            "params": {}
-        }
+        tools_request = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
 
         request_line = json.dumps(tools_request) + "\n"
         process.stdin.write(request_line.encode())
@@ -110,10 +98,7 @@ async def demo_mcp_interaction():
             "jsonrpc": "2.0",
             "id": 3,
             "method": "tools/call",
-            "params": {
-                "name": "get_server_info",
-                "arguments": {}
-            }
+            "params": {"name": "get_server_info", "arguments": {}},
         }
 
         request_line = json.dumps(server_info_request) + "\n"
@@ -144,12 +129,7 @@ async def demo_mcp_interaction():
                 "jsonrpc": "2.0",
                 "id": 4 + scene_types.index(scene_type),
                 "method": "tools/call",
-                "params": {
-                    "name": "create_scene",
-                    "arguments": {
-                        "scene_type": scene_type
-                    }
-                }
+                "params": {"name": "create_scene", "arguments": {"scene_type": scene_type}},
             }
 
             request_line = json.dumps(create_scene_request) + "\n"
@@ -176,11 +156,8 @@ async def demo_mcp_interaction():
                     "method": "tools/call",
                     "params": {
                         "name": "step_simulation",
-                        "arguments": {
-                            "model_id": scene_type,
-                            "steps": 3
-                        }
-                    }
+                        "arguments": {"model_id": scene_type, "steps": 3},
+                    },
                 }
 
                 request_line = json.dumps(step_request) + "\n"
@@ -200,12 +177,7 @@ async def demo_mcp_interaction():
                     "jsonrpc": "2.0",
                     "id": 20 + scene_types.index(scene_type),
                     "method": "tools/call",
-                    "params": {
-                        "name": "get_state",
-                        "arguments": {
-                            "model_id": scene_type
-                        }
-                    }
+                    "params": {"name": "get_state", "arguments": {"model_id": scene_type}},
                 }
 
                 request_line = json.dumps(state_request) + "\n"
@@ -219,7 +191,9 @@ async def demo_mcp_interaction():
                     print(f"   ⚠️ Get state failed: {state_response['error']}")
                 else:
                     state_result = str(state_response.get("result", {}))
-                    state_preview = state_result[:80] + "..." if len(state_result) > 80 else state_result
+                    state_preview = (
+                        state_result[:80] + "..." if len(state_result) > 80 else state_result
+                    )
                     print(f"   📊 State retrieved: {state_preview}")
 
         # Final summary
@@ -251,6 +225,7 @@ async def demo_mcp_interaction():
     except Exception as e:
         print(f"💥 Demo failed: {e}")
         import traceback
+
         traceback.print_exc()
 
     finally:
@@ -264,6 +239,7 @@ async def demo_mcp_interaction():
                 process.kill()
                 await process.wait()
         print("✅ MCP server stopped")
+
 
 if __name__ == "__main__":
     try:

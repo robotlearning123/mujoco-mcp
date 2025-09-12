@@ -11,6 +11,7 @@ import math
 from pathlib import Path
 from typing import Dict, Any
 
+
 class RobotControlDemo:
     """Demonstrates full robot control via MCP"""
 
@@ -22,22 +23,24 @@ class RobotControlDemo:
         """Start the enhanced MCP server with robot control"""
         # Start the robot control MCP server
         self.process = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "mujoco_mcp.mcp_server_robot",
+            sys.executable,
+            "-m",
+            "mujoco_mcp.mcp_server_robot",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=Path(__file__).parent
+            cwd=Path(__file__).parent,
         )
 
         # Initialize MCP connection
-        await self.send_request("initialize", {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {"tools": {}},
-            "clientInfo": {
-                "name": "robot-control-demo",
-                "version": "1.0.0"
-            }
-        })
+        await self.send_request(
+            "initialize",
+            {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}},
+                "clientInfo": {"name": "robot-control-demo", "version": "1.0.0"},
+            },
+        )
 
         # Send initialized notification
         await self.send_notification("notifications/initialized", {})
@@ -46,21 +49,13 @@ class RobotControlDemo:
     async def send_request(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Send JSON-RPC request to MCP server"""
         self.request_id += 1
-        request = {
-            "jsonrpc": "2.0",
-            "id": self.request_id,
-            "method": method,
-            "params": params
-        }
+        request = {"jsonrpc": "2.0", "id": self.request_id, "method": method, "params": params}
 
         request_line = json.dumps(request) + "\n"
         self.process.stdin.write(request_line.encode())
         await self.process.stdin.drain()
 
-        response_line = await asyncio.wait_for(
-            self.process.stdout.readline(),
-            timeout=10.0
-        )
+        response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=10.0)
         response = json.loads(response_line.decode())
 
         if "error" in response:
@@ -70,11 +65,7 @@ class RobotControlDemo:
 
     async def send_notification(self, method: str, params: Dict[str, Any]):
         """Send JSON-RPC notification"""
-        notification = {
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params
-        }
+        notification = {"jsonrpc": "2.0", "method": method, "params": params}
 
         notification_line = json.dumps(notification) + "\n"
         self.process.stdin.write(notification_line.encode())
@@ -82,10 +73,7 @@ class RobotControlDemo:
 
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
         """Call an MCP tool and return the result"""
-        result = await self.send_request("tools/call", {
-            "name": name,
-            "arguments": arguments
-        })
+        result = await self.send_request("tools/call", {"name": name, "arguments": arguments})
 
         # Parse the result
         if result.get("content"):
@@ -98,6 +86,7 @@ class RobotControlDemo:
         if self.process:
             self.process.terminate()
             await asyncio.wait_for(self.process.wait(), timeout=3.0)
+
 
 async def demonstrate_robot_control():
     """Main demonstration of robot control via MCP"""
@@ -132,10 +121,9 @@ async def demonstrate_robot_control():
         # Load a robot arm
         print("\n🦾 Step 4: Loading Robot Arm")
         print("-" * 40)
-        robot_info = await demo.call_tool("load_robot", {
-            "robot_type": "arm",
-            "robot_id": "demo_arm"
-        })
+        robot_info = await demo.call_tool(
+            "load_robot", {"robot_type": "arm", "robot_id": "demo_arm"}
+        )
         print(f"✅ Robot loaded: {robot_info['robot_id']}")
         print(f"   Type: {robot_info['robot_type']}")
         print(f"   Joints: {robot_info['num_joints']}")
@@ -146,22 +134,16 @@ async def demonstrate_robot_control():
         print("-" * 40)
         print("Moving to position [0.5, 1.0, 0.3] radians...")
 
-        position_result = await demo.call_tool("set_joint_positions", {
-            "robot_id": "demo_arm",
-            "positions": [0.5, 1.0, 0.3]
-        })
+        position_result = await demo.call_tool(
+            "set_joint_positions", {"robot_id": "demo_arm", "positions": [0.5, 1.0, 0.3]}
+        )
         print(f"✅ Positions set: {position_result['positions_set']}")
 
         # Step simulation
-        await demo.call_tool("step_robot", {
-            "robot_id": "demo_arm",
-            "steps": 50
-        })
+        await demo.call_tool("step_robot", {"robot_id": "demo_arm", "steps": 50})
 
         # Get robot state
-        state = await demo.call_tool("get_robot_state", {
-            "robot_id": "demo_arm"
-        })
+        state = await demo.call_tool("get_robot_state", {"robot_id": "demo_arm"})
         print(f"📊 Current joint positions: {state['joint_positions']}")
         print(f"   Simulation time: {state['simulation_time']:.3f}s")
 
@@ -170,21 +152,15 @@ async def demonstrate_robot_control():
         print("-" * 40)
         print("Setting velocities [0.2, -0.1, 0.15] rad/s...")
 
-        velocity_result = await demo.call_tool("set_joint_velocities", {
-            "robot_id": "demo_arm",
-            "velocities": [0.2, -0.1, 0.15]
-        })
+        velocity_result = await demo.call_tool(
+            "set_joint_velocities", {"robot_id": "demo_arm", "velocities": [0.2, -0.1, 0.15]}
+        )
         print(f"✅ Velocities set: {velocity_result['velocities_set']}")
 
         # Step and check
-        await demo.call_tool("step_robot", {
-            "robot_id": "demo_arm",
-            "steps": 30
-        })
+        await demo.call_tool("step_robot", {"robot_id": "demo_arm", "steps": 30})
 
-        state = await demo.call_tool("get_robot_state", {
-            "robot_id": "demo_arm"
-        })
+        state = await demo.call_tool("get_robot_state", {"robot_id": "demo_arm"})
         print(f"📊 Joint velocities: {state['joint_velocities']}")
 
         # Execute a trajectory
@@ -196,105 +172,95 @@ async def demonstrate_robot_control():
         trajectory = []
         for i in range(8):
             angle = i * math.pi / 4
-            trajectory.append([
-                math.sin(angle) * 0.5,      # Joint 1
-                math.cos(angle) * 0.7 + 0.5, # Joint 2
-                math.sin(angle * 2) * 0.3    # Joint 3
-            ])
+            trajectory.append(
+                [
+                    math.sin(angle) * 0.5,  # Joint 1
+                    math.cos(angle) * 0.7 + 0.5,  # Joint 2
+                    math.sin(angle * 2) * 0.3,  # Joint 3
+                ]
+            )
 
-        traj_result = await demo.call_tool("execute_trajectory", {
-            "robot_id": "demo_arm",
-            "trajectory": trajectory,
-            "time_steps": 20
-        })
+        traj_result = await demo.call_tool(
+            "execute_trajectory",
+            {"robot_id": "demo_arm", "trajectory": trajectory, "time_steps": 20},
+        )
 
         print(f"✅ Trajectory executed: {traj_result['num_waypoints']} waypoints")
-        for i, result in enumerate(traj_result['results'][:3]):  # Show first 3
-            print(f"   Waypoint {i+1}: {result['achieved_positions']}")
+        for i, result in enumerate(traj_result["results"][:3]):  # Show first 3
+            print(f"   Waypoint {i + 1}: {result['achieved_positions']}")
 
         # Test torque control
         print("\n💪 Step 8: Torque Control Test")
         print("-" * 40)
         print("Applying torques [0.5, -0.3, 0.2] Nm...")
 
-        torque_result = await demo.call_tool("set_joint_torques", {
-            "robot_id": "demo_arm",
-            "torques": [0.5, -0.3, 0.2]
-        })
+        torque_result = await demo.call_tool(
+            "set_joint_torques", {"robot_id": "demo_arm", "torques": [0.5, -0.3, 0.2]}
+        )
         print(f"✅ Torques applied: {torque_result['torques_set']}")
 
         # Step and observe
-        await demo.call_tool("step_robot", {
-            "robot_id": "demo_arm",
-            "steps": 50
-        })
+        await demo.call_tool("step_robot", {"robot_id": "demo_arm", "steps": 50})
 
-        state = await demo.call_tool("get_robot_state", {
-            "robot_id": "demo_arm"
-        })
+        state = await demo.call_tool("get_robot_state", {"robot_id": "demo_arm"})
         print(f"📊 Actuator forces: {state['actuator_forces']}")
 
         # Load and control a gripper
         print("\n🤏 Step 9: Gripper Control")
         print("-" * 40)
 
-        gripper_info = await demo.call_tool("load_robot", {
-            "robot_type": "gripper",
-            "robot_id": "demo_gripper"
-        })
+        gripper_info = await demo.call_tool(
+            "load_robot", {"robot_type": "gripper", "robot_id": "demo_gripper"}
+        )
         print(f"✅ Gripper loaded: {gripper_info['robot_id']}")
 
         # Open gripper
         print("Opening gripper...")
-        await demo.call_tool("set_joint_positions", {
-            "robot_id": "demo_gripper",
-            "positions": [0.04, 0.04]  # Max open
-        })
-        await demo.call_tool("step_robot", {
-            "robot_id": "demo_gripper",
-            "steps": 30
-        })
+        await demo.call_tool(
+            "set_joint_positions",
+            {
+                "robot_id": "demo_gripper",
+                "positions": [0.04, 0.04],  # Max open
+            },
+        )
+        await demo.call_tool("step_robot", {"robot_id": "demo_gripper", "steps": 30})
 
         # Close gripper
         print("Closing gripper...")
-        await demo.call_tool("set_joint_positions", {
-            "robot_id": "demo_gripper",
-            "positions": [0.0, 0.0]  # Closed
-        })
-        await demo.call_tool("step_robot", {
-            "robot_id": "demo_gripper",
-            "steps": 30
-        })
+        await demo.call_tool(
+            "set_joint_positions",
+            {
+                "robot_id": "demo_gripper",
+                "positions": [0.0, 0.0],  # Closed
+            },
+        )
+        await demo.call_tool("step_robot", {"robot_id": "demo_gripper", "steps": 30})
 
-        gripper_state = await demo.call_tool("get_robot_state", {
-            "robot_id": "demo_gripper"
-        })
+        gripper_state = await demo.call_tool("get_robot_state", {"robot_id": "demo_gripper"})
         print(f"✅ Gripper positions: {gripper_state['joint_positions']}")
 
         # Load mobile robot
         print("\n🚗 Step 10: Mobile Robot Control")
         print("-" * 40)
 
-        mobile_info = await demo.call_tool("load_robot", {
-            "robot_type": "mobile",
-            "robot_id": "demo_mobile"
-        })
+        mobile_info = await demo.call_tool(
+            "load_robot", {"robot_type": "mobile", "robot_id": "demo_mobile"}
+        )
         print(f"✅ Mobile robot loaded: {mobile_info['robot_id']}")
 
         # Move in a square pattern
         print("Moving in square pattern...")
         square_trajectory = [
-            [1.0, 0.0, 0.0],      # Move forward
-            [1.0, 1.0, 1.57],     # Turn left
-            [0.0, 1.0, 1.57],     # Move left
-            [0.0, 0.0, 3.14],     # Turn around
+            [1.0, 0.0, 0.0],  # Move forward
+            [1.0, 1.0, 1.57],  # Turn left
+            [0.0, 1.0, 1.57],  # Move left
+            [0.0, 0.0, 3.14],  # Turn around
         ]
 
-        await demo.call_tool("execute_trajectory", {
-            "robot_id": "demo_mobile",
-            "trajectory": square_trajectory,
-            "time_steps": 50
-        })
+        await demo.call_tool(
+            "execute_trajectory",
+            {"robot_id": "demo_mobile", "trajectory": square_trajectory, "time_steps": 50},
+        )
         print("✅ Square pattern completed")
 
         # Reset robots
@@ -331,12 +297,14 @@ async def demonstrate_robot_control():
     except Exception as e:
         print(f"\n💥 Demo failed: {e}")
         import traceback
+
         traceback.print_exc()
 
     finally:
         print("\n🧹 Cleaning up...")
         await demo.stop_server()
         print("✅ Server stopped")
+
 
 if __name__ == "__main__":
     print("""

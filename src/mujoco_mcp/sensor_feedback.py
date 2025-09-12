@@ -17,6 +17,7 @@ import logging
 
 class SensorType(Enum):
     """Types of sensors supported"""
+
     JOINT_POSITION = "joint_position"
     JOINT_VELOCITY = "joint_velocity"
     JOINT_TORQUE = "joint_torque"
@@ -31,6 +32,7 @@ class SensorType(Enum):
 @dataclass
 class SensorReading:
     """Sensor reading data structure"""
+
     sensor_id: str
     sensor_type: SensorType
     timestamp: float
@@ -83,7 +85,7 @@ class JointSensorProcessor(SensorProcessor):
             sensor_id=self.sensor_id,
             sensor_type=self.sensor_type,
             timestamp=time.time(),
-            data=filtered_data
+            data=filtered_data,
         )
 
     def calibrate(self, calibration_data: Dict[str, Any]) -> bool:
@@ -123,7 +125,7 @@ class IMUSensorProcessor(SensorProcessor):
             sensor_id=self.sensor_id,
             sensor_type=SensorType.IMU,
             timestamp=time.time(),
-            data=processed_data
+            data=processed_data,
         )
 
     def calibrate(self, calibration_data: Dict[str, Any]) -> bool:
@@ -161,7 +163,7 @@ class ForceTorqueSensorProcessor(SensorProcessor):
             sensor_id=self.sensor_id,
             sensor_type=SensorType.FORCE_TORQUE,
             timestamp=time.time(),
-            data=transformed_data
+            data=transformed_data,
         )
 
     def calibrate(self, calibration_data: Dict[str, Any]) -> bool:
@@ -215,7 +217,7 @@ class ComplementaryFilter:
 
         # Calculate orientation from accelerometer (low-frequency)
         accel_roll = np.arctan2(accel[1], accel[2])
-        accel_pitch = np.arctan2(-accel[0], np.sqrt(accel[1]**2 + accel[2]**2))
+        accel_pitch = np.arctan2(-accel[0], np.sqrt(accel[1] ** 2 + accel[2] ** 2))
         accel_orientation = np.array([accel_roll, accel_pitch, self.orientation[2]])
 
         # Combine using complementary filter

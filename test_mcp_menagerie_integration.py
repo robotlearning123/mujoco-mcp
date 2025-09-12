@@ -20,8 +20,9 @@ PRIORITY_MODELS = {
     "arms": ["franka_emika_panda", "universal_robots_ur5e"],
     "quadrupeds": ["unitree_go1", "anybotics_anymal_c"],
     "humanoids": ["unitree_h1", "berkeley_humanoid"],
-    "grippers": ["robotiq_2f85", "shadow_hand"]
+    "grippers": ["robotiq_2f85", "shadow_hand"],
 }
+
 
 class MCPMenagerieIntegrationTester:
     """Test MCP server integration with specific Menagerie models"""
@@ -33,10 +34,10 @@ class MCPMenagerieIntegrationTester:
                 "mcp_compatible": 0,
                 "scene_creation_success": 0,
                 "simulation_success": 0,
-                "total_duration": 0.0
+                "total_duration": 0.0,
             },
             "model_tests": {},
-            "recommendations": []
+            "recommendations": [],
         }
         self.start_time = time.time()
 
@@ -62,17 +63,14 @@ class MCPMenagerieIntegrationTester:
         base_url = "https://raw.githubusercontent.com/google-deepmind/mujoco_menagerie/main"
 
         # Try common file patterns
-        possible_files = [
-            f"{model_name}/{model_name}.xml",
-            f"{model_name}/scene.xml"
-        ]
+        possible_files = [f"{model_name}/{model_name}.xml", f"{model_name}/scene.xml"]
 
         for xml_file in possible_files:
             try:
                 url = f"{base_url}/{xml_file}"
                 with urllib.request.urlopen(url, timeout=10) as response:
                     if response.getcode() == 200:
-                        return response.read().decode('utf-8')
+                        return response.read().decode("utf-8")
             except:
                 continue
 
@@ -91,7 +89,7 @@ class MCPMenagerieIntegrationTester:
             "state_retrieval": False,
             "cleanup_success": False,
             "errors": [],
-            "test_duration": 0.0
+            "test_duration": 0.0,
         }
 
         test_start = time.time()
@@ -121,10 +119,9 @@ class MCPMenagerieIntegrationTester:
                     print(f"    ⚠️ Scene creation issue: {response_text}")
 
             # Step 3: Test simulation steps
-            step_result = await handle_call_tool("step_simulation", {
-                "model_id": test_scene,
-                "steps": 5
-            })
+            step_result = await handle_call_tool(
+                "step_simulation", {"model_id": test_scene, "steps": 5}
+            )
             if step_result and len(step_result) > 0:
                 response_text = step_result[0].text
                 if "⏩" in response_text or "Stepped" in response_text:
@@ -207,25 +204,39 @@ class MCPMenagerieIntegrationTester:
         sim_success_rate = summary["simulation_success"] / summary["models_tested"]
 
         if scene_success_rate >= 0.8:
-            self.results["recommendations"].append("✅ Excellent MCP integration with scene creation")
+            self.results["recommendations"].append(
+                "✅ Excellent MCP integration with scene creation"
+            )
         elif scene_success_rate >= 0.5:
-            self.results["recommendations"].append("⚠️ Partial MCP integration - some scene creation issues")
+            self.results["recommendations"].append(
+                "⚠️ Partial MCP integration - some scene creation issues"
+            )
         else:
-            self.results["recommendations"].append("❌ Poor MCP integration - major scene creation problems")
+            self.results["recommendations"].append(
+                "❌ Poor MCP integration - major scene creation problems"
+            )
 
         # Technical recommendations
-        self.results["recommendations"].extend([
-            "🚀 Extend MCP server to support direct XML model loading",
-            "📦 Add Menagerie model discovery and caching",
-            "🎯 Implement category-specific scene templates",
-            "🔄 Add model validation before scene creation"
-        ])
+        self.results["recommendations"].extend(
+            [
+                "🚀 Extend MCP server to support direct XML model loading",
+                "📦 Add Menagerie model discovery and caching",
+                "🎯 Implement category-specific scene templates",
+                "🔄 Add model validation before scene creation",
+            ]
+        )
 
         # Model-specific recommendations
-        failed_models = [name for name, result in self.results["model_tests"].items()
-                        if not result["mcp_scene_creation"]]
+        failed_models = [
+            name
+            for name, result in self.results["model_tests"].items()
+            if not result["mcp_scene_creation"]
+        ]
         if failed_models:
-            self.results["recommendations"].append(f"🔧 Fix MCP integration for: {', '.join(failed_models)}")
+            self.results["recommendations"].append(
+                f"🔧 Fix MCP integration for: {', '.join(failed_models)}"
+            )
+
 
 async def main():
     """Main test execution"""
@@ -237,9 +248,9 @@ async def main():
         json.dump(results, f, indent=2)
 
     # Print summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("🎯 MCP-MENAGERIE INTEGRATION REPORT")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     summary = results["test_summary"]
     print(f"📊 Models Tested: {summary['models_tested']}")
@@ -248,9 +259,9 @@ async def main():
     print(f"⚡ Simulation Success: {summary['simulation_success']}")
     print(f"⏱️ Total Duration: {summary['total_duration']:.2f}s")
 
-    if summary['models_tested'] > 0:
-        scene_rate = summary['scene_creation_success'] / summary['models_tested']
-        sim_rate = summary['simulation_success'] / summary['models_tested']
+    if summary["models_tested"] > 0:
+        scene_rate = summary["scene_creation_success"] / summary["models_tested"]
+        sim_rate = summary["simulation_success"] / summary["models_tested"]
         print(f"📈 Scene Creation Rate: {scene_rate:.1%}")
         print(f"📈 Simulation Success Rate: {sim_rate:.1%}")
 
@@ -268,7 +279,8 @@ async def main():
 
     print("\n📄 Detailed report saved to: mcp_menagerie_integration_report.json")
 
-    return 0 if summary['scene_creation_success'] >= summary['models_tested'] * 0.7 else 1
+    return 0 if summary["scene_creation_success"] >= summary["models_tested"] * 0.7 else 1
+
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))

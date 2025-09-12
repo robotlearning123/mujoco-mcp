@@ -28,11 +28,15 @@ import contextlib
 import builtins
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger("mujoco_viewer_server")
+
 
 class ModelViewer:
     """Viewer manager for a single model"""
+
     def __init__(self, model_id: str, model_source: str):
         self.model_id = model_id
         self.model = None
@@ -43,7 +47,8 @@ class ModelViewer:
 
         # Load model - supports file path or XML string
         if os.path.exists(model_source):
-            # If it's a file path, use from_xml_path to load (so relative paths are resolved correctly)
+            # If it's a file path, use from_xml_path to load
+            # (so relative paths are resolved correctly)
             self.model = mujoco.MjModel.from_xml_path(model_source)
         else:
             # Otherwise assume it's an XML string
@@ -76,13 +81,13 @@ class ModelViewer:
                 "time": self.data.time,
                 "qpos": self.data.qpos.tolist(),
                 "qvel": self.data.qvel.tolist(),
-                "ctrl": self.data.ctrl.tolist()
+                "ctrl": self.data.ctrl.tolist(),
             }
 
     def set_joint_positions(self, positions: list) -> bool:
         """Set joint positions"""
         with self.viewer.lock():
-            for i, pos in enumerate(positions[:self.model.nq]):
+            for i, pos in enumerate(positions[: self.model.nq]):
                 self.data.qpos[i] = pos
             mujoco.mj_forward(self.model, self.data)
         return True
@@ -98,20 +103,21 @@ class ModelViewer:
         if self.viewer:
             try:
                 # Force close the viewer window
-                if hasattr(self.viewer, 'close'):
+                if hasattr(self.viewer, "close"):
                     self.viewer.close()
-                elif hasattr(self.viewer, '_window') and self.viewer._window:
+                elif hasattr(self.viewer, "_window") and self.viewer._window:
                     # For older MuJoCo versions, try to close the window directly
                     with contextlib.suppress(builtins.BaseException):
                         self.viewer._window.close()
                 # Wait for simulation thread to finish
-                if hasattr(self, 'sim_thread') and self.sim_thread.is_alive():
+                if hasattr(self, "sim_thread") and self.sim_thread.is_alive():
                     self.sim_thread.join(timeout=2.0)
             except Exception as e:
                 logger.warning(f"Error closing viewer for {self.model_id}: {e}")
             finally:
                 self.viewer = None
         logger.info(f"Closed ModelViewer for {self.model_id}")
+
 
 class MuJoCoViewerServer:
     """Single Viewer MuJoCo Server - supports model replacement"""
@@ -156,8 +162,8 @@ class MuJoCoViewerServer:
                     "model_info": {
                         "nq": self.current_viewer.model.nq,
                         "nv": self.current_viewer.model.nv,
-                        "nbody": self.current_viewer.model.nbody
-                    }
+                        "nbody": self.current_viewer.model.nbody,
+                    },
                 }
 
             elif cmd_type == "start_viewer":
@@ -167,7 +173,10 @@ class MuJoCoViewerServer:
             elif cmd_type == "get_state":
                 model_id = command.get("model_id")
                 if not self.current_viewer or (model_id and self.current_model_id != model_id):
-                    return {"success": False, "error": f"Model {model_id} not found or no active viewer"}
+                    return {
+                        "success": False,
+                        "error": f"Model {model_id} not found or no active viewer",
+                    }
 
                 state = self.current_viewer.get_state()
                 return {"success": True, **state}
@@ -177,7 +186,10 @@ class MuJoCoViewerServer:
                 positions = command.get("positions", [])
 
                 if not self.current_viewer or (model_id and self.current_model_id != model_id):
-                    return {"success": False, "error": f"Model {model_id} not found or no active viewer"}
+                    return {
+                        "success": False,
+                        "error": f"Model {model_id} not found or no active viewer",
+                    }
 
                 self.current_viewer.set_joint_positions(positions)
                 return {"success": True, "positions_set": positions}
@@ -185,7 +197,10 @@ class MuJoCoViewerServer:
             elif cmd_type == "reset":
                 model_id = command.get("model_id")
                 if not self.current_viewer or (model_id and self.current_model_id != model_id):
-                    return {"success": False, "error": f"Model {model_id} not found or no active viewer"}
+                    return {
+                        "success": False,
+                        "error": f"Model {model_id} not found or no active viewer",
+                    }
 
                 self.current_viewer.reset()
                 return {"success": True}
@@ -207,7 +222,9 @@ class MuJoCoViewerServer:
                 with self.viewer_lock:
                     # Close existing viewer if it exists
                     if self.current_viewer:
-                        logger.info(f"Replacing existing model {self.current_model_id} with {model_id}")
+                        logger.info(
+                            f"Replacing existing model {self.current_model_id} with {model_id}"
+                        )
                         self.current_viewer.close()
                         time.sleep(2.0)  # Give time for viewer to close completely
 
@@ -222,8 +239,8 @@ class MuJoCoViewerServer:
                     "model_info": {
                         "nq": self.current_viewer.model.nq,
                         "nv": self.current_viewer.model.nv,
-                        "nbody": self.current_viewer.model.nbody
-                    }
+                        "nbody": self.current_viewer.model.nbody,
+                    },
                 }
 
             elif cmd_type == "list_models":
@@ -232,7 +249,8 @@ class MuJoCoViewerServer:
                     if self.current_viewer and self.current_model_id:
                         models_info[self.current_model_id] = {
                             "created_time": self.current_viewer.created_time,
-                            "viewer_running": self.current_viewer.viewer and self.current_viewer.viewer.is_running()
+                            "viewer_running": self.current_viewer.viewer
+                            and self.current_viewer.viewer.is_running(),
                         }
                 return {"success": True, "models": models_info}
 
@@ -248,8 +266,8 @@ class MuJoCoViewerServer:
                         "version": "0.7.4",
                         "mode": "single_viewer",
                         "port": self.port,
-                        "active_threads": len(self.client_threads)
-                    }
+                        "active_threads": len(self.client_threads),
+                    },
                 }
 
             elif cmd_type == "get_diagnostics":
@@ -263,18 +281,20 @@ class MuJoCoViewerServer:
                         "models_count": models_count,
                         "current_model": self.current_model_id,
                         "active_connections": len(self.client_threads),
-                        "port": self.port
+                        "port": self.port,
                     },
-                    "models": {}
+                    "models": {},
                 }
 
                 with self.viewer_lock:
                     if self.current_viewer and self.current_model_id:
                         diagnostics["models"][self.current_model_id] = {
                             "created_time": self.current_viewer.created_time,
-                            "viewer_running": self.current_viewer.viewer and self.current_viewer.viewer.is_running(),
+                            "viewer_running": self.current_viewer.viewer
+                            and self.current_viewer.viewer.is_running(),
                             "simulation_running": self.current_viewer.simulation_running,
-                            "thread_alive": hasattr(self.current_viewer, 'sim_thread') and self.current_viewer.sim_thread.is_alive()
+                            "thread_alive": hasattr(self.current_viewer, "sim_thread")
+                            and self.current_viewer.sim_thread.is_alive(),
                         }
 
                 if model_id and self.current_model_id == model_id:
@@ -289,7 +309,10 @@ class MuJoCoViewerServer:
                 height = command.get("height", 480)
 
                 if not self.current_viewer or (model_id and self.current_model_id != model_id):
-                    return {"success": False, "error": f"Model {model_id} not found or no active viewer"}
+                    return {
+                        "success": False,
+                        "error": f"Model {model_id} not found or no active viewer",
+                    }
 
                 try:
                     # Create renderer
@@ -311,18 +334,18 @@ class MuJoCoViewerServer:
 
                     # Save to byte stream
                     img_buffer = io.BytesIO()
-                    image.save(img_buffer, format='PNG')
+                    image.save(img_buffer, format="PNG")
                     img_data = img_buffer.getvalue()
 
                     # Convert to base64
-                    img_base64 = base64.b64encode(img_data).decode('utf-8')
+                    img_base64 = base64.b64encode(img_data).decode("utf-8")
 
                     return {
                         "success": True,
                         "image_data": img_base64,
                         "width": width,
                         "height": height,
-                        "format": "png"
+                        "format": "png",
                     }
 
                 except Exception as e:
@@ -382,7 +405,7 @@ class MuJoCoViewerServer:
 
                     # Check if complete JSON received
                     try:
-                        json.loads(data.decode('utf-8'))
+                        json.loads(data.decode("utf-8"))
                         break
                     except:
                         # Continue receiving
@@ -391,21 +414,21 @@ class MuJoCoViewerServer:
                         continue
 
                 # Parse command
-                command = json.loads(data.decode('utf-8'))
+                command = json.loads(data.decode("utf-8"))
                 logger.debug(f"Received command: {command.get('type', 'unknown')}")
 
                 # Process command
                 response = self.handle_command(command)
 
                 # Send response
-                response_json = json.dumps(response) + '\n'
-                client_socket.send(response_json.encode('utf-8'))
+                response_json = json.dumps(response) + "\n"
+                client_socket.send(response_json.encode("utf-8"))
 
         except Exception as e:
             logger.exception(f"Error handling client {address}: {e}")
             try:
                 error_response = {"success": False, "error": str(e)}
-                client_socket.send(json.dumps(error_response).encode('utf-8'))
+                client_socket.send(json.dumps(error_response).encode("utf-8"))
             except:
                 pass
         finally:
@@ -417,11 +440,14 @@ class MuJoCoViewerServer:
         # Check if port is available
         try:
             test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            test_socket.bind(('localhost', self.port))
+            test_socket.bind(("localhost", self.port))
             test_socket.close()
         except OSError as e:
             if e.errno == 48:  # Address already in use
-                logger.exception(f"Port {self.port} is already in use. Please choose a different port or kill the existing process.")
+                logger.exception(
+                    f"Port {self.port} is already in use. Please choose a different "
+                    f"port or kill the existing process."
+                )
                 raise
             else:
                 logger.exception(f"Failed to bind to port {self.port}: {e}")
@@ -431,7 +457,7 @@ class MuJoCoViewerServer:
         self.socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         try:
-            self.socket_server.bind(('localhost', self.port))
+            self.socket_server.bind(("localhost", self.port))
             self.socket_server.listen(10)  # Support multiple connections
             logger.info(f"MuJoCo Viewer Server listening on port {self.port}")
 
@@ -441,9 +467,7 @@ class MuJoCoViewerServer:
 
                     # Create separate thread for each client
                     client_thread = threading.Thread(
-                        target=self.handle_client,
-                        args=(client_socket, address),
-                        daemon=True
+                        target=self.handle_client, args=(client_socket, address), daemon=True
                     )
                     client_thread.start()
                     self.client_threads.append(client_thread)
@@ -487,13 +511,16 @@ class MuJoCoViewerServer:
 
         logger.info("Server stopped")
 
+
 def main():
     """Main function"""
     import argparse
 
     parser = argparse.ArgumentParser(description="Enhanced MuJoCo Viewer Server")
     parser.add_argument("--port", type=int, default=8888, help="Socket server port")
-    parser.add_argument("--max-retries", type=int, default=3, help="Maximum number of port binding retries")
+    parser.add_argument(
+        "--max-retries", type=int, default=3, help="Maximum number of port binding retries"
+    )
     args = parser.parse_args()
 
     # Try different ports if the default one is in use
@@ -510,6 +537,7 @@ def main():
             else:
                 print(f"Failed to start server: {e}")
                 sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

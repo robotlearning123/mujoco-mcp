@@ -13,10 +13,12 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+
 async def test_mcp_server_startup():
     """Test that MCP server can start successfully"""
     try:
         from mujoco_mcp.__main__ import main
+
         # Just test that main function exists and is callable
         assert callable(main)
         return True
@@ -24,44 +26,48 @@ async def test_mcp_server_startup():
         print(f"❌ Server startup test failed: {e}")
         return False
 
+
 async def test_tools_listing():
     """Test tools listing compliance"""
     try:
         from mujoco_mcp.server import MuJoCoServer
+
         server = MuJoCoServer()
 
         # Check that server has required attributes
-        assert hasattr(server, 'name')
-        assert hasattr(server, 'version')
-        assert hasattr(server, 'description')
+        assert hasattr(server, "name")
+        assert hasattr(server, "version")
+        assert hasattr(server, "description")
 
         # Check server info
         info = server.get_server_info()
-        assert 'name' in info
-        assert 'version' in info
-        assert 'capabilities' in info
+        assert "name" in info
+        assert "version" in info
+        assert "capabilities" in info
 
         return True
     except Exception as e:
         print(f"❌ Tools listing test failed: {e}")
         return False
 
+
 async def test_protocol_messages():
     """Test basic protocol message handling"""
     try:
         from mujoco_mcp.server import MuJoCoServer
+
         server = MuJoCoServer()
 
         # Test server info
         info = server.get_server_info()
 
         # Verify required fields
-        required_fields = ['name', 'version', 'description', 'capabilities']
+        required_fields = ["name", "version", "description", "capabilities"]
         for field in required_fields:
             assert field in info, f"Missing required field: {field}"
 
         # Test capabilities
-        capabilities = info['capabilities']
+        capabilities = info["capabilities"]
         assert isinstance(capabilities, dict), "Capabilities should be a dict"
 
         return True
@@ -69,10 +75,12 @@ async def test_protocol_messages():
         print(f"❌ Protocol messages test failed: {e}")
         return False
 
+
 async def test_error_handling():
     """Test error handling compliance"""
     try:
         from mujoco_mcp.server import MuJoCoServer
+
         server = MuJoCoServer()
 
         # Test that server handles initialization gracefully
@@ -83,6 +91,7 @@ async def test_error_handling():
         print(f"❌ Error handling test failed: {e}")
         return False
 
+
 async def run_compliance_tests():
     """Run all MCP compliance tests"""
     print("🧪 MCP Protocol Compliance Test Suite")
@@ -92,7 +101,7 @@ async def run_compliance_tests():
         ("Server Startup", test_mcp_server_startup),
         ("Tools Listing", test_tools_listing),
         ("Protocol Messages", test_protocol_messages),
-        ("Error Handling", test_error_handling)
+        ("Error Handling", test_error_handling),
     ]
 
     results = {}
@@ -122,10 +131,7 @@ async def run_compliance_tests():
         "success_rate": (passed / total) * 100,
         "test_results": results,
         "mcp_version": "1.0",
-        "server_info": {
-            "name": "mujoco-mcp",
-            "version": "0.8.2"
-        }
+        "server_info": {"name": "mujoco-mcp", "version": "0.8.2"},
     }
 
     # Save report
@@ -137,7 +143,7 @@ async def run_compliance_tests():
     print(f"Total Tests: {total}")
     print(f"✅ Passed: {passed}")
     print(f"❌ Failed: {total - passed}")
-    print(f"Success Rate: {(passed/total)*100:.1f}%")
+    print(f"Success Rate: {(passed / total) * 100:.1f}%")
 
     if passed == total:
         print("\n🎉 All MCP compliance tests passed!")
@@ -145,6 +151,7 @@ async def run_compliance_tests():
     else:
         print(f"\n⚠️  {total - passed} compliance tests failed")
         return False
+
 
 def main():
     """Main entry point"""
@@ -157,6 +164,7 @@ def main():
     except Exception as e:
         print(f"\n💥 Test suite crashed: {e}")
         sys.exit(2)
+
 
 if __name__ == "__main__":
     main()

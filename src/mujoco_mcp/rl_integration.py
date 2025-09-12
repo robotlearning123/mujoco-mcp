@@ -22,6 +22,7 @@ from .sensor_feedback import SensorManager
 @dataclass
 class RLConfig:
     """Configuration for RL environment"""
+
     robot_type: str
     task_type: str
     max_episode_steps: int = 1000
@@ -43,7 +44,7 @@ class TaskReward(ABC):
         observation: np.ndarray,
         action: np.ndarray,
         next_observation: np.ndarray,
-        info: Dict[str, Any]
+        info: Dict[str, Any],
     ) -> float:
         """Compute reward for current step"""
 
@@ -65,7 +66,7 @@ class ReachingTaskReward(TaskReward):
         observation: np.ndarray,
         action: np.ndarray,
         next_observation: np.ndarray,
-        info: Dict[str, Any]
+        info: Dict[str, Any],
     ) -> float:
         """Compute reaching reward"""
         # Extract end-effector position from observation
@@ -93,7 +94,6 @@ class ReachingTaskReward(TaskReward):
 
         return distance_reward + improvement_reward + success_reward + control_penalty
 
-
     def is_done(self, observation: np.ndarray, info: Dict[str, Any]) -> bool:
         """Episode done when target reached or max steps"""
         end_effector_pos = observation[:3]
@@ -112,7 +112,7 @@ class BalancingTaskReward(TaskReward):
         observation: np.ndarray,
         action: np.ndarray,
         next_observation: np.ndarray,
-        info: Dict[str, Any]
+        info: Dict[str, Any],
     ) -> float:
         """Compute balancing reward"""
         # Extract relevant state (e.g., pole angle, orientation)
@@ -134,7 +134,6 @@ class BalancingTaskReward(TaskReward):
 
         return upright_reward + velocity_penalty + control_penalty
 
-
     def is_done(self, observation: np.ndarray, info: Dict[str, Any]) -> bool:
         """Episode done when fallen over"""
         if len(observation) >= 2:
@@ -155,7 +154,7 @@ class WalkingTaskReward(TaskReward):
         observation: np.ndarray,
         action: np.ndarray,
         next_observation: np.ndarray,
-        info: Dict[str, Any]
+        info: Dict[str, Any],
     ) -> float:
         """Compute walking reward"""
         # Extract position and orientation
@@ -180,7 +179,6 @@ class WalkingTaskReward(TaskReward):
         height_reward = max(0, 1.0 - abs(position[2] - 1.0))  # Target height ~1m
 
         return velocity_reward + stability_penalty + energy_penalty + height_reward
-
 
     def is_done(self, observation: np.ndarray, info: Dict[str, Any]) -> bool:
         """Episode done when fallen"""
@@ -229,7 +227,7 @@ class MuJoCoRLEnvironment(gym.Env):
             "ur5e": {"joints": 6},
             "anymal_c": {"joints": 12},
             "cart_pole": {"joints": 2},
-            "quadruped": {"joints": 8}
+            "quadruped": {"joints": 8},
         }
 
         if self.config.robot_type in robot_configs:
@@ -240,12 +238,7 @@ class MuJoCoRLEnvironment(gym.Env):
         # Action space
         if self.config.action_space_type == "continuous":
             # Continuous joint torques/positions
-            self.action_space = spaces.Box(
-                low=-1.0,
-                high=1.0,
-                shape=(n_joints,),
-                dtype=np.float32
-            )
+            self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(n_joints,), dtype=np.float32)
         else:
             # Discrete action space
             self.action_space = spaces.Discrete(n_joints * 3)  # 3 actions per joint
@@ -257,10 +250,7 @@ class MuJoCoRLEnvironment(gym.Env):
             obs_size = n_joints * 2 + 6  # joint pos + vel + end-effector pose
 
         self.observation_space = spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(obs_size,),
-            dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float32
         )
 
     def _create_reward_function(self) -> TaskReward:
@@ -449,7 +439,9 @@ class MuJoCoRLEnvironment(gym.Env):
         </mujoco>
         """
 
-    def reset(self, seed: int | None = None, options: Dict | None = None) -> Tuple[np.ndarray, Dict]:
+    def reset(
+        self, seed: int | None = None, options: Dict | None = None
+    ) -> Tuple[np.ndarray, Dict]:
         """Reset environment for new episode"""
         super().reset(seed=seed)
 
@@ -460,11 +452,9 @@ class MuJoCoRLEnvironment(gym.Env):
                 raise RuntimeError("Failed to connect to MuJoCo viewer server")
 
         # Load model
-        response = self.viewer_client.send_command({
-            "type": "load_model",
-            "model_id": self.model_id,
-            "model_xml": self.model_xml
-        })
+        response = self.viewer_client.send_command(
+            {"type": "load_model", "model_id": self.model_id, "model_xml": self.model_xml}
+        )
 
         if not response.get("success"):
             raise RuntimeError(f"Failed to load model: {response.get('error')}")
@@ -474,9 +464,9 @@ class MuJoCoRLEnvironment(gym.Env):
         self.episode_start_time = time.time()
 
         # Reset reward function
-        if hasattr(self.reward_function, 'prev_distance'):
+        if hasattr(self.reward_function, "prev_distance"):
             self.reward_function.prev_distance = None
-        if hasattr(self.reward_function, 'prev_position'):
+        if hasattr(self.reward_function, "prev_position"):
             self.reward_function.prev_position = None
 
         # Get initial observation
@@ -520,18 +510,20 @@ class MuJoCoRLEnvironment(gym.Env):
         self.step_times.append(step_time)
 
         # Update info
-        info.update({
-            "step": self.current_step,
-            "step_time": step_time,
-            "avg_step_time": np.mean(self.step_times),
-            "episode_length": self.current_step
-        })
+        info.update(
+            {
+                "step": self.current_step,
+                "step_time": step_time,
+                "avg_step_time": np.mean(self.step_times),
+                "episode_length": self.current_step,
+            }
+        )
 
         return new_obs, reward, terminated, truncated, info
 
     def _discrete_to_continuous_action(self, action: int) -> np.ndarray:
         """Convert discrete action to continuous action"""
-        n_joints = self.action_space.shape[0] if hasattr(self.action_space, 'shape') else 2
+        n_joints = self.action_space.shape[0] if hasattr(self.action_space, "shape") else 2
         joint_idx = action // 3
         action_type = action % 3
 
@@ -540,9 +532,9 @@ class MuJoCoRLEnvironment(gym.Env):
             if action_type == 0:
                 continuous_action[joint_idx] = -1.0  # Negative
             elif action_type == 1:
-                continuous_action[joint_idx] = 0.0   # Zero
+                continuous_action[joint_idx] = 0.0  # Zero
             else:
-                continuous_action[joint_idx] = 1.0   # Positive
+                continuous_action[joint_idx] = 1.0  # Positive
 
         return continuous_action
 
@@ -552,18 +544,17 @@ class MuJoCoRLEnvironment(gym.Env):
         scaled_action = action * 10.0  # Scale to reasonable torque range
 
         # Send command to MuJoCo
-        self.viewer_client.send_command({
-            "type": "set_joint_positions",
-            "model_id": self.model_id,
-            "positions": scaled_action.tolist()
-        })
+        self.viewer_client.send_command(
+            {
+                "type": "set_joint_positions",
+                "model_id": self.model_id,
+                "positions": scaled_action.tolist(),
+            }
+        )
 
     def _get_observation(self) -> np.ndarray:
         """Get current observation from simulation"""
-        response = self.viewer_client.send_command({
-            "type": "get_state",
-            "model_id": self.model_id
-        })
+        response = self.viewer_client.send_command({"type": "get_state", "model_id": self.model_id})
 
         if response.get("success"):
             state = response.get("state", {})
@@ -591,7 +582,7 @@ class MuJoCoRLEnvironment(gym.Env):
             "episode_step": self.current_step,
             "model_id": self.model_id,
             "task_type": self.config.task_type,
-            "robot_type": self.config.robot_type
+            "robot_type": self.config.robot_type,
         }
 
     def render(self):
@@ -601,10 +592,7 @@ class MuJoCoRLEnvironment(gym.Env):
     def close(self):
         """Close environment"""
         if self.viewer_client.connected:
-            self.viewer_client.send_command({
-                "type": "close_model",
-                "model_id": self.model_id
-            })
+            self.viewer_client.send_command({"type": "close_model", "model_id": self.model_id})
             self.viewer_client.disconnect()
 
 
@@ -638,7 +626,9 @@ class RLTrainer:
             rewards.append(episode_reward)
             episode_lengths.append(episode_length)
 
-            print(f"Episode {episode + 1}: Reward = {episode_reward:.2f}, Length = {episode_length}")
+            print(
+                f"Episode {episode + 1}: Reward = {episode_reward:.2f}, Length = {episode_length}"
+            )
 
         results = {
             "mean_reward": np.mean(rewards),
@@ -646,7 +636,7 @@ class RLTrainer:
             "mean_length": np.mean(episode_lengths),
             "std_length": np.std(episode_lengths),
             "min_reward": np.min(rewards),
-            "max_reward": np.max(rewards)
+            "max_reward": np.max(rewards),
         }
 
         print("\nRandom Policy Baseline Results:")
@@ -680,7 +670,7 @@ class RLTrainer:
             "mean_reward": np.mean(rewards),
             "std_reward": np.std(rewards),
             "mean_length": np.mean(episode_lengths),
-            "episodes_evaluated": num_episodes
+            "episodes_evaluated": num_episodes,
         }
 
     def save_training_data(self, filepath: str):
@@ -691,11 +681,11 @@ class RLTrainer:
             "env_config": {
                 "robot_type": self.env.config.robot_type,
                 "task_type": self.env.config.task_type,
-                "max_episode_steps": self.env.config.max_episode_steps
-            }
+                "max_episode_steps": self.env.config.max_episode_steps,
+            },
         }
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
 
 
@@ -706,7 +696,7 @@ def create_reaching_env(robot_type: str = "franka_panda") -> MuJoCoRLEnvironment
         robot_type=robot_type,
         task_type="reaching",
         max_episode_steps=500,
-        action_space_type="continuous"
+        action_space_type="continuous",
     )
     return MuJoCoRLEnvironment(config)
 
@@ -717,7 +707,7 @@ def create_balancing_env() -> MuJoCoRLEnvironment:
         robot_type="cart_pole",
         task_type="balancing",
         max_episode_steps=1000,
-        action_space_type="discrete"
+        action_space_type="discrete",
     )
     return MuJoCoRLEnvironment(config)
 
@@ -728,7 +718,7 @@ def create_walking_env(robot_type: str = "quadruped") -> MuJoCoRLEnvironment:
         robot_type=robot_type,
         task_type="walking",
         max_episode_steps=2000,
-        action_space_type="continuous"
+        action_space_type="continuous",
     )
     return MuJoCoRLEnvironment(config)
 

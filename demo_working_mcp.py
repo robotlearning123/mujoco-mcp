@@ -9,6 +9,7 @@ import json
 import sys
 from pathlib import Path
 
+
 class WorkingMCPDemo:
     """Demonstrates the working headless MCP server"""
 
@@ -19,25 +20,26 @@ class WorkingMCPDemo:
     async def start_server(self):
         """Start the working headless MCP server"""
         self.process = await asyncio.create_subprocess_exec(
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             "import sys; sys.path.append('./src'); "
             "from mujoco_mcp.mcp_server_headless import main; "
             "import asyncio; asyncio.run(main())",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=Path(__file__).parent
+            cwd=Path(__file__).parent,
         )
 
         # MCP Initialization
-        await self.send_request("initialize", {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {"tools": {}},
-            "clientInfo": {
-                "name": "working-demo",
-                "version": "1.0.0"
-            }
-        })
+        await self.send_request(
+            "initialize",
+            {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}},
+                "clientInfo": {"name": "working-demo", "version": "1.0.0"},
+            },
+        )
 
         await self.send_notification("notifications/initialized", {})
         print("✅ Working MCP Server started!")
@@ -45,21 +47,13 @@ class WorkingMCPDemo:
     async def send_request(self, method: str, params: dict) -> dict:
         """Send JSON-RPC request"""
         self.request_id += 1
-        request = {
-            "jsonrpc": "2.0",
-            "id": self.request_id,
-            "method": method,
-            "params": params
-        }
+        request = {"jsonrpc": "2.0", "id": self.request_id, "method": method, "params": params}
 
         request_line = json.dumps(request) + "\n"
         self.process.stdin.write(request_line.encode())
         await self.process.stdin.drain()
 
-        response_line = await asyncio.wait_for(
-            self.process.stdout.readline(),
-            timeout=5.0
-        )
+        response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=5.0)
         response = json.loads(response_line.decode())
 
         if "error" in response:
@@ -69,11 +63,7 @@ class WorkingMCPDemo:
 
     async def send_notification(self, method: str, params: dict):
         """Send JSON-RPC notification"""
-        notification = {
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params
-        }
+        notification = {"jsonrpc": "2.0", "method": method, "params": params}
 
         notification_line = json.dumps(notification) + "\n"
         self.process.stdin.write(notification_line.encode())
@@ -81,16 +71,14 @@ class WorkingMCPDemo:
 
     async def call_tool(self, name: str, arguments: dict):
         """Call an MCP tool"""
-        return await self.send_request("tools/call", {
-            "name": name,
-            "arguments": arguments
-        })
+        return await self.send_request("tools/call", {"name": name, "arguments": arguments})
 
     async def stop_server(self):
         """Stop the MCP server"""
         if self.process:
             self.process.terminate()
             await asyncio.wait_for(self.process.wait(), timeout=3.0)
+
 
 async def demonstrate_working_mcp():
     """Demonstrate the working MCP server"""
@@ -117,7 +105,7 @@ async def demonstrate_working_mcp():
             ("pendulum", "Simple pendulum physics"),
             ("cart_pole", "Cart-pole balancing system"),
             ("double_pendulum", "Chaotic double pendulum"),
-            ("arm", "2-DOF robot arm")
+            ("arm", "2-DOF robot arm"),
         ]
 
         for scene_type, description in simulations:
@@ -126,41 +114,32 @@ async def demonstrate_working_mcp():
             print("-" * 40)
 
             # Create scene
-            create_result = await demo.call_tool("create_scene", {
-                "scene_type": scene_type
-            })
+            create_result = await demo.call_tool("create_scene", {"scene_type": scene_type})
             print(f"📦 Created: {create_result['content'][0]['text']}")
 
             # Step simulation
-            step_result = await demo.call_tool("step_simulation", {
-                "model_id": scene_type,
-                "steps": 50
-            })
+            step_result = await demo.call_tool(
+                "step_simulation", {"model_id": scene_type, "steps": 50}
+            )
             print(f"⏩ Stepped: {step_result['content'][0]['text']}")
 
             # Get state
-            state_result = await demo.call_tool("get_state", {
-                "model_id": scene_type
-            })
-            state_text = state_result['content'][0]['text']
+            state_result = await demo.call_tool("get_state", {"model_id": scene_type})
+            state_text = state_result["content"][0]["text"]
             state_data = json.loads(state_text)
             print(f"📊 Time: {state_data['time']:.3f}s")
             print(f"📊 Bodies: {state_data['nbody']}")
             print(f"📊 DOF: {state_data['nq']}")
 
             # Reset
-            reset_result = await demo.call_tool("reset_simulation", {
-                "model_id": scene_type
-            })
+            reset_result = await demo.call_tool("reset_simulation", {"model_id": scene_type})
             print(f"🔄 Reset: {reset_result['content'][0]['text']}")
 
         # Clean up
         print("\n🧹 Cleaning Up")
         print("-" * 15)
         for scene_type, _ in simulations:
-            close_result = await demo.call_tool("close_simulation", {
-                "model_id": scene_type
-            })
+            close_result = await demo.call_tool("close_simulation", {"model_id": scene_type})
             print(f"🚪 {close_result['content'][0]['text']}")
 
         # Success summary
@@ -182,28 +161,30 @@ async def demonstrate_working_mcp():
         print("   4. No display/GUI requirements")
 
         print("\n💡 CONFIGURATION FOR CLAUDE DESKTOP:")
-        print('   {')
+        print("   {")
         print('     "mcpServers": {')
         print('       "mujoco-headless": {')
         print('         "command": "python",')
         print('         "args": ["-m", "mujoco_mcp.mcp_server_headless"],')
         print('         "cwd": "/path/to/mujoco-mcp",')
         print('         "env": {"PYTHONPATH": "./src"}')
-        print('       }')
-        print('     }')
-        print('   }')
+        print("       }")
+        print("     }")
+        print("   }")
 
         return True
 
     except Exception as e:
         print(f"\n💥 Demo failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
     finally:
         await demo.stop_server()
         print("\n✅ Server stopped cleanly")
+
 
 if __name__ == "__main__":
     print("""

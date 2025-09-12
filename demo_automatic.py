@@ -13,6 +13,7 @@ from pathlib import Path
 # Add src to path for testing
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+
 async def demo_random_menagerie_model():
     """Automatic demo with random model selection"""
     print("🚀 Automatic MuJoCo Menagerie MCP Demo")
@@ -55,26 +56,26 @@ async def demo_random_menagerie_model():
 
         # Collect all models and show category breakdown
         all_models = []
-        for category, info in models_data['models'].items():
+        for category, info in models_data["models"].items():
             print(f"  🏷️  {category.upper()}: {info['count']} models")
 
             # Show 2 examples from each category
-            examples = info['models'][:2]
+            examples = info["models"][:2]
             if examples:
                 print(f"     Examples: {', '.join(examples)}")
 
-            all_models.extend(info['models'])
+            all_models.extend(info["models"])
 
         # Step 3: Random model selection
         print("\n🎲 Step 3: Random Model Selection")
         print("-" * 32)
 
         # Select models from different categories for variety
-        categories = list(models_data['models'].keys())
+        categories = list(models_data["models"].keys())
         selected_models = []
 
         for category in random.sample(categories, min(3, len(categories))):
-            category_models = models_data['models'][category]['models']
+            category_models = models_data["models"][category]["models"]
             selected_model = random.choice(category_models)
             selected_models.append((selected_model, category))
 
@@ -88,9 +89,9 @@ async def demo_random_menagerie_model():
 
             # Validate the model
             print(f"🔬 Validating {model_name}...")
-            validation_result = await handle_call_tool("validate_menagerie_model", {
-                "model_name": model_name
-            })
+            validation_result = await handle_call_tool(
+                "validate_menagerie_model", {"model_name": model_name}
+            )
 
             validation_text = validation_result[0].text
             print(f"   {validation_text}")
@@ -98,10 +99,9 @@ async def demo_random_menagerie_model():
             # Create scene from the model
             print("🏗️  Creating scene...")
             scene_name = f"demo_{model_name}_{i}"
-            scene_result = await handle_call_tool("create_menagerie_scene", {
-                "model_name": model_name,
-                "scene_name": scene_name
-            })
+            scene_result = await handle_call_tool(
+                "create_menagerie_scene", {"model_name": model_name, "scene_name": scene_name}
+            )
 
             scene_text = scene_result[0].text
             print(f"   🎭 {scene_text}")
@@ -111,16 +111,13 @@ async def demo_random_menagerie_model():
                 print("⚡ Testing simulation control...")
 
                 # Step simulation
-                step_result = await handle_call_tool("step_simulation", {
-                    "model_id": scene_name,
-                    "steps": 3
-                })
+                step_result = await handle_call_tool(
+                    "step_simulation", {"model_id": scene_name, "steps": 3}
+                )
                 print(f"   🔄 Step: {step_result[0].text}")
 
                 # Get state
-                state_result = await handle_call_tool("get_state", {
-                    "model_id": scene_name
-                })
+                state_result = await handle_call_tool("get_state", {"model_id": scene_name})
                 state_preview = (
                     state_result[0].text[:100] + "..."
                     if len(state_result[0].text) > 100
@@ -129,9 +126,7 @@ async def demo_random_menagerie_model():
                 print(f"   📊 State: {state_preview}")
 
                 # Reset simulation
-                reset_result = await handle_call_tool("reset_simulation", {
-                    "model_id": scene_name
-                })
+                reset_result = await handle_call_tool("reset_simulation", {"model_id": scene_name})
                 print(f"   🔄 Reset: {reset_result[0].text}")
 
         # Step 5: Demonstrate enhanced create_scene
@@ -142,10 +137,13 @@ async def demo_random_menagerie_model():
         final_model = random.choice(all_models)
         print(f"🎪 Demonstrating enhanced create_scene with {final_model}")
 
-        enhanced_result = await handle_call_tool("create_scene", {
-            "scene_type": "pendulum",  # Built-in scene type
-            "menagerie_model": final_model  # Our Menagerie enhancement!
-        })
+        enhanced_result = await handle_call_tool(
+            "create_scene",
+            {
+                "scene_type": "pendulum",  # Built-in scene type
+                "menagerie_model": final_model,  # Our Menagerie enhancement!
+            },
+        )
 
         enhanced_text = enhanced_result[0].text
         print(f"   ✨ Enhanced: {enhanced_text}")
@@ -172,8 +170,10 @@ async def demo_random_menagerie_model():
     except Exception as e:
         print(f"\n❌ Demo failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 if __name__ == "__main__":
     try:

@@ -19,6 +19,7 @@ from .advanced_controllers import RobotController, TrajectoryPlanner
 
 class TaskType(Enum):
     """Types of coordinated tasks"""
+
     COOPERATIVE_MANIPULATION = "cooperative_manipulation"
     FORMATION_CONTROL = "formation_control"
     SEQUENTIAL_TASKS = "sequential_tasks"
@@ -29,6 +30,7 @@ class TaskType(Enum):
 @dataclass
 class RobotState:
     """Robot state information"""
+
     robot_id: str
     model_type: str
     joint_positions: np.ndarray
@@ -46,6 +48,7 @@ class RobotState:
 @dataclass
 class CoordinatedTask:
     """Coordinated task definition"""
+
     task_id: str
     task_type: TaskType
     robots: List[str]
@@ -83,7 +86,7 @@ class CollisionChecker:
         start_pos: np.ndarray,
         goal_pos: np.ndarray,
         other_robots: List[RobotState],
-        num_waypoints: int = 10
+        num_waypoints: int = 10,
     ) -> List[np.ndarray]:
         """Find collision-free path using simple potential field method"""
 
@@ -204,10 +207,18 @@ class MultiRobotCoordinator:
         """Add robot to coordination system"""
         # Robot configurations (inline to avoid import issues)
         robot_configs = {
-            "franka_panda": {"joints": 7, "type": "arm", "home_position": [0, -0.785, 0, -2.356, 0, 1.571, 0.785]},
-            "ur5e": {"joints": 6, "type": "arm", "home_position": [0, -1.57, 1.57, -1.57, -1.57, 0]},
+            "franka_panda": {
+                "joints": 7,
+                "type": "arm",
+                "home_position": [0, -0.785, 0, -2.356, 0, 1.571, 0.785],
+            },
+            "ur5e": {
+                "joints": 6,
+                "type": "arm",
+                "home_position": [0, -1.57, 1.57, -1.57, -1.57, 0],
+            },
             "anymal_c": {"joints": 12, "type": "quadruped", "home_position": [0.0] * 12},
-            "go2": {"joints": 12, "type": "quadruped", "home_position": [0.0] * 12}
+            "go2": {"joints": 12, "type": "quadruped", "home_position": [0.0] * 12},
         }
 
         if robot_type in robot_configs:
@@ -223,7 +234,7 @@ class MultiRobotCoordinator:
                 robot_id=robot_id,
                 model_type=robot_type,
                 joint_positions=np.array(config.get("home_position", [0.0] * config["joints"])),
-                joint_velocities=np.zeros(config["joints"])
+                joint_velocities=np.zeros(config["joints"]),
             )
             self.robot_states[robot_id] = initial_state
 
@@ -245,7 +256,9 @@ class MultiRobotCoordinator:
                 del self.robot_configs[robot_id]
                 self.logger.info(f"Removed robot {robot_id}")
 
-    def update_robot_state(self, robot_id: str, joint_positions: np.ndarray, joint_velocities: np.ndarray):
+    def update_robot_state(
+        self, robot_id: str, joint_positions: np.ndarray, joint_velocities: np.ndarray
+    ):
         """Update robot state"""
         with self.state_lock:
             if robot_id in self.robot_states:
@@ -257,11 +270,9 @@ class MultiRobotCoordinator:
                 # Update end effector position (simplified)
                 if len(joint_positions) >= 3:
                     # Simple forward kinematics approximation
-                    state.end_effector_pos = np.array([
-                        joint_positions[0],
-                        joint_positions[1],
-                        sum(joint_positions[2:])
-                    ])
+                    state.end_effector_pos = np.array(
+                        [joint_positions[0], joint_positions[1], sum(joint_positions[2:])]
+                    )
 
     def start_coordination(self):
         """Start coordination control loop"""
@@ -320,7 +331,8 @@ class MultiRobotCoordinator:
         with self.task_lock:
             # Get available robots
             available_robots = [
-                robot_id for robot_id, state in self.robot_states.items()
+                robot_id
+                for robot_id, state in self.robot_states.items()
                 if state.status in ["idle", "ready"]
             ]
 
@@ -376,7 +388,7 @@ class MultiRobotCoordinator:
         if formation_type == "line":
             positions = []
             for i, robot_id in enumerate(robots):
-                x = (i - n_robots/2) * spacing
+                x = (i - n_robots / 2) * spacing
                 positions.append([x, 0, 0])
         elif formation_type == "circle":
             radius = spacing
@@ -423,7 +435,9 @@ class MultiRobotCoordinator:
                     state2 = self.robot_states[robot2_id]
 
                     if self.collision_checker.check_collision(state1, state2):
-                        self.logger.warning(f"Collision detected between {robot1_id} and {robot2_id}")
+                        self.logger.warning(
+                            f"Collision detected between {robot1_id} and {robot2_id}"
+                        )
                         self._handle_collision(robot1_id, robot2_id)
 
     def _handle_collision(self, robot1_id: str, robot2_id: str):
@@ -454,7 +468,7 @@ class MultiRobotCoordinator:
                         command = {
                             "type": "set_joint_positions",
                             "model_id": robot_id,
-                            "positions": target_pos.tolist()
+                            "positions": target_pos.tolist(),
                         }
                         self.viewer_client.send_command(command)
                 else:
@@ -463,10 +477,7 @@ class MultiRobotCoordinator:
 
     # High-level task interface
     def cooperative_manipulation(
-        self,
-        robots: List[str],
-        target_object: str,
-        approach_positions: Dict[str, np.ndarray]
+        self, robots: List[str], target_object: str, approach_positions: Dict[str, np.ndarray]
     ) -> str:
         """Start cooperative manipulation task"""
         task = CoordinatedTask(
@@ -475,28 +486,22 @@ class MultiRobotCoordinator:
             robots=robots,
             parameters={
                 "target_object": target_object,
-                **{f"{robot_id}_approach": pos for robot_id, pos in approach_positions.items()}
-            }
+                **{f"{robot_id}_approach": pos for robot_id, pos in approach_positions.items()},
+            },
         )
 
         self.task_allocator.add_task(task)
         return task.task_id
 
     def formation_control(
-        self,
-        robots: List[str],
-        formation_type: str = "line",
-        spacing: float = 1.0
+        self, robots: List[str], formation_type: str = "line", spacing: float = 1.0
     ) -> str:
         """Start formation control task"""
         task = CoordinatedTask(
             task_id=f"formation_{int(time.time())}",
             task_type=TaskType.FORMATION_CONTROL,
             robots=robots,
-            parameters={
-                "formation": formation_type,
-                "spacing": spacing
-            }
+            parameters={"formation": formation_type, "spacing": spacing},
         )
 
         self.task_allocator.add_task(task)
@@ -529,7 +534,7 @@ class MultiRobotCoordinator:
                     "status": state.status,
                     "joint_positions": state.joint_positions.tolist(),
                     "joint_velocities": state.joint_velocities.tolist(),
-                    "last_update": state.last_update
+                    "last_update": state.last_update,
                 }
         return None
 
@@ -542,5 +547,5 @@ class MultiRobotCoordinator:
                 "pending_tasks": len(self.task_allocator.pending_tasks),
                 "active_tasks": len(self.task_allocator.active_tasks),
                 "completed_tasks": len(self.task_allocator.completed_tasks),
-                "robots": {robot_id: state.status for robot_id, state in self.robot_states.items()}
+                "robots": {robot_id: state.status for robot_id, state in self.robot_states.items()},
             }

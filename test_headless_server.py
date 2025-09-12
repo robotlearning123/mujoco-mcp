@@ -12,16 +12,14 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+
 async def test_headless_server():
     """Test the headless MCP server"""
     print("🧪 Testing MuJoCo MCP Server (Headless Mode)")
     print("=" * 50)
 
     # Import the headless server
-    from mujoco_mcp.mcp_server_headless import (
-        handle_list_tools,
-        handle_call_tool
-    )
+    from mujoco_mcp.mcp_server_headless import handle_list_tools, handle_call_tool
 
     # Test 1: List tools
     print("\n✅ Test 1: List Available Tools")
@@ -49,10 +47,7 @@ async def test_headless_server():
 
     # Test 4: Step simulation
     print("\n✅ Test 4: Step Simulation")
-    result = await handle_call_tool("step_simulation", {
-        "model_id": "pendulum",
-        "steps": 100
-    })
+    result = await handle_call_tool("step_simulation", {"model_id": "pendulum", "steps": 100})
     print(result[0].text)
 
     # Test 5: Get state
@@ -70,10 +65,7 @@ async def test_headless_server():
 
     # Test 7: Step cart-pole with control
     print("\n✅ Test 7: Step Cart-Pole")
-    result = await handle_call_tool("step_simulation", {
-        "model_id": "cart_pole",
-        "steps": 50
-    })
+    result = await handle_call_tool("step_simulation", {"model_id": "cart_pole", "steps": 50})
     print(result[0].text)
 
     # Test 8: Create double pendulum
@@ -111,6 +103,7 @@ async def test_headless_server():
 
     return True
 
+
 if __name__ == "__main__":
     try:
         success = asyncio.run(test_headless_server())
@@ -119,5 +112,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

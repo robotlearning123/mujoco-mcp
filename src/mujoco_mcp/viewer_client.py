@@ -15,10 +15,11 @@ from typing import Dict, Any
 
 logger = logging.getLogger("mujoco_mcp.viewer_client")
 
+
 class MuJoCoViewerClient:
     """Client for connecting to MuJoCo Viewer Server - Enhanced version"""
 
-    def __init__(self, host: str = 'localhost', port: int = 8888):
+    def __init__(self, host: str = "localhost", port: int = 8888):
         self.host = host
         self.port = port
         self.socket = None
@@ -70,7 +71,7 @@ class MuJoCoViewerClient:
         try:
             # 发送命令
             command_json = json.dumps(command)
-            self.socket.send(command_json.encode('utf-8'))
+            self.socket.send(command_json.encode("utf-8"))
 
             # 接收响应 - 支持更大的消息
             response_data = b""
@@ -81,14 +82,14 @@ class MuJoCoViewerClient:
                 response_data += chunk
 
                 # 检查是否收到完整的JSON (以换行符结束)
-                if response_data.endswith(b'\n'):
+                if response_data.endswith(b"\n"):
                     break
 
                 # 防止无限等待
                 if len(response_data) > 1024 * 1024:  # 1MB限制
                     raise ValueError("Response too large")
 
-            return json.loads(response_data.decode('utf-8').strip())
+            return json.loads(response_data.decode("utf-8").strip())
 
         except Exception as e:
             logger.exception(f"Failed to send command: {e}")
@@ -121,7 +122,7 @@ class MuJoCoViewerClient:
         """
         cmd = {
             "type": "load_model",
-            "model_xml": model_source  # Keep backward compatibility, but can actually be file path
+            "model_xml": model_source,  # Keep backward compatibility, but can actually be file path
         }
         if model_id:
             cmd["model_id"] = model_id
@@ -136,7 +137,7 @@ class MuJoCoViewerClient:
         """
         cmd = {
             "type": "replace_model",
-            "model_xml": model_source  # Keep backward compatibility, but can actually be file path
+            "model_xml": model_source,  # Keep backward compatibility, but can actually be file path
         }
         if model_id:
             cmd["model_id"] = model_id
@@ -155,17 +156,11 @@ class MuJoCoViewerClient:
 
     def set_control(self, control: list) -> Dict[str, Any]:
         """设置控制输入"""
-        return self.send_command({
-            "type": "set_control",
-            "control": control
-        })
+        return self.send_command({"type": "set_control", "control": control})
 
     def set_joint_positions(self, positions: list, model_id: str = None) -> Dict[str, Any]:
         """设置关节位置"""
-        cmd = {
-            "type": "set_joint_positions",
-            "positions": positions
-        }
+        cmd = {"type": "set_joint_positions", "positions": positions}
         if model_id:
             cmd["model_id"] = model_id
         return self.send_command(cmd)
@@ -185,13 +180,11 @@ class MuJoCoViewerClient:
         """关闭整个viewer服务器"""
         return self.send_command({"type": "shutdown_server"})
 
-    def capture_render(self, model_id: str = None, width: int = 640, height: int = 480) -> Dict[str, Any]:
+    def capture_render(
+        self, model_id: str = None, width: int = 640, height: int = 480
+    ) -> Dict[str, Any]:
         """捕获当前渲染的图像"""
-        cmd = {
-            "type": "capture_render",
-            "width": width,
-            "height": height
-        }
+        cmd = {"type": "capture_render", "width": width, "height": height}
         if model_id:
             cmd["model_id"] = model_id
         return self.send_command(cmd)
@@ -201,9 +194,9 @@ class MuJoCoViewerClient:
         try:
             # 查找viewer server脚本
             script_paths = [
-                'mujoco_viewer_server.py',
-                os.path.join(os.path.dirname(__file__), '..', '..', 'mujoco_viewer_server.py'),
-                os.path.join(os.getcwd(), 'mujoco_viewer_server.py')
+                "mujoco_viewer_server.py",
+                os.path.join(os.path.dirname(__file__), "..", "..", "mujoco_viewer_server.py"),
+                os.path.join(os.getcwd(), "mujoco_viewer_server.py"),
             ]
 
             viewer_script = None
@@ -218,10 +211,11 @@ class MuJoCoViewerClient:
 
             # 检查是否需要使用mjpython (macOS)
             python_executable = sys.executable
-            if sys.platform == 'darwin':  # macOS
+            if sys.platform == "darwin":  # macOS
                 # 尝试找mjpython
-                mjpython_result = subprocess.run(['which', 'mjpython'],
-                                               capture_output=True, text=True)
+                mjpython_result = subprocess.run(
+                    ["which", "mjpython"], capture_output=True, text=True
+                )
                 if mjpython_result.returncode == 0:
                     mjpython_path = mjpython_result.stdout.strip()
                     if mjpython_path:
@@ -231,14 +225,14 @@ class MuJoCoViewerClient:
                     logger.warning("mjpython not found on macOS, viewer may not work properly")
 
             # 启动进程
-            cmd = [python_executable, viewer_script, '--port', str(self.port)]
+            cmd = [python_executable, viewer_script, "--port", str(self.port)]
             logger.info(f"Starting viewer with command: {' '.join(cmd)}")
 
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                start_new_session=True  # 独立进程组
+                start_new_session=True,  # 独立进程组
             )
 
             logger.info(f"Started MuJoCo Viewer Server (PID: {process.pid})")
@@ -256,7 +250,7 @@ class MuJoCoViewerClient:
             "connected": self.connected,
             "socket_alive": self.socket is not None,
             "ping_result": False,
-            "viewer_process": self._check_viewer_process()
+            "viewer_process": self._check_viewer_process(),
         }
 
         if self.connected:
@@ -269,13 +263,12 @@ class MuJoCoViewerClient:
         try:
             # 使用lsof检查端口
             result = subprocess.run(
-                ['lsof', '-ti', f':{self.port}'],
-                capture_output=True,
-                text=True
+                ["lsof", "-ti", f":{self.port}"], capture_output=True, text=True
             )
             return bool(result.stdout.strip())
         except:
             return False
+
 
 class ViewerManager:
     """管理多个viewer客户端连接"""
@@ -314,8 +307,10 @@ class ViewerManager:
         for model_id in list(self.clients.keys()):
             self.remove_client(model_id)
 
+
 # 全局viewer管理器实例
 viewer_manager = ViewerManager()
+
 
 # 诊断信息获取函数
 def get_system_diagnostics() -> Dict[str, Any]:
@@ -324,9 +319,9 @@ def get_system_diagnostics() -> Dict[str, Any]:
         "viewer_manager": {
             "active_clients": len(viewer_manager.clients),
             "client_ids": list(viewer_manager.clients.keys()),
-            "default_port": viewer_manager.default_port
+            "default_port": viewer_manager.default_port,
         },
-        "clients": {}
+        "clients": {},
     }
 
     for model_id, client in viewer_manager.clients.items():
@@ -334,9 +329,11 @@ def get_system_diagnostics() -> Dict[str, Any]:
 
     return diagnostics
 
+
 def get_viewer_client(model_id: str) -> MuJoCoViewerClient | None:
     """获取指定模型的viewer客户端的便捷函数"""
     return viewer_manager.get_client(model_id)
+
 
 def ensure_viewer_connection(model_id: str) -> bool:
     """确保viewer连接存在的便捷函数 - 增强版"""
