@@ -399,7 +399,7 @@ class RobotStateMonitor:
 
         filepath = Path(filename)
         if filepath.suffix == ".json":
-            with open(filepath, "w") as f:
+            with filepath.open("w") as f:
                 json.dump(data, f, indent=2, default=str)
         elif filepath.suffix == ".npz":
             # Export as numpy arrays
@@ -620,7 +620,7 @@ def analyze_trajectory_file(filename: str) -> Dict[str, Any]:
     filepath = Path(filename)
 
     if filepath.suffix == ".json":
-        with open(filepath) as f:
+        with filepath.open() as f:
             data = json.load(f)
             states = data.get("states", [])
     elif filepath.suffix == ".npz":

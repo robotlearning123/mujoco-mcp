@@ -367,7 +367,7 @@ def main():
     results = tester.run_comprehensive_test()
 
     # Save detailed results
-    with open("menagerie_compatibility_report.json", "w") as f:
+    with Path("menagerie_compatibility_report.json").open("w") as f:
         json.dump(results, f, indent=2)
 
     # Print summary

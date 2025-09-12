@@ -88,7 +88,7 @@ def check_configuration():
     try:
         import mcp
 
-        print("✓ MCP package available")
+        print(f"✓ MCP package available (version: {getattr(mcp, '__version__', 'unknown')})")
     except ImportError:
         print("✗ MCP package not installed")
         return False

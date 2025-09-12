@@ -135,7 +135,7 @@ async def run_compliance_tests():
     }
 
     # Save report
-    with open("mcp_compliance_report.json", "w") as f:
+    with Path("mcp_compliance_report.json").open("w") as f:
         json.dump(compliance_report, f, indent=2)
 
     print("\n" + "=" * 50)

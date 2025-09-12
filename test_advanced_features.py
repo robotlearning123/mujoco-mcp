@@ -529,7 +529,7 @@ def main():
 
     # Save results
     results_file = Path(tester.temp_dir) / "test_results.json"
-    with open(results_file, "w") as f:
+    with results_file.open("w") as f:
         json.dump(
             {
                 "timestamp": time.time(),

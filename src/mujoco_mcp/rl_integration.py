@@ -685,7 +685,7 @@ class RLTrainer:
             },
         }
 
-        with open(filepath, "w") as f:
+        with filepath.open("w") as f:
             json.dump(data, f, indent=2)
 
 

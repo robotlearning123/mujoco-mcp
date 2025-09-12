@@ -244,7 +244,7 @@ async def main():
     results = await tester.run_integration_tests()
 
     # Save results
-    with open("mcp_menagerie_integration_report.json", "w") as f:
+    with Path("mcp_menagerie_integration_report.json").open("w") as f:
         json.dump(results, f, indent=2)
 
     # Print summary
