@@ -152,7 +152,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                         types.TextContent(
                             type="text",
                             text="❌ Failed to connect to MuJoCo viewer server. "
-                                 "Please start `mujoco-mcp-viewer` first.",
+                            "Please start `mujoco-mcp-viewer` first.",
                         )
                     ]
 

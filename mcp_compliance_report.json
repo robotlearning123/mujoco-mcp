@@ -1,14 +1,14 @@
 {
-  "timestamp": 1757646221.509862,
+  "timestamp": 1757682828.3599646,
   "total_tests": 4,
-  "passed_tests": 1,
-  "failed_tests": 3,
-  "success_rate": 25.0,
+  "passed_tests": 4,
+  "failed_tests": 0,
+  "success_rate": 100.0,
   "test_results": {
     "Server Startup": true,
-    "Tools Listing": false,
-    "Protocol Messages": false,
-    "Error Handling": false
+    "Tools Listing": true,
+    "Protocol Messages": true,
+    "Error Handling": true
   },
   "mcp_version": "1.0",
   "server_info": {
