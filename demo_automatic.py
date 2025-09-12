@@ -48,7 +48,10 @@ async def demo_random_menagerie_model():
         models_result = await handle_call_tool("list_menagerie_models", {})
         models_data = json.loads(models_result[0].text)
 
-        print(f"🌟 Discovered {models_data['total_models']} models across {models_data['categories']} categories:")
+        print(
+            f"🌟 Discovered {models_data['total_models']} models across "
+            f"{models_data['categories']} categories:"
+        )
 
         # Collect all models and show category breakdown
         all_models = []
@@ -118,7 +121,11 @@ async def demo_random_menagerie_model():
                 state_result = await handle_call_tool("get_state", {
                     "model_id": scene_name
                 })
-                state_preview = state_result[0].text[:100] + "..." if len(state_result[0].text) > 100 else state_result[0].text
+                state_preview = (
+                    state_result[0].text[:100] + "..."
+                    if len(state_result[0].text) > 100
+                    else state_result[0].text
+                )
                 print(f"   📊 State: {state_preview}")
 
                 # Reset simulation

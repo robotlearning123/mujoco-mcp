@@ -282,18 +282,30 @@ class MenagerieModelTester:
                 self.results["model_results"][model_name] = model_result
 
                 # Status indicator
-                status = "✅" if (url_result["url_accessible"] and
-                               model_result["mujoco_test"].get("mujoco_compatible", False)) else "❌"
+                status = (
+                    "✅" if (
+                        url_result["url_accessible"] and
+                        model_result["mujoco_test"].get("mujoco_compatible", False)
+                    ) else "❌"
+                )
                 print(f"    {status} {model_name}")
 
             # Calculate category metrics
             if category_load_times:
-                category_results["avg_load_time"] = sum(category_load_times) / len(category_load_times)
-            category_results["compatibility_rate"] = category_results["successful_loads"] / len(models)
+                category_results["avg_load_time"] = (
+                    sum(category_load_times) / len(category_load_times)
+                )
+            category_results["compatibility_rate"] = (
+                category_results["successful_loads"] / len(models)
+            )
 
             self.results["category_performance"][category] = category_results
 
-            print(f"  📈 {category.upper()}: {category_results['successful_loads']}/{len(models)} models compatible ({category_results['compatibility_rate']:.1%})")
+            print(
+                f"  📈 {category.upper()}: {category_results['successful_loads']}/"
+                f"{len(models)} models compatible "
+                f"({category_results['compatibility_rate']:.1%})"
+            )
 
         # Calculate overall metrics
         self.results["test_summary"]["total_models"] = total_models

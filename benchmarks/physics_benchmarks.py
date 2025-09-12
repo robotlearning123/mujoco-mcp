@@ -314,13 +314,16 @@ class PerformanceBenchmark(PhysicsBenchmark):
                         <geom name="link1" type="capsule" size="0.05 0.3" rgba="0.8 0.2 0.2 1"/>
                         <body name="arm2" pos="0 0 0.3">
                             <joint name="joint2" type="hinge" axis="1 0 0"/>
-                            <geom name="link2" type="capsule" size="0.04 0.25" rgba="0.2 0.8 0.2 1"/>
+                            <geom name="link2" type="capsule" size="0.04 0.25"
+                                  rgba="0.2 0.8 0.2 1"/>
                             <body name="arm3" pos="0 0 0.25">
                                 <joint name="joint3" type="hinge" axis="0 1 0"/>
-                                <geom name="link3" type="capsule" size="0.03 0.2" rgba="0.2 0.2 0.8 1"/>
+                                <geom name="link3" type="capsule" size="0.03 0.2"
+                                      rgba="0.2 0.2 0.8 1"/>
                                 <body name="end_effector" pos="0 0 0.2">
                                     <joint name="joint4" type="hinge" axis="0 0 1"/>
-                                    <geom name="gripper" type="box" size="0.05 0.05 0.05" rgba="0.8 0.8 0.2 1"/>
+                                    <geom name="gripper" type="box" size="0.05 0.05 0.05"
+                                          rgba="0.8 0.8 0.2 1"/>
                                 </body>
                             </body>
                         </body>
@@ -451,8 +454,10 @@ class AccuracyBenchmark(PhysicsBenchmark):
             <worldbody>
                 <body name="pendulum" pos="0 0 0">
                     <joint name="hinge" type="hinge" axis="1 0 0" damping="0"/>
-                    <geom name="rod" type="capsule" size="0.01 1.0" pos="0 0 -1" rgba="0.8 0.2 0.2 1"/>
-                    <geom name="mass" type="sphere" size="0.1" pos="0 0 -2" mass="1.0" rgba="0.2 0.8 0.2 1"/>
+                    <geom name="rod" type="capsule" size="0.01 1.0" pos="0 0 -1"
+                          rgba="0.8 0.2 0.2 1"/>
+                    <geom name="mass" type="sphere" size="0.1" pos="0 0 -2" mass="1.0"
+                          rgba="0.2 0.8 0.2 1"/>
                 </body>
             </worldbody>
         </mujoco>
@@ -704,7 +709,7 @@ class BenchmarkSuite:
 
         # Save JSON report
         json_file = self.output_dir / "benchmark_report.json"
-        with open(json_file, 'w') as f:
+        with json_file.open('w') as f:
             json.dump(report_data, f, indent=2)
 
         # Generate text summary
@@ -735,7 +740,7 @@ class BenchmarkSuite:
         """Generate text summary report"""
         report_file = self.output_dir / "benchmark_summary.txt"
 
-        with open(report_file, 'w') as f:
+        with report_file.open('w') as f:
             f.write("MuJoCo MCP Benchmark Suite Results\n")
             f.write("=" * 50 + "\n\n")
 
@@ -764,7 +769,9 @@ class BenchmarkSuite:
     def _generate_plots(self):
         """Generate performance plots"""
         # Performance metrics plot
-        performance_results = [r for r in self.results if r.test_name == "Performance" and r.success]
+        performance_results = [
+            r for r in self.results if r.test_name == "Performance" and r.success
+        ]
 
         if performance_results:
             result = performance_results[0]
@@ -779,7 +786,10 @@ class BenchmarkSuite:
             axes[0, 0].set_ylabel('FPS')
 
             # CPU and Memory usage
-            axes[0, 1].bar(['CPU', 'Memory'], [metrics.get('cpu_usage', 0), metrics.get('memory_usage', 0)])
+            axes[0, 1].bar(
+                ['CPU', 'Memory'],
+                [metrics.get('cpu_usage', 0), metrics.get('memory_usage', 0)]
+            )
             axes[0, 1].set_title('Resource Usage (%)')
             axes[0, 1].set_ylabel('Percentage')
 

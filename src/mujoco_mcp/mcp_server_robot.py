@@ -41,7 +41,7 @@ async def handle_list_tools() -> List[types.Tool]:
                 "required": []
             }
         ),
-        
+
         # Robot loading and initialization
         types.Tool(
             name="load_robot",
@@ -62,7 +62,7 @@ async def handle_list_tools() -> List[types.Tool]:
                 "required": ["robot_type"]
             }
         ),
-        
+
         # Joint control
         types.Tool(
             name="set_joint_positions",
@@ -83,7 +83,7 @@ async def handle_list_tools() -> List[types.Tool]:
                 "required": ["robot_id", "positions"]
             }
         ),
-        
+
         types.Tool(
             name="set_joint_velocities",
             description="Set target joint velocities for the robot",
@@ -103,7 +103,7 @@ async def handle_list_tools() -> List[types.Tool]:
                 "required": ["robot_id", "velocities"]
             }
         ),
-        
+
         types.Tool(
             name="set_joint_torques",
             description="Set joint torques for direct force control",
@@ -123,7 +123,7 @@ async def handle_list_tools() -> List[types.Tool]:
                 "required": ["robot_id", "torques"]
             }
         ),
-        
+
         # State queries
         types.Tool(
             name="get_robot_state",
@@ -139,7 +139,7 @@ async def handle_list_tools() -> List[types.Tool]:
                 "required": ["robot_id"]
             }
         ),
-        
+
         # Simulation control
         types.Tool(
             name="step_robot",
@@ -160,7 +160,7 @@ async def handle_list_tools() -> List[types.Tool]:
                 "required": ["robot_id"]
             }
         ),
-        
+
         # Trajectory execution
         types.Tool(
             name="execute_trajectory",
@@ -189,7 +189,7 @@ async def handle_list_tools() -> List[types.Tool]:
                 "required": ["robot_id", "trajectory"]
             }
         ),
-        
+
         # Reset
         types.Tool(
             name="reset_robot",
@@ -213,7 +213,7 @@ async def handle_call_tool(
     arguments: Dict[str, Any]
 ) -> List[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Handle tool calls for robot control"""
-    
+
     try:
         if name == "get_server_info":
             result = {
@@ -231,60 +231,60 @@ async def handle_call_tool(
                 ],
                 "supported_robots": ["arm", "gripper", "mobile", "humanoid"]
             }
-            
+
         elif name == "load_robot":
             result = robot_controller.load_robot(
                 arguments["robot_type"],
                 arguments.get("robot_id")
             )
-            
+
         elif name == "set_joint_positions":
             result = robot_controller.set_joint_positions(
                 arguments["robot_id"],
                 arguments["positions"]
             )
-            
+
         elif name == "set_joint_velocities":
             result = robot_controller.set_joint_velocities(
                 arguments["robot_id"],
                 arguments["velocities"]
             )
-            
+
         elif name == "set_joint_torques":
             result = robot_controller.set_joint_torques(
                 arguments["robot_id"],
                 arguments["torques"]
             )
-            
+
         elif name == "get_robot_state":
             result = robot_controller.get_robot_state(arguments["robot_id"])
-            
+
         elif name == "step_robot":
             result = robot_controller.step_robot(
                 arguments["robot_id"],
                 arguments.get("steps", 1)
             )
-            
+
         elif name == "execute_trajectory":
             result = robot_controller.execute_trajectory(
                 arguments["robot_id"],
                 arguments["trajectory"],
                 arguments.get("time_steps", 10)
             )
-            
+
         elif name == "reset_robot":
             result = robot_controller.reset_robot(arguments["robot_id"])
-            
+
         else:
             result = {"error": f"Unknown tool: {name}"}
-            
+
         return [types.TextContent(
             type="text",
             text=json.dumps(result, indent=2)
         )]
-        
+
     except Exception as e:
-        logger.error(f"Error in tool {name}: {e}")
+        logger.exception(f"Error in tool {name}: {e}")
         return [types.TextContent(
             type="text",
             text=json.dumps({"error": str(e)}, indent=2)
