@@ -2,6 +2,7 @@
 """
 MuJoCo MCP Server for stdio transport
 Production-ready MCP server that works with Claude Desktop and other MCP clients
+MCP Protocol Version: 2024-11-05
 """
 
 import asyncio
@@ -17,6 +18,9 @@ import mcp.types as types
 
 from .version import __version__
 from .viewer_client import MuJoCoViewerClient as ViewerClient
+
+# MCP Protocol constants
+MCP_PROTOCOL_VERSION = "2024-11-05"
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -36,15 +40,18 @@ async def handle_list_tools() -> List[types.Tool]:
             name="get_server_info",
             description="Get information about the MuJoCo MCP server",
             inputSchema={
+                "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {},
-                "required": []
+                "required": [],
+                "additionalProperties": False
             }
         ),
         types.Tool(
             name="create_scene",
             description="Create a physics simulation scene",
             inputSchema={
+                "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "scene_type": {
@@ -53,13 +60,15 @@ async def handle_list_tools() -> List[types.Tool]:
                         "enum": ["pendulum", "double_pendulum", "cart_pole", "arm"]
                     }
                 },
-                "required": ["scene_type"]
+                "required": ["scene_type"],
+                "additionalProperties": False
             }
         ),
         types.Tool(
             name="step_simulation",
             description="Step the physics simulation forward",
             inputSchema={
+                "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "model_id": {
@@ -69,16 +78,19 @@ async def handle_list_tools() -> List[types.Tool]:
                     "steps": {
                         "type": "integer",
                         "description": "Number of simulation steps",
-                        "default": 1
+                        "default": 1,
+                        "minimum": 1
                     }
                 },
-                "required": ["model_id"]
+                "required": ["model_id"],
+                "additionalProperties": False
             }
         ),
         types.Tool(
             name="get_state",
             description="Get current state of the simulation",
             inputSchema={
+                "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "model_id": {
@@ -86,13 +98,15 @@ async def handle_list_tools() -> List[types.Tool]:
                         "description": "ID of the model to get state from"
                     }
                 },
-                "required": ["model_id"]
+                "required": ["model_id"],
+                "additionalProperties": False
             }
         ),
         types.Tool(
             name="reset_simulation",
             description="Reset simulation to initial state",
             inputSchema={
+                "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "model_id": {
@@ -100,13 +114,15 @@ async def handle_list_tools() -> List[types.Tool]:
                         "description": "ID of the model to reset"
                     }
                 },
-                "required": ["model_id"]
+                "required": ["model_id"],
+                "additionalProperties": False
             }
         ),
         types.Tool(
             name="close_viewer",
             description="Close the MuJoCo viewer window",
             inputSchema={
+                "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "model_id": {
@@ -114,15 +130,19 @@ async def handle_list_tools() -> List[types.Tool]:
                         "description": "ID of the model viewer to close"
                     }
                 },
-                "required": ["model_id"]
+                "required": ["model_id"],
+                "additionalProperties": False
             }
         )
     ]
 
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
-    """Handle tool calls"""
+    """Handle tool calls with MCP-compliant responses"""
     global viewer_client
+    
+    # Log the tool call for debugging
+    logger.debug(f"Tool call: {name} with arguments: {arguments}")
     
     try:
         if name == "get_server_info":
@@ -332,24 +352,38 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
 async def main():
     """Main entry point for MCP server"""
     logger.info(f"Starting MuJoCo MCP Server v{__version__}")
+    logger.info(f"MCP Protocol Version: {MCP_PROTOCOL_VERSION}")
     
-    # Initialize server capabilities
+    # Initialize server capabilities with enhanced configuration
+    capabilities = server.get_capabilities(
+        notification_options=NotificationOptions(),
+        experimental_capabilities={}
+    )
+    
     server_options = InitializationOptions(
         server_name="mujoco-mcp",
         server_version=__version__,
-        capabilities=server.get_capabilities(
-            notification_options=NotificationOptions(),
-            experimental_capabilities={}
-        )
+        capabilities=capabilities,
+        instructions="MuJoCo physics simulation server with viewer support. "
+                    f"Implements MCP Protocol {MCP_PROTOCOL_VERSION}. "
+                    "Provides tools for creating scenes, controlling simulation, and managing state."
     )
     
+    logger.info(f"Server capabilities: {capabilities}")
+    logger.info("MCP server initialization complete")
+    
     # Run server with stdio transport
-    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            server_options
-        )
+    try:
+        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+            logger.info("Starting MCP server stdio transport")
+            await server.run(
+                read_stream,
+                write_stream,
+                server_options
+            )
+    except Exception as e:
+        logger.error(f"MCP server error: {e}")
+        raise
 
 if __name__ == "__main__":
     asyncio.run(main())
