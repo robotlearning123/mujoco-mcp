@@ -1,0 +1,18 @@
+{
+  "timestamp": 1757645522.5567436,
+  "total_tests": 4,
+  "passed_tests": 1,
+  "failed_tests": 3,
+  "success_rate": 25.0,
+  "test_results": {
+    "Server Startup": true,
+    "Tools Listing": false,
+    "Protocol Messages": false,
+    "Error Handling": false
+  },
+  "mcp_version": "1.0",
+  "server_info": {
+    "name": "mujoco-mcp",
+    "version": "0.8.2"
+  }
+}

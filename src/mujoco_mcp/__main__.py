@@ -135,9 +135,9 @@ def main():
         success = check_configuration()
         sys.exit(0 if success else 1)
 
-    # Import and run MCP server
+    # Import and run MCP server (headless by default)
     try:
-        from .mcp_server import main as mcp_main
+        from .mcp_server_headless import main as mcp_main
         asyncio.run(mcp_main())
     except KeyboardInterrupt:
         print("\nMCP server stopped by user")
