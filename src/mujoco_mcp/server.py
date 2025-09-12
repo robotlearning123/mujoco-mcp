@@ -5,7 +5,7 @@ v0.8.2 - MCP server based on FastMCP framework
 
 import asyncio
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -25,7 +25,7 @@ logger = logging.getLogger("mujoco_mcp")
 
 # MCP Tools using FastMCP decorators
 @mcp.tool()
-def load_model(model_string: str, name: Optional[str] = None) -> Dict[str, Any]:
+def load_model(model_string: str, name: str | None = None) -> Dict[str, Any]:
     """Load a MuJoCo model from XML string"""
     try:
         model_id = f"model_{len(simulations)}"
@@ -41,7 +41,7 @@ def load_model(model_string: str, name: Optional[str] = None) -> Dict[str, Any]:
             "message": f"Model loaded successfully as {model_id}"
         }
     except Exception as e:
-        logger.error(f"Error loading model: {e}")
+        logger.exception("Error loading model")
         return {"status": "error", "message": str(e)}
 
 
@@ -62,12 +62,12 @@ def get_loaded_models() -> Dict[str, Any]:
     }
 
 
-@mcp.tool() 
+@mcp.tool()
 def step_simulation(model_id: str, steps: int = 1) -> Dict[str, Any]:
     """Step the simulation forward by specified number of steps"""
     if model_id not in simulations:
         return {"status": "error", "message": f"Model {model_id} not found"}
-    
+
     return {
         "status": "success",
         "model_id": model_id,
@@ -81,7 +81,7 @@ def reset_simulation(model_id: str) -> Dict[str, Any]:
     """Reset simulation to initial state"""
     if model_id not in simulations:
         return {"status": "error", "message": f"Model {model_id} not found"}
-    
+
     return {
         "status": "success",
         "model_id": model_id,
@@ -118,7 +118,7 @@ class MuJoCoServer:
         self.name = "mujoco-mcp"
         self.version = __version__
         self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations"
-        
+
     def get_server_info(self) -> Dict[str, Any]:
         """Get server information for MCP compliance"""
         return {
