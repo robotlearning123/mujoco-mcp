@@ -5,8 +5,8 @@
       "args": ["-m", "mujoco_mcp"],
       "env": {
         "PYTHONUNBUFFERED": "1",
-        "MUJOCO_MCP_LOG_LEVEL": "INFO",
-        "MUJOCO_GL": "osmesa"
+        "MUJOCO_GL": "osmesa",
+        "MUJOCO_MCP_LOG_LEVEL": "INFO"
       },
       "cwd": "${REPO_ROOT}",
       "timeout": 30000
