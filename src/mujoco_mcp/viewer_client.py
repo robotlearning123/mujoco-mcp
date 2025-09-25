@@ -11,7 +11,7 @@ import time
 import subprocess
 import sys
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 logger = logging.getLogger("mujoco_mcp.viewer_client")
 
@@ -285,7 +285,7 @@ class ViewerManager:
         self.clients = {}  # model_id -> ViewerClient
         self.default_port = 8888
     
-    def create_client(self, model_id: str, port: Optional[int] = None) -> bool:
+    def create_client(self, model_id: str, port: int | None = None) -> bool:
         """为特定模型创建viewer客户端"""
         if port is None:
             port = self.default_port
@@ -299,7 +299,7 @@ class ViewerManager:
             logger.error(f"Failed to create viewer client for model {model_id}")
             return False
     
-    def get_client(self, model_id: str) -> Optional[MuJoCoViewerClient]:
+    def get_client(self, model_id: str) -> MuJoCoViewerClient | None:
         """获取指定模型的viewer客户端"""
         return self.clients.get(model_id)
     
@@ -335,7 +335,7 @@ def get_system_diagnostics() -> Dict[str, Any]:
     
     return diagnostics
 
-def get_viewer_client(model_id: str) -> Optional[MuJoCoViewerClient]:
+def get_viewer_client(model_id: str) -> MuJoCoViewerClient | None:
     """获取指定模型的viewer客户端的便捷函数"""
     return viewer_manager.get_client(model_id)
 

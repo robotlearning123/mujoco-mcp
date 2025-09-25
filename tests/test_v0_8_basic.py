@@ -3,6 +3,11 @@ v0.8 基础测试 - 简化版本，专注于核心功能
 """
 
 import pytest
+import sys
+from pathlib import Path
+
+# Add src to path for testing
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 def test_package_import():
@@ -10,7 +15,8 @@ def test_package_import():
     try:
         import mujoco_mcp
         from mujoco_mcp.version import __version__
-        assert __version__ == "0.8.0"
+        # 接受 0.8.x 小版本，避免补丁版本变化导致脆弱失败
+        assert __version__.startswith("0.8."), f"Unexpected version: {__version__}"
     except ImportError as e:
         pytest.fail(f"Package import failed: {e}")
 

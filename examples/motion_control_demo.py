@@ -115,7 +115,7 @@ class MotionControlDemo:
             }
         }
     
-    def get_menagerie_path(self) -> Optional[str]:
+    def get_menagerie_path(self) -> str | None:
         """Get MuJoCo Menagerie path"""
         # Check environment variable
         menagerie_path = os.environ.get('MUJOCO_MENAGERIE_PATH')
@@ -185,7 +185,7 @@ class MotionControlDemo:
             print(f"❌ Failed to load model: {response.get('error')}")
             return False
     
-    def get_state(self) -> Optional[Dict]:
+    def get_state(self) -> Dict | None:
         """Get current robot state"""
         response = self.viewer_client.send_command({
             "type": "get_state",

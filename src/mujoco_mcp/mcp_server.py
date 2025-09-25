@@ -26,7 +26,7 @@ logger = logging.getLogger("mujoco-mcp")
 server = Server("mujoco-mcp")
 
 # Global viewer client
-viewer_client: Optional[ViewerClient] = None
+viewer_client: ViewerClient | None = None
 
 @server.list_tools()
 async def handle_list_tools() -> List[types.Tool]:
@@ -260,7 +260,10 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
             })
             
             if response.get("success"):
-                state = response.get("state", {})
+                state = response.get("state")
+                if state is None:
+                    state_keys = ["time", "qpos", "qvel", "qacc", "ctrl", "xpos"]
+                    state = {k: response[k] for k in state_keys if k in response}
                 return [types.TextContent(
                     type="text",
                     text=json.dumps(state, indent=2)
@@ -312,7 +315,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                 
             return [types.TextContent(
                 type="text",
-                text="❌ Viewer closed" if response.get("success")
+                text="Viewer closed" if response.get("success")
                      else f"❌ Failed to close: {response.get('error')}"
             )]
         

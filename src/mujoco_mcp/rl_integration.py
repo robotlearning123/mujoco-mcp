@@ -8,18 +8,16 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import time
-from typing import Dict, List, Tuple, Optional, Any, Union, Callable
-from dataclasses import dataclass, field
+from typing import Dict, Tuple, Any, Union, Callable
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
-import threading
-import queue
 import logging
 from collections import deque
 import json
+from pathlib import Path
 
 from .viewer_client import MuJoCoViewerClient
-from .advanced_controllers import RobotController
-from .sensor_feedback import SensorManager, SensorReading
+from .sensor_feedback import SensorManager
 
 
 @dataclass
@@ -32,7 +30,7 @@ class RLConfig:
     action_space_type: str = "continuous"  # "continuous" or "discrete"
     observation_space_size: int = 0
     action_space_size: int = 0
-    render_mode: Optional[str] = None
+    render_mode: str | None = None
     physics_timestep: float = 0.002
     control_timestep: float = 0.02
 
@@ -49,12 +47,12 @@ class TaskReward(ABC):
         info: Dict[str, Any]
     ) -> float:
         """Compute reward for current step"""
-        pass
+        raise NotImplementedError
     
     @abstractmethod
-    def is_done(self, observation: np.ndarray, info: Dict[str, Any]) -> bool:
+    def is_done(self, observation: np.ndarray, _info: Dict[str, Any]) -> bool:
         """Check if episode is done"""
-        pass
+        raise NotImplementedError
 
 
 class ReachingTaskReward(TaskReward):
@@ -67,10 +65,10 @@ class ReachingTaskReward(TaskReward):
     
     def compute_reward(
         self,
-        observation: np.ndarray,
+        _observation: np.ndarray,  # Unused but required by interface
         action: np.ndarray,
         next_observation: np.ndarray,
-        info: Dict[str, Any]
+        _info: Dict[str, Any]  # Unused but required by interface
     ) -> float:
         """Compute reaching reward"""
         # Extract end-effector position from observation
@@ -100,7 +98,7 @@ class ReachingTaskReward(TaskReward):
         
         return total_reward
     
-    def is_done(self, observation: np.ndarray, info: Dict[str, Any]) -> bool:
+    def is_done(self, observation: np.ndarray, _info: Dict[str, Any]) -> bool:
         """Episode done when target reached or max steps"""
         end_effector_pos = observation[:3]
         distance = np.linalg.norm(end_effector_pos - self.target_position)
@@ -115,10 +113,10 @@ class BalancingTaskReward(TaskReward):
     
     def compute_reward(
         self,
-        observation: np.ndarray,
+        _observation: np.ndarray,  # Unused but required by interface
         action: np.ndarray,
         next_observation: np.ndarray,
-        info: Dict[str, Any]
+        _info: Dict[str, Any]  # Unused but required by interface
     ) -> float:
         """Compute balancing reward"""
         # Extract relevant state (e.g., pole angle, orientation)
@@ -142,7 +140,7 @@ class BalancingTaskReward(TaskReward):
         
         return total_reward
     
-    def is_done(self, observation: np.ndarray, info: Dict[str, Any]) -> bool:
+    def is_done(self, observation: np.ndarray, _info: Dict[str, Any]) -> bool:
         """Episode done when fallen over"""
         if len(observation) >= 2:
             angle = observation[1]
@@ -159,10 +157,10 @@ class WalkingTaskReward(TaskReward):
     
     def compute_reward(
         self,
-        observation: np.ndarray,
+        _observation: np.ndarray,  # Unused but required by interface
         action: np.ndarray,
         next_observation: np.ndarray,
-        info: Dict[str, Any]
+        _info: Dict[str, Any]  # Unused but required by interface
     ) -> float:
         """Compute walking reward"""
         # Extract position and orientation
@@ -190,7 +188,7 @@ class WalkingTaskReward(TaskReward):
         
         return total_reward
     
-    def is_done(self, observation: np.ndarray, info: Dict[str, Any]) -> bool:
+    def is_done(self, observation: np.ndarray, _info: Dict[str, Any]) -> bool:
         """Episode done when fallen"""
         position = observation[:3]
         return position[2] < 0.3  # Fallen if height < 0.3m
@@ -457,7 +455,7 @@ class MuJoCoRLEnvironment(gym.Env):
         </mujoco>
         """
     
-    def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None) -> Tuple[np.ndarray, Dict]:
+    def reset(self, seed: int | None = None, _options: Dict | None = None) -> Tuple[np.ndarray, Dict]:
         """Reset environment for new episode"""
         super().reset(seed=seed)
         
@@ -605,7 +603,7 @@ class MuJoCoRLEnvironment(gym.Env):
     def render(self):
         """Render environment (MuJoCo viewer handles this)"""
         # The MuJoCo viewer automatically renders the simulation
-        pass
+        raise NotImplementedError
     
     def close(self):
         """Close environment"""
@@ -631,15 +629,15 @@ class RLTrainer:
         rewards = []
         episode_lengths = []
         
-        for episode in range(num_episodes):
-            obs, _ = self.env.reset()
+        for _episode in range(num_episodes):
+            _obs, _ = self.env.reset()
             episode_reward = 0
             episode_length = 0
             done = False
             
             while not done:
                 action = self.env.action_space.sample()
-                obs, reward, terminated, truncated, info = self.env.step(action)
+                _obs, reward, terminated, truncated, _info = self.env.step(action)
                 episode_reward += reward
                 episode_length += 1
                 done = terminated or truncated
@@ -658,7 +656,7 @@ class RLTrainer:
             "max_reward": np.max(rewards)
         }
         
-        print(f"\nRandom Policy Baseline Results:")
+        print("\nRandom Policy Baseline Results:")
         for key, value in results.items():
             print(f"  {key}: {value:.4f}")
         
@@ -669,7 +667,7 @@ class RLTrainer:
         rewards = []
         episode_lengths = []
         
-        for episode in range(num_episodes):
+        for _episode in range(num_episodes):
             obs, _ = self.env.reset()
             episode_reward = 0
             episode_length = 0
@@ -677,7 +675,7 @@ class RLTrainer:
             
             while not done:
                 action = policy_fn(obs)
-                obs, reward, terminated, truncated, info = self.env.step(action)
+                obs, reward, terminated, truncated, _info = self.env.step(action)
                 episode_reward += reward
                 episode_length += 1
                 done = terminated or truncated
@@ -704,7 +702,7 @@ class RLTrainer:
             }
         }
         
-        with open(filepath, 'w') as f:
+        with Path(filepath).open('w') as f:
             json.dump(data, f, indent=2)
 
 
@@ -767,7 +765,7 @@ def example_training():
     # Evaluate PID policy
     pid_results = trainer.evaluate_policy(pid_policy, num_episodes=5)
     
-    print(f"\nPID Policy Results:")
+    print("\nPID Policy Results:")
     for key, value in pid_results.items():
         print(f"  {key}: {value:.4f}")
     

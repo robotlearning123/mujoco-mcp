@@ -6,8 +6,8 @@ Implements various sensor modalities and feedback control loops
 
 import numpy as np
 import time
-from typing import Dict, List, Tuple, Optional, Any, Callable
-from dataclasses import dataclass, field
+from typing import Dict, List, Any
+from dataclasses import dataclass
 from enum import Enum
 import threading
 import queue
@@ -49,12 +49,12 @@ class SensorProcessor(ABC):
     @abstractmethod
     def process_raw_data(self, raw_data: Any) -> SensorReading:
         """Process raw sensor data into standardized format"""
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     def calibrate(self, calibration_data: Dict[str, Any]) -> bool:
         """Calibrate sensor"""
-        pass
+        raise NotImplementedError
 
 
 class JointSensorProcessor(SensorProcessor):
@@ -352,7 +352,7 @@ class ClosedLoopController:
         
         return p_term + i_term + d_term
     
-    def _adaptive_control(self, error: np.ndarray, current_state: np.ndarray) -> np.ndarray:
+    def _adaptive_control(self, error: np.ndarray, _current_state: np.ndarray) -> np.ndarray:
         """Adaptive control implementation"""
         # Simple adaptive law based on error magnitude
         adaptive_gain = 1.0 + 0.1 * np.linalg.norm(error)
@@ -415,7 +415,6 @@ class SensorManager:
         """Collect data from all sensors"""
         # This is a placeholder - in real implementation,
         # this would interface with MuJoCo to get sensor data
-        pass
     
     def get_latest_readings(self) -> List[SensorReading]:
         """Get latest sensor readings"""

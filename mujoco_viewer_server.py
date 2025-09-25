@@ -124,8 +124,8 @@ class MuJoCoViewerServer:
         self.socket_server = None
         
         # Single model manager - only supports one active viewer
-        self.current_viewer: Optional[ModelViewer] = None
-        self.current_model_id: Optional[str] = None
+        self.current_viewer: ModelViewer | None = None
+        self.current_model_id: str | None = None
         self.viewer_lock = threading.Lock()
         
         # Client management
