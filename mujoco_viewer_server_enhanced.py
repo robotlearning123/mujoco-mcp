@@ -521,7 +521,8 @@ class EnhancedMuJoCoViewerServer:
                     response_time = time.time() - response_start
                     
                     # Send response
-                    response_data = json.dumps(response).encode('utf-8')
+                    # Send response (newline-delimited JSON for client framing)
+                    response_data = json.dumps(response).encode('utf-8') + b"\n"
                     client_socket.sendall(response_data)
                     
                     self.connection_manager.update_connection_activity(
