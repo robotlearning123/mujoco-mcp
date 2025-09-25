@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mujoco-mcp": {
+      "command": "python",
+      "args": ["-m", "mujoco_mcp"],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "MUJOCO_GL": "osmesa"
+      }
+    }
+  }
+}
