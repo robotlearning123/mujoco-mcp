@@ -9,24 +9,7 @@ import logging
 import argparse
 import os
 
-# Import all optional dependencies at top level
-try:
-    import mujoco
-except ImportError:
-    mujoco = None
-
-try:
-    import mcp
-except ImportError:
-    mcp = None
-
-try:
-    import numpy as np
-except ImportError:
-    np = None
-
 from .version import __version__
-from .mcp_server import main as mcp_main
 
 
 def setup_logging(level: str = "INFO"):
@@ -53,45 +36,45 @@ Examples:
   python -m mujoco_mcp --host 0.0.0.0    # Listen on all interfaces
         """
     )
-    
+
     parser.add_argument(
         "--host",
         default=os.getenv("MUJOCO_MCP_HOST", "localhost"),
         help="Host to bind to (default: localhost)"
     )
-    
+
     parser.add_argument(
         "--port",
         type=int,
         default=int(os.getenv("MUJOCO_MCP_PORT", "8000")),
         help="Port to bind to (default: 8000)"
     )
-    
+
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         default=os.getenv("MUJOCO_MCP_LOG_LEVEL", "INFO"),
         help="Logging level (default: INFO)"
     )
-    
+
     parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug mode (equivalent to --log-level DEBUG)"
     )
-    
+
     parser.add_argument(
         "--version",
         action="version",
         version=f"MuJoCo MCP Server v{__version__}"
     )
-    
+
     parser.add_argument(
         "--check",
         action="store_true",
         help="Check configuration and exit"
     )
-    
+
     return parser.parse_args()
 
 
@@ -101,37 +84,40 @@ def check_configuration():
     """Check configuration and dependencies"""
     print(f"MuJoCo MCP Server v{__version__}")
     print("Configuration Check:")
-    
+
     # Check Python version
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     print(f"✓ Python version: {python_version}")
-    
+
     # Check dependencies
-    if mujoco is not None:
+    try:
+        import mujoco
         print(f"✓ MuJoCo version: {mujoco.__version__}")
-    else:
+    except ImportError:
         print("✗ MuJoCo not installed")
         return False
-    
-    if mcp is not None:
+
+    try:
+        import mcp
         print("✓ MCP package available")
-    else:
+    except ImportError:
         print("✗ MCP package not installed")
         return False
-    
-    if np is not None:
+
+    try:
+        import numpy as np
         print(f"✓ NumPy version: {np.__version__}")
-    else:
+    except ImportError:
         print("✗ NumPy not installed")
         return False
-    
+
     # Check environment variables
     print("\nEnvironment Variables:")
     env_vars = ["MUJOCO_MCP_HOST", "MUJOCO_MCP_PORT", "MUJOCO_MCP_LOG_LEVEL"]
     for var in env_vars:
         value = os.getenv(var, "not set")
         print(f"  {var}: {value}")
-    
+
     print("\n✓ Configuration check passed")
     return True
 
@@ -139,18 +125,19 @@ def check_configuration():
 def main():
     """Main entry point for CLI - runs MCP server via stdio"""
     args = parse_args()
-    
+
     # Handle debug flag
     if args.debug:
         args.log_level = "DEBUG"
-    
+
     # Configuration check
     if args.check:
         success = check_configuration()
         sys.exit(0 if success else 1)
-    
-    # Run MCP server
+
+    # Import and run MCP server
     try:
+        from .mcp_server import main as mcp_main
         asyncio.run(mcp_main())
     except KeyboardInterrupt:
         print("\nMCP server stopped by user")

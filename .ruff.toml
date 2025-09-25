@@ -44,19 +44,17 @@ select = [
     "RUF", # ruff-specific rules
 ]
 
-# Temporarily ignore many rules during development phase
+# Selectively ignore rules that need gradual fixing
 ignore = [
-    # Import and unused variable issues
-    "F401",    # Imported but unused
+    # Import and unused variable issues (will be fixed gradually)
     "F841",    # Local variable assigned but never used
-    "F821",    # Undefined name
     
-    # Code quality issues (temporary)
-    "E722",    # Bare except
-    "W291",    # Trailing whitespace
-    "W292",    # No newline at end of file
-    "W293",    # Blank line contains whitespace
-    "E501",    # Line too long
+    # Code quality issues - these should be enabled for better code quality
+    # "E722",    # Bare except - should be fixed
+    # "W291",    # Trailing whitespace - handled by pre-commit
+    # "W292",    # No newline at end of file - handled by pre-commit  
+    # "W293",    # Blank line contains whitespace - handled by pre-commit
+    # "E501",    # Line too long - handled by black/ruff format
     
     # Type annotation modernization (can be done later)
     "UP006",   # Use `dict` instead of `Dict` for type annotation
@@ -75,22 +73,22 @@ ignore = [
     "RUF002",  # Docstring contains ambiguous unicode
     "RUF015",  # Prefer next(iter()) over single element slice
     
-    # Print statements (acceptable in some modules)
+    # Print statements (keep for scripts and CLI)
     "T201",    # Print statements found
     
-    # String formatting and concatenation
-    "ISC003",  # Explicitly concatenated string should be implicitly concatenated
-    "G003",    # Logging statement uses `+`
+    # String formatting and concatenation - enable these for better code
+    # "ISC003",  # Explicitly concatenated string should be implicitly concatenated
+    # "G003",    # Logging statement uses `+`
     
-    # Code comments and cleanup
-    "ERA001",  # Found commented-out code
+    # Code comments and cleanup - enable this for cleaner code
+    # "ERA001",  # Found commented-out code
     
-    # Exception handling patterns
-    "TRY301",  # Abstract `raise` to an inner function
-    "TRY400",  # Use `logging.exception` instead of `logging.error`
+    # Exception handling patterns - enable these for better error handling
+    # "TRY301",  # Abstract `raise` to an inner function
+    # "TRY400",  # Use `logging.exception` instead of `logging.error`
     
-    # Return statement optimization
-    "RET504",  # Unnecessary assignment before `return` statement
+    # Return statement optimization - enable for cleaner code
+    # "RET504",  # Unnecessary assignment before `return` statement
     
     # Path handling modernization (can be done later)
     "PTH118",  # `os.path.join()` should be replaced by `Path` with `/` operator

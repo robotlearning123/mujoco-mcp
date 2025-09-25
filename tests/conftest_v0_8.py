@@ -20,8 +20,8 @@ def mock_viewer():
     class MockViewer:
         def close(self):
             pass
-        
+
         def sync(self):
             pass
-    
+
     return MockViewer()

@@ -15,7 +15,7 @@ sys.path.insert(0, str(project_root / "src"))
 async def test_core_functionality():
     """Test core functionality"""
     print("=== MuJoCo-MCP Quick Internal Test ===\n")
-    
+
     results = {
         "import_test": False,
         "version_test": False,
@@ -23,11 +23,10 @@ async def test_core_functionality():
         "mcp_protocol_test": False,
         "error_handling_test": False
     }
-    
+
     # 1. Import test
     print("1. Testing package import...")
     try:
-        import mujoco_mcp
         from mujoco_mcp.version import __version__
         from mujoco_mcp.mcp_server import handle_list_tools, handle_call_tool
         print(f"   ✅ Package imported successfully, version: {__version__}")
@@ -36,7 +35,7 @@ async def test_core_functionality():
     except Exception as e:
         print(f"   ❌ Package import failed: {e}")
         return results
-    
+
     # 2. Tools list test
     print("\n2. Testing tools list...")
     try:
@@ -47,7 +46,7 @@ async def test_core_functionality():
         results["tools_test"] = True
     except Exception as e:
         print(f"   ❌ Failed to get tools list: {e}")
-    
+
     # 3. MCP protocol test
     print("\n3. Testing MCP protocol...")
     try:
@@ -60,7 +59,7 @@ async def test_core_functionality():
             print("   ❌ Server info response is empty")
     except Exception as e:
         print(f"   ❌ MCP protocol test failed: {e}")
-    
+
     # 4. Error handling test
     print("\n4. Testing error handling...")
     try:
@@ -72,7 +71,7 @@ async def test_core_functionality():
             print(f"   ⚠️  Error handling abnormal: {result[0].text if result else 'No result'}")
     except Exception as e:
         print(f"   ❌ Error handling test failed: {e}")
-    
+
     return results
 
 def print_summary(results):
@@ -80,20 +79,20 @@ def print_summary(results):
     print("\n" + "="*50)
     print("Internal Test Summary")
     print("="*50)
-    
+
     total_tests = len(results)
     passed_tests = sum(1 for success in results.values() if success)
-    
+
     print(f"Test items: {total_tests}")
     print(f"Tests passed: {passed_tests}")
     print(f"Tests failed: {total_tests - passed_tests}")
     print(f"Success rate: {(passed_tests/total_tests)*100:.1f}%")
-    
+
     print("\nDetailed results:")
     status_map = {True: "✅ PASS", False: "❌ FAIL"}
     for test_name, success in results.items():
         print(f"  {status_map[success]} {test_name}")
-    
+
     if passed_tests == total_tests:
         print("\n🎉 All tests passed! Project is ready.")
         return True
@@ -106,16 +105,16 @@ def print_summary(results):
 
 async def main():
     start_time = time.time()
-    
+
     try:
         results = await test_core_functionality()
         success = print_summary(results)
-        
+
         end_time = time.time()
         print(f"\nTest duration: {end_time - start_time:.2f}s")
-        
+
         return 0 if success else 1
-        
+
     except KeyboardInterrupt:
         print("\n\nTest interrupted by user")
         return 1

@@ -4,13 +4,15 @@ v0.5.0 - MCP server based on FastMCP framework
 """
 import asyncio
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, TYPE_CHECKING
 
 from mcp.server import FastMCP
 from pydantic import BaseModel, Field
 
-from .simulation import MuJoCoSimulation
 from .version import __version__
+
+if TYPE_CHECKING:
+    from .simulation import MuJoCoSimulation
 
 # Direct implementation without simple_server dependency
 
@@ -82,94 +84,44 @@ class OptimizeParametersParams(BaseModel):
     results_name: str | None = Field(None, description="Name for saved results")
 
 
-class _MuJoCoServerImpl:
-    def __init__(self):
-        self.simulations: Dict[str, MuJoCoSimulation] = {}
-        self.version = __version__
-        self._tools: Dict[str, Dict[str, Any]] = {}
-
-    def _handle_load_model(self, _model_string: str, _name: str | None = None) -> Dict[str, Any]:
-        return {}
-
-    def _handle_get_loaded_models(self) -> Dict[str, Any]:
-        return {}
-
-    def _handle_step_simulation(self, _model_id: str, _steps: int = 1) -> Dict[str, Any]:
-        return {}
-
-    def _handle_reset_simulation(self, _model_id: str) -> Dict[str, Any]:
-        return {}
-
-    def _handle_get_state(self, _model_id: str, _components: List[str] | None = None) -> Dict[str, Any]:
-        return {}
-
-    def _handle_set_joint_positions(self, _model_id: str, _positions: List[float]) -> Dict[str, Any]:
-        return {}
-
-    def _handle_set_joint_velocities(self, _model_id: str, _velocities: List[float]) -> Dict[str, Any]:
-        return {}
-
-    def _handle_apply_control(self, _model_id: str, _control: List[float]) -> Dict[str, Any]:
-        return {}
-
-    def _handle_get_observations(self, _model_id: str) -> Dict[str, Any]:
-        return {}
-
-    def _handle_render_frame(self, _model_id: str) -> Dict[str, Any]:
-        return {}
-
-    def _handle_pendulum_demo(self, _action: str, _duration: float | None = None) -> Dict[str, Any]:
-        return {}
-
-    def _handle_execute_command(self, _command: str, _context: Dict[str, Any] | None = None) -> Dict[str, Any]:
-        return {}
-
-    def _handle_design_robot(self, **kwargs) -> Dict[str, Any]:
-        return {}
-
-    def _handle_optimize_parameters(self, **kwargs) -> Dict[str, Any]:
-        return {}
-
-
 class MuJoCoServer:
     """FastMCP-based MuJoCo MCP Server"""
-    
+
     def __init__(self):
         """Initialize the MuJoCo MCP server"""
         self.name = "mujoco-mcp"
         self.version = __version__
         self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations"
-        
+
         # Initialize simulations storage
         self.simulations: Dict[str, MuJoCoSimulation] = {}
-        self._impl = _MuJoCoServerImpl()
         self._impl.version = self.version  # Update version
-        
+
         # Create FastMCP instance
         self.mcp = FastMCP(self.name)
-        
+
         # Setup logging
         self.logger = logging.getLogger("mujoco_mcp.server")
-        
+
         # Register all tools and resources
         self._register_tools()
         self._register_resources()
-    
+
     async def initialize(self):
         """Initialize the server"""
         self.logger.info(f"MuJoCo MCP Server v{self.version} initializing...")
         # Any async initialization can go here
         return self
-    
+
     async def cleanup(self):
         """Cleanup server resources"""
         self.logger.info("MuJoCo MCP Server shutting down...")
         # Cleanup simulations
-        for model_id in list(self._impl.simulations.keys()):
-            sim = self._impl.simulations[model_id]
+        for model_id in list(self._impl._models.keys()):
+            sim = self._impl._models[model_id]
             if hasattr(sim, 'close'):
                 sim.close()
-    
+
     def get_server_info(self) -> Dict[str, Any]:
         """Get server information"""
         return {
@@ -198,16 +150,16 @@ class MuJoCoServer:
                 "concurrent_simulations": True
             }
         }
-    
+
     def _register_tools(self):
         """Register all tools with FastMCP"""
-        
+
         # Server info tool
         @self.mcp.tool()
         async def get_server_info() -> Dict[str, Any]:
             """Get detailed server information"""
             return self.get_server_info()
-        
+
         # Load model tool
         @self.mcp.tool()
         async def load_model(model_string: str, name: str | None = None) -> Dict[str, Any]:
@@ -216,13 +168,13 @@ class MuJoCoServer:
                 model_string=model_string,
                 name=name
             )
-        
+
         # Get loaded models
         @self.mcp.tool()
         async def get_loaded_models() -> Dict[str, Any]:
             """Get list of loaded models"""
             return self._impl._handle_get_loaded_models()
-        
+
         # Step simulation
         @self.mcp.tool()
         async def step_simulation(model_id: str, steps: int = 1) -> Dict[str, Any]:
@@ -231,13 +183,13 @@ class MuJoCoServer:
                 model_id=model_id,
                 steps=steps
             )
-        
+
         # Reset simulation
         @self.mcp.tool()
         async def reset_simulation(model_id: str) -> Dict[str, Any]:
             """Reset simulation to initial state"""
             return self._impl._handle_reset_simulation(model_id=model_id)
-        
+
         # Get state
         @self.mcp.tool()
         async def get_state(model_id: str, components: List[str] | None = None) -> Dict[str, Any]:
@@ -246,7 +198,7 @@ class MuJoCoServer:
                 model_id=model_id,
                 components=components
             )
-        
+
         # Set joint positions
         @self.mcp.tool()
         async def set_joint_positions(model_id: str, positions: List[float]) -> Dict[str, Any]:
@@ -255,7 +207,7 @@ class MuJoCoServer:
                 model_id=model_id,
                 positions=positions
             )
-        
+
         # Set joint velocities
         @self.mcp.tool()
         async def set_joint_velocities(model_id: str, velocities: List[float]) -> Dict[str, Any]:
@@ -264,7 +216,7 @@ class MuJoCoServer:
                 model_id=model_id,
                 velocities=velocities
             )
-        
+
         # Apply control
         @self.mcp.tool()
         async def apply_control(model_id: str, control: List[float]) -> Dict[str, Any]:
@@ -273,19 +225,19 @@ class MuJoCoServer:
                 model_id=model_id,
                 control=control
             )
-        
+
         # Get observations
         @self.mcp.tool()
         async def get_observations(model_id: str) -> Dict[str, Any]:
             """Get sensor observations"""
             return self._impl._handle_get_observations(model_id=model_id)
-        
+
         # Render frame
         @self.mcp.tool()
         async def render_frame(model_id: str) -> Dict[str, Any]:
             """Render current simulation frame"""
             return self._impl._handle_render_frame(model_id=model_id)
-        
+
         # Pendulum demo
         @self.mcp.tool()
         async def pendulum_demo(action: str, duration: float | None = None) -> Dict[str, Any]:
@@ -294,7 +246,7 @@ class MuJoCoServer:
                 action=action,
                 duration=duration
             )
-        
+
         # Natural language command
         @self.mcp.tool()
         async def nl_command(command: str, model_id: str | None = None) -> Dict[str, Any]:
@@ -303,7 +255,7 @@ class MuJoCoServer:
                 command=command,
                 context={"model_id": model_id} if model_id else {}
             )
-        
+
         # Design robot
         @self.mcp.tool()
         async def design_robot(
@@ -325,7 +277,7 @@ class MuJoCoServer:
                 estimate_cost=estimate_cost,
                 component_preferences=component_preferences
             )
-        
+
         # Optimize parameters
         @self.mcp.tool()
         async def optimize_parameters(
@@ -351,7 +303,7 @@ class MuJoCoServer:
                 save_results=save_results,
                 results_name=results_name
             )
-        
+
         # Register remaining tools from simple server
         # This is a simplified approach - in production, each tool would be properly typed
         for tool_name, tool_info in self._impl._tools.items():
@@ -362,58 +314,58 @@ class MuJoCoServer:
                                "nl_command", "design_robot", "optimize_parameters"]:
                 # Create a generic tool registration
                 self._register_generic_tool(tool_name, tool_info)
-    
+
     def _register_generic_tool(self, tool_name: str, tool_info: Dict[str, Any]):
         """Register a generic tool from simple server"""
         handler = tool_info["handler"]
-        
+
         # Create async wrapper
         async def tool_wrapper(**kwargs):
             # Call the sync handler
             return handler(**kwargs)
-        
+
         # Register with FastMCP
         self.mcp.tool(name=tool_name)(tool_wrapper)
-    
+
     def _register_resources(self):
         """Register resources with FastMCP"""
-        
+
         @self.mcp.resource("simulation://state")
         async def get_simulation_state() -> Dict[str, Any]:
             """Get current simulation state"""
-            if not self._impl.simulations:
+            if not self._impl._models:
                 return {"contents": {"error": "No simulations loaded"}}
-            
+
             # Get state from first active simulation
-            model_id = list(self._impl.simulations.keys())[0]
-            sim = self._impl.simulations[model_id]
-            
+            model_id = list(self._impl._models.keys())[0]
+            sim = self._impl._models[model_id]
+
             return {
                 "contents": {
                     "model_id": model_id,
                     "time": sim.data.time,
                     "joint_positions": sim.data.qpos.tolist(),
                     "joint_velocities": sim.data.qvel.tolist(),
-                    "active_simulations": len(self._impl.simulations)
+                    "active_simulations": len(self._impl._models)
                 }
             }
-        
+
         @self.mcp.resource("simulation://sensors")
         async def get_sensor_data() -> Dict[str, Any]:
             """Get sensor data from active simulations"""
-            if not self._impl.simulations:
+            if not self._impl._models:
                 return {"contents": {"error": "No simulations loaded"}}
-            
+
             sensors = {}
-            for model_id, sim in self._impl.simulations.items():
-                if sim.model is not None and sim.model.nsensor > 0:
+            for model_id, sim in self._impl._models.items():
+                if sim.model.nsensor > 0:
                     sensors[model_id] = {
                         "count": sim.model.nsensor,
                         "data": sim.data.sensordata.tolist()
                     }
-            
+
             return {"contents": sensors}
-        
+
         @self.mcp.resource("simulation://config")
         async def get_config() -> Dict[str, Any]:
             """Get server configuration"""
@@ -421,11 +373,11 @@ class MuJoCoServer:
                 "contents": {
                     "version": self.version,
                     "capabilities": self.get_server_info()["capabilities"],
-                    "loaded_models": len(self._impl.simulations),
+                    "loaded_models": len(self._impl._models),
                     "available_tools": len(self._impl._tools)
                 }
             }
-    
+
     async def run(self):
         """Run the FastMCP server"""
         self.logger.info(f"Starting MuJoCo MCP Server v{self.version}")
