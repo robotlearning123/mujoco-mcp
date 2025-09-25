@@ -1,0 +1,18 @@
+{
+  "server_basic": true,
+  "menagerie_listing": true,
+  "model_validation": 0,
+  "scene_creation": 2,
+  "models_tested": [
+    "franka_emika_panda",
+    "unitree_go1",
+    "unitree_h1",
+    "robotiq_2f85"
+  ],
+  "errors": [
+    "Model validation failed for franka_emika_panda",
+    "Model validation failed for unitree_go1",
+    "Model validation failed for unitree_h1",
+    "Model validation failed for robotiq_2f85"
+  ]
+}

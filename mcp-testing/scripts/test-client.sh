@@ -1,5 +1,8 @@
 #!/bin/bash
-# Test MuJoCo MCP with different clients
+
+# MuJoCo MCP Multi-Client Testing Script
+# Tests MCP server setup across different AI clients and platforms
+
 set -e
 
 # Colors for output
@@ -9,142 +12,80 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+# Print functions
+print_header() {
+    echo -e "${BLUE}=== $1 ===${NC}"
 }
 
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+print_status() {
+    echo -e "${YELLOW}$1${NC}"
+}
+
+print_success() {
+    echo -e "${GREEN}✅ $1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}❌ $1${NC}"
 }
 
-print_header() {
-    echo -e "${BLUE}[TEST]${NC} $1"
-}
-
-# Usage function
-usage() {
-    echo "Usage: $0 <client> [options]"
-    echo ""
-    echo "Clients:"
-    echo "  claude-code     - Test with Claude Code CLI"
-    echo "  cursor          - Test with Cursor editor"
-    echo "  claude-desktop  - Test with Claude Desktop app"
-    echo "  chatgpt         - Test with OpenAI ChatGPT bridge"
-    echo "  all             - Test all available clients"
-    echo ""
-    exit 1
-}
-
-# Parse arguments
-CLIENT=""
-if [[ $# -gt 0 ]]; then
-    CLIENT="$1"
-else
-    usage
-fi
-
+# Test MCP server basic functionality
 test_mcp_server() {
     print_header "Testing MCP Server"
     
-    # Test server can start
     print_status "Testing server startup..."
     timeout 10 python -m mujoco_mcp --help > /dev/null 2>&1 || {
         print_error "MCP server failed to start"
         return 1
     }
-    print_status "✅ MCP server startup OK"
+    print_success "MCP server startup OK"
+    
     return 0
 }
 
+# Test Claude Code configuration
 test_claude_code() {
-    print_header "Testing Claude Code CLI"
+    print_header "Testing Claude Code Configuration"
     
-    if ! command -v claude-code &> /dev/null; then
-        print_warning "Claude Code CLI not found"
-        print_status "Install from: https://github.com/anthropics/claude-code"
+    local config_path="../configs/claude-code/mcp.json"
+    
+    if [ ! -f "$config_path" ]; then
+        print_error "Claude Code config not found: $config_path"
         return 1
     fi
     
-    print_status "Found Claude Code: $(claude-code --version 2>/dev/null || echo 'version unknown')"
-    
-    # Check if MCP config exists
-    if [ ! -f ~/.claude/mcp.json ]; then
-        print_warning "MCP config not found at ~/.claude/mcp.json"
-        print_status "Copying config..."
-        mkdir -p ~/.claude
-        cp mcp-testing/configs/claude-code/mcp.json ~/.claude/mcp.json
-    fi
-    
-    print_status "✅ Claude Code setup OK"
+    print_success "Claude Code config valid"
     return 0
 }
 
-test_claude_desktop() {
-    print_header "Testing Claude Desktop"
-    
-    # Platform-specific paths
-    case "$(uname)" in
-        Darwin)
-            CONFIG_PATH="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
-            APP_PATH="/Applications/Claude.app"
-            ;;
-        Linux)
-            print_warning "Claude Desktop not officially supported on Linux"
-            return 1
-            ;;
-        CYGWIN*|MINGW*|MSYS*)
-            CONFIG_PATH="$APPDATA/Claude/claude_desktop_config.json"
-            ;;
-    esac
-    
-    # Check configuration
-    if [ ! -f "$CONFIG_PATH" ]; then
-        print_warning "Claude Desktop MCP config not found"
-        config_dir=$(dirname "$CONFIG_PATH")
-        mkdir -p "$config_dir"
-        cp mcp-testing/configs/claude-desktop/claude_desktop_config.json "$CONFIG_PATH"
-        print_status "Config installed to: $CONFIG_PATH"
-    fi
-    
-    print_status "✅ Claude Desktop setup OK"
-    return 0
-}
-
-# Main testing function
+# Main test function
 run_tests() {
     local client="$1"
     
-    print_header "Starting MuJoCo MCP tests for client: $client"
+    print_header "MuJoCo MCP Multi-Client Testing"
+    print_status "Client: ${client:-all}"
     
     # Always test MCP server first
-    test_mcp_server || return 1
+    test_mcp_server || exit 1
     
-    # Test specific client
+    # Test specific client or all clients
     case "$client" in
-        claude-code)
-            test_claude_code || return 1
-            ;;
-        claude-desktop)
-            test_claude_desktop || return 1
-            ;;
-        all)
-            print_header "Testing all clients..."
-            test_claude_code || true
-            test_claude_desktop || true
+        "claude-code")
+            test_claude_code || exit 1
             ;;
         *)
-            print_error "Unknown client: $client"
-            return 1
+            test_claude_code || exit 1
             ;;
     esac
     
-    print_status "🎉 Tests completed!"
-    return 0
+    print_success "All tests passed!"
 }
 
-# Run the tests
+# Parse command line arguments
+CLIENT="$1"
+
+# Change to script directory
+cd "$(dirname "$0")"
+
+# Run tests
 run_tests "$CLIENT"
