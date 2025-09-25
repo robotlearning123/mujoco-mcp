@@ -7,16 +7,13 @@ Advanced plotting, monitoring, and analysis tools for robot simulation
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from matplotlib.widgets import Slider, Button
-import seaborn as sns
 import plotly.graph_objects as go
-import plotly.express as px
 from plotly.subplots import make_subplots
 import plotly.io as pio
 import time
 import threading
 import queue
-from typing import Dict, List, Tuple, Optional, Any, Callable
+from typing import Dict, List, Any
 from dataclasses import dataclass, field
 from collections import deque
 import json
@@ -46,6 +43,7 @@ class VisualizationData:
     values: deque = field(default_factory=lambda: deque(maxlen=1000))
     labels: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    multi_values: List[deque] = field(default_factory=list)
 
 
 class RealTimePlotter:
@@ -55,9 +53,9 @@ class RealTimePlotter:
         self.config = config
         self.data = VisualizationData()
         self.fig, self.ax = plt.subplots(figsize=(12, 6))
-        self.lines = []
+        self.lines: List[Any] = []
         self.running = False
-        self.animation = None
+        self.animation: animation.FuncAnimation | None = None
         
         # Setup plot
         self.ax.set_title(config.title)
@@ -65,7 +63,7 @@ class RealTimePlotter:
         self.ax.set_ylabel(config.ylabel)
         self.ax.grid(True, alpha=0.3)
         
-    def add_data_source(self, label: str, color: str = None):
+    def add_data_source(self, label: str, color: str | None = None):
         """Add a new data source to plot"""
         if color is None:
             colors = plt.cm.tab10(np.linspace(0, 1, 10))
@@ -114,7 +112,7 @@ class RealTimePlotter:
         
         # Auto-scale axes
         if times:
-            self.ax.set_xlim(max(0, times[-1] - 30), times[-1] + 1)  # Show last 30 seconds
+            self.ax.set_xlim(max(0, times[-1] - 30), times[-1] + 1)
             
             all_values = []
             for value_deque in getattr(self.data, 'multi_values', []):
@@ -153,9 +151,9 @@ class InteractiveVisualizer:
     """Interactive visualization with Plotly"""
     
     def __init__(self):
-        self.data_sources = {}
-        self.fig = None
-        self.update_thread = None
+        self.data_sources: Dict[str, Dict[str, Any]] = {}
+        self.fig: go.Figure | None = None
+        self.update_thread: threading.Thread | None = None
         self.running = False
         
     def create_dashboard(self, title: str = "MuJoCo MCP Dashboard") -> go.Figure:
@@ -267,18 +265,18 @@ class RobotStateMonitor:
     def __init__(self, viewer_client: MuJoCoViewerClient):
         self.viewer_client = viewer_client
         self.monitoring = False
-        self.monitor_thread = None
-        self.data_queue = queue.Queue()
+        self.monitor_thread: threading.Thread | None = None
+        self.data_queue: queue.Queue[Dict[str, Any]] = queue.Queue()
         
         # Visualization components
-        self.joint_plotter = None
-        self.force_plotter = None
-        self.trajectory_plotter = None
+        self.joint_plotter: RealTimePlotter | None = None
+        self.force_plotter: RealTimePlotter | None = None
+        self.trajectory_plotter: TrajectoryVisualizer | None = None
         self.dashboard = InteractiveVisualizer()
         
         # Data storage
-        self.state_history = deque(maxlen=10000)
-        self.start_time = None
+        self.state_history: deque[Dict[str, Any]] = deque(maxlen=10000)
+        self.start_time: float | None = None
         
     def start_monitoring(self, model_id: str, update_rate: float = 50.0):
         """Start monitoring robot state"""
@@ -316,18 +314,19 @@ class RobotStateMonitor:
                 
                 if response.get("success"):
                     state = response.get("state", {})
-                    timestamp = time.time() - self.start_time
-                    
-                    # Store state
-                    state_entry = {
-                        "timestamp": timestamp,
-                        "state": state
-                    }
-                    self.state_history.append(state_entry)
-                    self.data_queue.put(state_entry)
-                    
-                    # Update visualizations
-                    self._update_visualizations(state_entry)
+                    if self.start_time is not None:
+                        timestamp = time.time() - self.start_time
+                        
+                        # Store state
+                        state_entry = {
+                            "timestamp": timestamp,
+                            "state": state
+                        }
+                        self.state_history.append(state_entry)
+                        self.data_queue.put(state_entry)
+                        
+                        # Update visualizations
+                        self._update_visualizations(state_entry)
                 
                 time.sleep(dt)
                 
@@ -441,7 +440,7 @@ class RobotStateMonitor:
         qpos_array = np.array(qpos_data)
         qvel_array = np.array(qvel_data)
         
-        analysis = {
+        analysis: Dict[str, Any] = {
             "duration": timestamps[-1] - timestamps[0] if len(timestamps) > 1 else 0,
             "sample_rate": len(timestamps) / (timestamps[-1] - timestamps[0]) if len(timestamps) > 1 else 0,
             "joint_statistics": {},
@@ -479,10 +478,10 @@ class TrajectoryVisualizer:
     """Visualize robot trajectories in 3D"""
     
     def __init__(self):
-        self.trajectories = {}
-        self.fig = None
+        self.trajectories: Dict[str, Dict[str, np.ndarray]] = {}
+        self.fig: go.Figure | None = None
         
-    def add_trajectory(self, name: str, positions: np.ndarray, timestamps: Optional[np.ndarray] = None):
+    def add_trajectory(self, name: str, positions: np.ndarray, timestamps: np.ndarray | None = None):
         """Add trajectory for visualization"""
         if timestamps is None:
             timestamps = np.arange(len(positions))
@@ -610,7 +609,7 @@ def analyze_trajectory_file(filename: str) -> Dict[str, Any]:
     filepath = Path(filename)
     
     if filepath.suffix == '.json':
-        with open(filepath, 'r') as f:
+        with open(filepath) as f:
             data = json.load(f)
             states = data.get("states", [])
     elif filepath.suffix == '.npz':
@@ -629,7 +628,7 @@ def analyze_trajectory_file(filename: str) -> Dict[str, Any]:
         raise ValueError(f"Unsupported file format: {filepath.suffix}")
     
     # Create temporary monitor for analysis
-    monitor = RobotStateMonitor(None)
+    monitor = RobotStateMonitor(MuJoCoViewerClient()) # Pass a dummy client
     monitor.state_history = deque(states)
     
     return monitor.analyze_performance()

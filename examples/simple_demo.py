@@ -153,7 +153,7 @@ class MuJoCoSimulation:
             if i < self.model.nu:
                 self.data.ctrl[i] = ctrl
     
-    def get_body_position(self, body_name: str) -> Optional[List[float]]:
+    def get_body_position(self, body_name: str) -> List[float] | None:
         """获取刚体位置"""
         if body_name in self.body_names:
             body_id = self.body_names[body_name]

@@ -26,7 +26,7 @@ logger = logging.getLogger("mujoco-mcp")
 server = Server("mujoco-mcp")
 
 # Global viewer client
-viewer_client: Optional[ViewerClient] = None
+viewer_client: ViewerClient | None = None
 
 @server.list_tools()
 async def handle_list_tools() -> List[types.Tool]:

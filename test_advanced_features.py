@@ -42,7 +42,7 @@ class AdvancedFeatureTests:
     def __init__(self):
         self.test_results = {}
         self.temp_dir = tempfile.mkdtemp()
-        print(f"🧪 Advanced Features Test Suite")
+        print("🧪 Advanced Features Test Suite")
         print(f"Temporary directory: {self.temp_dir}")
         print("=" * 60)
     
@@ -84,7 +84,7 @@ class AdvancedFeatureTests:
         command = pid.update(target, current)
         
         if command <= 0:
-            print(f"     ❌ PID should output positive command for positive error")
+            print("     ❌ PID should output positive command for positive error")
             return False
         
         print("     ✅ PID controller working")
@@ -228,7 +228,7 @@ class AdvancedFeatureTests:
         
         # Test sensor fusion
         print("   Testing sensor fusion...")
-        from mujoco_mcp.sensor_feedback import SensorFusion, SensorType
+        from mujoco_mcp.sensor_feedback import SensorType
         
         fusion = SensorFusion()
         fusion.add_sensor("sensor1", SensorType.JOINT_POSITION, weight=1.0)

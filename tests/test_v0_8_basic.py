@@ -3,6 +3,11 @@ v0.8 基础测试 - 简化版本，专注于核心功能
 """
 
 import pytest
+import sys
+from pathlib import Path
+
+# Add src to path for testing
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 def test_package_import():

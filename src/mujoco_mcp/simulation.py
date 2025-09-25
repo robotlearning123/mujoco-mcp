@@ -3,7 +3,7 @@
 import logging
 import uuid
 import numpy as np
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import mujoco
 
 logger = logging.getLogger("mujoco_mcp.simulation")
@@ -12,7 +12,7 @@ logger = logging.getLogger("mujoco_mcp.simulation")
 class MuJoCoSimulation:
     """Basic MuJoCo simulation class providing core functionality."""
     
-    def __init__(self, model_xml: Optional[str] = None, model_path: Optional[str] = None):
+    def __init__(self, model_xml: str | None = None, model_path: str | None = None):
         """Initialize MuJoCo simulation."""
         self.model = None
         self.data = None
