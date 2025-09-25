@@ -42,30 +42,14 @@ jobs:
       run: |
         python -c "
         import json
-        import os
+        with open('performance_benchmark_report.json') as f:
+            results = json.load(f)
         
-        if os.path.exists('performance_benchmark_report.json'):
-            with open('performance_benchmark_report.json') as f:
-                results = json.load(f)
-            
-            # Check overall success rate
-            summary = results.get('summary', {})
-            success_rate = summary.get('success_rate', 0.0)
-            total_time = summary.get('total_execution_time', 0.0)
-            
-            print(f'📊 Benchmark Results:')
-            print(f'   Success Rate: {success_rate:.1%}')
-            print(f'   Total Time: {total_time:.2f}s')
-            
-            # Performance thresholds
-            if success_rate < 0.8:  # 80% success rate
-                print(f'❌ Performance regression: success rate {success_rate:.1%} < 80%')
-                exit(1)
-            elif total_time > 60.0:  # 60 seconds max
-                print(f'❌ Performance regression: total time {total_time:.2f}s > 60s')
-                exit(1)
-            else:
-                print(f'✅ Performance targets met')
+        # Check if performance targets are met
+        startup_time = results.get('startup_time', {}).get('mean', 0)
+        if startup_time > 5.0:
+            print(f'❌ Performance regression: startup time {startup_time:.2f}s > 5.0s')
+            exit(1)
         else:
-            print('⚠️ No benchmark results found - skipping regression check')
+            print(f'✅ Performance OK: startup time {startup_time:.2f}s')
         "

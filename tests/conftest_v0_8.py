@@ -10,9 +10,8 @@ import pytest
 def simple_setup():
     """简化的测试设置，不导入复杂模块"""
     # 不做任何复杂导入，只是确保测试环境清洁
-    yield
+    return
     # 测试后清理
-    pass
 
 
 @pytest.fixture
@@ -21,8 +20,8 @@ def mock_viewer():
     class MockViewer:
         def close(self):
             pass
-        
+
         def sync(self):
             pass
-    
+
     return MockViewer()

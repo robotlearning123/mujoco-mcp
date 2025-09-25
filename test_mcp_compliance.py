@@ -1,172 +1,162 @@
 #!/usr/bin/env python3
 """
 MCP Protocol Compliance Test
-Tests compliance with Model Context Protocol (MCP) 2024-11-05 standard
+Tests MuJoCo MCP server compliance with Model Context Protocol specification
 """
 
+import asyncio
 import json
+import time
 import sys
 from pathlib import Path
 
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-def test_mcp_protocol_version():
-    """Test MCP protocol version compliance"""
-    print("🔍 Checking MCP protocol version compliance...")
-    
-    readme_path = Path("README.md")
-    if readme_path.exists():
-        content = readme_path.read_text()
-        if "2024-11-05" in content:
-            print("✅ MCP protocol version 2024-11-05 standard found")
-            return True
-        else:
-            print("⚠️  MCP protocol version 2024-11-05 not explicitly found")
-    else:
-        print("⚠️  README.md not found")
-    return False
-
-
-def test_mcp_server_structure():
-    """Test basic MCP server file structure"""
-    print("🔍 Checking MCP server structure...")
-    
-    required_files = [
-        "src/mujoco_mcp/__init__.py",
-        "src/mujoco_mcp/mcp_server.py",
-        "pyproject.toml"
-    ]
-    
-    all_exist = True
-    for file_path in required_files:
-        if Path(file_path).exists():
-            print(f"✅ {file_path} exists")
-        else:
-            print(f"❌ {file_path} missing")
-            all_exist = False
-    
-    return all_exist
-
-
-def test_json_rpc_compliance():
-    """Test JSON-RPC 2.0 compliance indicators"""
-    print("🔍 Checking JSON-RPC 2.0 compliance...")
-    
-    server_file = Path("src/mujoco_mcp/mcp_server.py")
-    if not server_file.exists():
-        print("❌ MCP server file not found")
+async def test_mcp_server_startup():
+    """Test that MCP server can start successfully"""
+    try:
+        from mujoco_mcp.__main__ import main
+        # Just test that main function exists and is callable
+        assert callable(main)
+        return True
+    except Exception as e:
+        print(f"❌ Server startup test failed: {e}")
         return False
-    
-    content = server_file.read_text()
-    rpc_indicators = [
-        "jsonrpc",
-        "method", 
-        "params",
-        "id"
-    ]
-    
-    found_indicators = []
-    for indicator in rpc_indicators:
-        if indicator in content.lower():
-            found_indicators.append(indicator)
-            print(f"✅ JSON-RPC indicator '{indicator}' found")
-        else:
-            print(f"⚠️  JSON-RPC indicator '{indicator}' not found")
-    
-    return len(found_indicators) >= 2
 
+async def test_tools_listing():
+    """Test tools listing compliance"""
+    try:
+        from mujoco_mcp.server import MuJoCoServer
+        server = MuJoCoServer()
 
-def test_mcp_tools_definition():
-    """Test MCP tools definition structure"""
-    print("🔍 Checking MCP tools definition...")
-    
-    server_file = Path("src/mujoco_mcp/mcp_server.py")
-    if not server_file.exists():
-        print("❌ MCP server file not found")
+        # Check that server has required attributes
+        assert hasattr(server, 'name')
+        assert hasattr(server, 'version')
+        assert hasattr(server, 'description')
+
+        # Check server info
+        info = server.get_server_info()
+        assert 'name' in info
+        assert 'version' in info
+        assert 'capabilities' in info
+
+        return True
+    except Exception as e:
+        print(f"❌ Tools listing test failed: {e}")
         return False
-    
-    content = server_file.read_text()
-    tool_indicators = [
-        "tools",
-        "handle_list_tools",
-        "handle_call_tool"
-    ]
-    
-    found_tools = []
-    for indicator in tool_indicators:
-        if indicator in content:
-            found_tools.append(indicator)
-            print(f"✅ MCP tool indicator '{indicator}' found")
-        else:
-            print(f"⚠️  MCP tool indicator '{indicator}' not found")
-    
-    return len(found_tools) >= 2
 
+async def test_protocol_messages():
+    """Test basic protocol message handling"""
+    try:
+        from mujoco_mcp.server import MuJoCoServer
+        server = MuJoCoServer()
 
-def run_mcp_compliance_tests():
+        # Test server info
+        info = server.get_server_info()
+
+        # Verify required fields
+        required_fields = ['name', 'version', 'description', 'capabilities']
+        for field in required_fields:
+            assert field in info, f"Missing required field: {field}"
+
+        # Test capabilities
+        capabilities = info['capabilities']
+        assert isinstance(capabilities, dict), "Capabilities should be a dict"
+
+        return True
+    except Exception as e:
+        print(f"❌ Protocol messages test failed: {e}")
+        return False
+
+async def test_error_handling():
+    """Test error handling compliance"""
+    try:
+        from mujoco_mcp.server import MuJoCoServer
+        server = MuJoCoServer()
+
+        # Test that server handles initialization gracefully
+        assert server is not None
+
+        return True
+    except Exception as e:
+        print(f"❌ Error handling test failed: {e}")
+        return False
+
+async def run_compliance_tests():
     """Run all MCP compliance tests"""
-    print("🚀 Starting MCP Protocol Compliance Tests")
+    print("🧪 MCP Protocol Compliance Test Suite")
     print("=" * 50)
-    
+
     tests = [
-        ("Protocol Version", test_mcp_protocol_version),
-        ("Server Structure", test_mcp_server_structure), 
-        ("JSON-RPC Compliance", test_json_rpc_compliance),
-        ("Tools Definition", test_mcp_tools_definition)
+        ("Server Startup", test_mcp_server_startup),
+        ("Tools Listing", test_tools_listing),
+        ("Protocol Messages", test_protocol_messages),
+        ("Error Handling", test_error_handling)
     ]
-    
-    results = []
+
+    results = {}
+    passed = 0
+    total = len(tests)
+
     for test_name, test_func in tests:
-        print(f"\n📋 Running {test_name} Test...")
+        print(f"\nTesting {test_name}...")
         try:
-            result = test_func()
-            results.append((test_name, result))
-            status = "✅ PASSED" if result else "⚠️  WARNING"
-            print(f"   {status}")
+            result = await test_func()
+            if result:
+                print(f"✅ {test_name} PASSED")
+                passed += 1
+            else:
+                print(f"❌ {test_name} FAILED")
+            results[test_name] = result
         except Exception as e:
-            print(f"   ❌ ERROR: {e}")
-            results.append((test_name, False))
-    
-    # Summary
-    print(f"\n{'='*50}")
-    print("📊 MCP Compliance Test Summary")
-    print(f"{'='*50}")
-    
-    passed = sum(1 for _, result in results if result)
-    total = len(results)
-    
-    for test_name, result in results:
-        status = "✅ PASSED" if result else "⚠️  WARNING"
-        print(f"{test_name}: {status}")
-    
-    print(f"\nOverall: {passed}/{total} tests passed")
-    
-    # Create compliance report
-    report = {
-        "mcp_compliance": {
-            "protocol_version": "2024-11-05",
-            "test_results": {name: result for name, result in results},
-            "summary": {
-                "total_tests": total,
-                "passed_tests": passed,
-                "compliance_score": passed / total if total > 0 else 0
-            }
+            print(f"❌ {test_name} ERROR: {e}")
+            results[test_name] = False
+
+    # Generate compliance report
+    compliance_report = {
+        "timestamp": time.time(),
+        "total_tests": total,
+        "passed_tests": passed,
+        "failed_tests": total - passed,
+        "success_rate": (passed / total) * 100,
+        "test_results": results,
+        "mcp_version": "1.0",
+        "server_info": {
+            "name": "mujoco-mcp",
+            "version": "0.8.2"
         }
     }
-    
-    with open("mcp_compliance_report.json", "w") as f:
-        json.dump(report, f, indent=2)
-    
-    print(f"📄 Compliance report saved to: mcp_compliance_report.json")
-    
-    # Exit with appropriate code
-    if passed >= total * 0.75:  # 75% pass rate minimum
-        print("🎉 MCP compliance tests completed successfully!")
-        return 0
-    else:
-        print("⚠️  Some MCP compliance issues detected")
-        return 0  # Don't fail CI, just warn
 
+    # Save report
+    with open("mcp_compliance_report.json", "w") as f:
+        json.dump(compliance_report, f, indent=2)
+
+    print("\n" + "=" * 50)
+    print("📊 MCP Compliance Test Results")
+    print(f"Total Tests: {total}")
+    print(f"✅ Passed: {passed}")
+    print(f"❌ Failed: {total - passed}")
+    print(f"Success Rate: {(passed/total)*100:.1f}%")
+
+    if passed == total:
+        print("\n🎉 All MCP compliance tests passed!")
+        return True
+    else:
+        print(f"\n⚠️  {total - passed} compliance tests failed")
+        return False
+
+def main():
+    """Main entry point"""
+    try:
+        success = asyncio.run(run_compliance_tests())
+        sys.exit(0 if success else 1)
+    except KeyboardInterrupt:
+        print("\n🛑 Tests interrupted by user")
+        sys.exit(130)
+    except Exception as e:
+        print(f"\n💥 Test suite crashed: {e}")
+        sys.exit(2)
 
 if __name__ == "__main__":
-    exit_code = run_mcp_compliance_tests()
-    sys.exit(exit_code)
+    main()

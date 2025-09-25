@@ -66,40 +66,40 @@ def run_client():
     result = client.call_tool("start_simulation", {"model_xml": PENDULUM_XML})
     sim_id = result["simulation_id"]
     logger.info(f"模拟ID: {sim_id}")
-    
+
     # 获取模拟信息
     sim_info = client.get_resource("simulation_info", {"simulation_id": sim_id})
     logger.info(f"模拟信息: {sim_info}")
-    
+
     # 重置模拟
     client.call_tool("reset_simulation", {"simulation_id": sim_id})
-    
+
     # 进行控制循环
     logger.info("开始控制循环, 运行50步...")
     for i in range(50):
         # 获取关节位置和速度
         positions = client.get_resource("joint_positions", {"simulation_id": sim_id})
         velocities = client.get_resource("joint_velocities", {"simulation_id": sim_id})
-        
+
         # 应用简单的控制 - 向下拉动摆锤
         control = [1.0 * (i % 10)]  # 每10步改变方向
         client.call_tool("apply_control", {
             "simulation_id": sim_id,
             "control": control
         })
-        
+
         # 获取传感器数据
         sensors = client.get_resource("sensor_data", {"simulation_id": sim_id})
-        
+
         # 打印状态
         if i % 5 == 0:  # 每5步打印一次
             logger.info(f"步骤 {i}: 位置={positions}, 速度={velocities}, 控制={control}")
             logger.info(f"传感器: {sensors}")
-        
+
         # 向前推进模拟
         client.call_tool("step_simulation", {"simulation_id": sim_id, "num_steps": 1})
         time.sleep(0.01)  # 稍微减慢循环以便观察
-    
+
     # 清理
     logger.info("正在Delete模拟...")
     client.call_tool("delete_simulation", {"simulation_id": sim_id})
@@ -108,15 +108,15 @@ def run_client():
 def main():
     """主程序"""
     logger.info("启动基本MuJoCo MCP示例")
-    
+
     server_thread = start_server()
-    
+
     try:
         run_client()
     except KeyboardInterrupt:
         logger.info("用户中断，正在关闭...")
     except Exception as e:
-        logger.error(f"发生错误: {str(e)}")
+        logger.exception(f"发生错误: {str(e)}")
     finally:
         # 停止服务器
         logger.info("正在停止服务器...")
@@ -126,4 +126,4 @@ def main():
         logger.info("程序退出")
 
 if __name__ == "__main__":
-    main() 
+    main()

@@ -26,7 +26,7 @@ logger = logging.getLogger("mujoco-mcp")
 server = Server("mujoco-mcp")
 
 # Global viewer client
-viewer_client: Optional[ViewerClient] = None
+viewer_client: ViewerClient | None = None
 
 @server.list_tools()
 async def handle_list_tools() -> List[types.Tool]:
@@ -63,7 +63,7 @@ async def handle_list_tools() -> List[types.Tool]:
                 "type": "object",
                 "properties": {
                     "model_id": {
-                        "type": "string", 
+                        "type": "string",
                         "description": "ID of the model to step"
                     },
                     "steps": {
@@ -123,7 +123,7 @@ async def handle_list_tools() -> List[types.Tool]:
 async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
     """Handle tool calls"""
     global viewer_client
-    
+
     try:
         if name == "get_server_info":
             return [types.TextContent(
@@ -136,14 +136,14 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                     "capabilities": ["create_scene", "step_simulation", "get_state", "reset", "close_viewer"]
                 }, indent=2)
             )]
-            
+
         elif name == "create_scene":
             scene_type = arguments.get("scene_type", "pendulum")
-            
+
             # Initialize viewer client if not exists
             if not viewer_client:
                 viewer_client = ViewerClient()
-                
+
             # Connect to viewer server
             if not viewer_client.connected:
                 success = viewer_client.connect()
@@ -152,7 +152,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                         type="text",
                         text="❌ Failed to connect to MuJoCo viewer server. Please start `mujoco-mcp-viewer` first."
                     )]
-            
+
             # Map scene types to model XML
             scene_models = {
                 "pendulum": """
@@ -200,20 +200,20 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                 </mujoco>
                 """
             }
-            
+
             if scene_type not in scene_models:
                 return [types.TextContent(
                     type="text",
                     text=f"❌ Unknown scene type: {scene_type}. Available: {', '.join(scene_models.keys())}"
                 )]
-            
+
             # Load the model
             response = viewer_client.send_command({
                 "type": "load_model",
                 "model_id": scene_type,
                 "model_xml": scene_models[scene_type]
             })
-            
+
             if response.get("success"):
                 return [types.TextContent(
                     type="text",
@@ -221,44 +221,44 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                 )]
             else:
                 return [types.TextContent(
-                    type="text", 
+                    type="text",
                     text=f"❌ Failed to create scene: {response.get('error', 'Unknown error')}"
                 )]
-                
+
         elif name == "step_simulation":
             model_id = arguments.get("model_id")
             steps = arguments.get("steps", 1)
-            
+
             if not viewer_client or not viewer_client.connected:
                 return [types.TextContent(
                     type="text",
                     text="❌ No active viewer connection. Create a scene first."
                 )]
-                
+
             # The viewer server doesn't have a direct step_simulation command
             # It automatically runs the simulation, so we just return success
             response = {"success": True, "message": f"Simulation running for model {model_id}"}
-            
+
             return [types.TextContent(
                 type="text",
-                text=f"⏩ Stepped simulation {steps} steps" if response.get("success") 
+                text=f"⏩ Stepped simulation {steps} steps" if response.get("success")
                      else f"❌ Step failed: {response.get('error')}"
             )]
-            
+
         elif name == "get_state":
             model_id = arguments.get("model_id")
-            
+
             if not viewer_client or not viewer_client.connected:
                 return [types.TextContent(
                     type="text",
                     text="❌ No active viewer connection. Create a scene first."
                 )]
-                
+
             response = viewer_client.send_command({
                 "type": "get_state",
                 "model_id": model_id
             })
-            
+
             if response.get("success"):
                 state = response.get("state")
                 if state is None:
@@ -273,69 +273,69 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                     type="text",
                     text=f"❌ Failed to get state: {response.get('error')}"
                 )]
-                
+
         elif name == "reset_simulation":
             model_id = arguments.get("model_id")
-            
+
             if not viewer_client or not viewer_client.connected:
                 return [types.TextContent(
                     type="text",
                     text="❌ No active viewer connection. Create a scene first."
                 )]
-                
+
             response = viewer_client.send_command({
                 "type": "reset",
                 "model_id": model_id
             })
-            
+
             return [types.TextContent(
                 type="text",
                 text="🔄 Simulation reset to initial state" if response.get("success")
                      else f"❌ Reset failed: {response.get('error')}"
             )]
-            
+
         elif name == "close_viewer":
             model_id = arguments.get("model_id")
-            
+
             if not viewer_client or not viewer_client.connected:
                 return [types.TextContent(
                     type="text",
                     text="❌ No active viewer connection."
                 )]
-                
+
             response = viewer_client.send_command({
                 "type": "close_model",
                 "model_id": model_id
             })
-            
+
             # Close our connection too
             if viewer_client:
                 viewer_client.disconnect()
                 viewer_client = None
-                
+
             return [types.TextContent(
                 type="text",
                 text="Viewer closed" if response.get("success")
                      else f"❌ Failed to close: {response.get('error')}"
             )]
-        
+
         else:
             return [types.TextContent(
                 type="text",
                 text=f"❌ Unknown tool: {name}"
             )]
-            
+
     except Exception as e:
         logger.exception(f"Error in tool {name}")
         return [types.TextContent(
-            type="text", 
+            type="text",
             text=f"❌ Error: {str(e)}"
         )]
 
 async def main():
     """Main entry point for MCP server"""
     logger.info(f"Starting MuJoCo MCP Server v{__version__}")
-    
+
     # Initialize server capabilities
     server_options = InitializationOptions(
         server_name="mujoco-mcp",
@@ -345,7 +345,7 @@ async def main():
             experimental_capabilities={}
         )
     )
-    
+
     # Run server with stdio transport
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await server.run(

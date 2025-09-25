@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "success_rate": 1.0,
+    "total_execution_time": 0.00012373924255371094
+  },
+  "tests": [
+    {
+      "test_name": "package_import",
+      "success": true,
+      "execution_time": 0.00012373924255371094
+    }
+  ]
+}
