@@ -15,10 +15,9 @@ from typing import List
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger('mujoco_simple_demo')
+logger = logging.getLogger("mujoco_simple_demo")
 
 # Example MuJoCo model XML (simple manipulator and some objects)
 EXAMPLE_MODEL_XML = """
@@ -33,13 +32,16 @@ EXAMPLE_MODEL_XML = """
             <geom name="robot1_base" type="cylinder" size="0.1 0.1" rgba="0.7 0.7 0.7 1"/>
             <body name="robot1_arm" pos="0 0 0.1">
                 <joint name="robot1_shoulder" axis="0 1 0" range="-180 180"/>
-                <geom name="robot1_arm_geom" type="capsule" size="0.05" fromto="0 0 0 0.5 0 0" rgba="0.7 0.7 0.7 1"/>
+                <geom name="robot1_arm_geom" type="capsule" size="0.05"
+                      fromto="0 0 0 0.5 0 0" rgba="0.7 0.7 0.7 1"/>
                 <body name="robot1_forearm" pos="0.5 0 0">
                     <joint name="robot1_elbow" axis="0 1 0" range="-90 90"/>
-                    <geom name="robot1_forearm_geom" type="capsule" size="0.04" fromto="0 0 0 0.5 0 0" rgba="0.7 0.7 0.7 1"/>
+                    <geom name="robot1_forearm_geom" type="capsule" size="0.04"
+                          fromto="0 0 0 0.5 0 0" rgba="0.7 0.7 0.7 1"/>
                     <body name="robot1_wrist" pos="0.5 0 0">
                         <joint name="robot1_wrist_rot" axis="1 0 0" range="-180 180"/>
-                        <geom name="robot1_wrist_geom" type="sphere" size="0.05" rgba="0.5 0.5 0.5 1"/>
+                        <geom name="robot1_wrist_geom" type="sphere" size="0.05"
+                              rgba="0.5 0.5 0.5 1"/>
                         <site name="robot1_grasp_site" pos="0 0 0.1" size="0.02"/>
                     </body>
                 </body>
@@ -71,6 +73,7 @@ EXAMPLE_MODEL_XML = """
     </actuator>
 </mujoco>
 """
+
 
 class MuJoCoSimulation:
     """MuJoCo模拟类"""
@@ -190,7 +193,9 @@ class MuJoCoSimulation:
 
         # 更新模拟
         mujoco.mj_forward(self.model, self.data)
-        logger.info(f"移动机器人手臂到 肩膀={shoulder_angle}°, 肘部={elbow_angle}°, 手腕={wrist_angle}°")
+        logger.info(
+            f"移动机器人手臂到 肩膀={shoulder_angle}°, 肘部={elbow_angle}°, 手腕={wrist_angle}°"
+        )
 
     def move_to_target(self, target_pos: List[float], steps: int = 100):
         """移动机器人手臂到目标位置"""

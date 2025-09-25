@@ -17,21 +17,24 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 # Import all advanced modules
 from mujoco_mcp.advanced_controllers import (
-    PIDController, PIDConfig, TrajectoryPlanner,
-    create_arm_controller, create_quadruped_controller
+    PIDController,
+    PIDConfig,
+    TrajectoryPlanner,
+    create_arm_controller,
+    create_quadruped_controller,
 )
-from mujoco_mcp.multi_robot_coordinator import (
-    MultiRobotCoordinator, TaskType, CollisionChecker
-)
+from mujoco_mcp.multi_robot_coordinator import MultiRobotCoordinator, TaskType, CollisionChecker
 from mujoco_mcp.sensor_feedback import (
-    create_robot_sensor_suite, create_feedback_controller,
-    SensorFusion
+    create_robot_sensor_suite,
+    create_feedback_controller,
+    SensorFusion,
 )
-from mujoco_mcp.rl_integration import (
-    create_reaching_env, create_balancing_env, RLTrainer
-)
+from mujoco_mcp.rl_integration import create_reaching_env, create_balancing_env, RLTrainer
 from mujoco_mcp.visualization_tools import (
-    RealTimePlotter, PlotConfig, InteractiveVisualizer, TrajectoryVisualizer
+    RealTimePlotter,
+    PlotConfig,
+    InteractiveVisualizer,
+    TrajectoryVisualizer,
 )
 
 
@@ -53,7 +56,7 @@ class AdvancedFeatureTests:
             ("Sensor Feedback", self.test_sensor_feedback),
             ("RL Integration", self.test_rl_integration),
             ("Visualization Tools", self.test_visualization_tools),
-            ("Performance Features", self.test_performance_features)
+            ("Performance Features", self.test_performance_features),
         ]
 
         for test_name, test_func in tests:
@@ -150,11 +153,12 @@ class AdvancedFeatureTests:
 
         # Add test task
         from mujoco_mcp.multi_robot_coordinator import CoordinatedTask
+
         task = CoordinatedTask(
             task_id="test_task",
             task_type=TaskType.FORMATION_CONTROL,
             robots=["robot1", "robot2"],
-            parameters={"formation": "line", "spacing": 1.0}
+            parameters={"formation": "line", "spacing": 1.0},
         )
 
         task_allocator.add_task(task)
@@ -170,6 +174,7 @@ class AdvancedFeatureTests:
         collision_checker = CollisionChecker()
 
         from mujoco_mcp.multi_robot_coordinator import RobotState
+
         state1 = RobotState("robot1", "franka_panda", np.zeros(7), np.zeros(7))
         state2 = RobotState("robot2", "ur5e", np.zeros(6), np.zeros(6))
 
@@ -235,9 +240,10 @@ class AdvancedFeatureTests:
 
         # Create mock sensor readings
         from mujoco_mcp.sensor_feedback import SensorReading
+
         readings = [
             SensorReading("sensor1", SensorType.JOINT_POSITION, time.time(), np.array([1.0, 2.0])),
-            SensorReading("sensor2", SensorType.JOINT_VELOCITY, time.time(), np.array([0.1, 0.2]))
+            SensorReading("sensor2", SensorType.JOINT_VELOCITY, time.time(), np.array([0.1, 0.2])),
         ]
 
         fused_data = fusion.fuse_sensor_data(readings)
@@ -322,12 +328,7 @@ class AdvancedFeatureTests:
         print("   Testing plot configuration...")
 
         # Test plot config
-        config = PlotConfig(
-            title="Test Plot",
-            xlabel="Time",
-            ylabel="Value",
-            max_points=100
-        )
+        config = PlotConfig(title="Test Plot", xlabel="Time", ylabel="Value", max_points=100)
 
         if not config or config.title != "Test Plot":
             print("     ❌ Plot configuration failed")
@@ -454,7 +455,7 @@ class AdvancedFeatureTests:
 
             # Test connection limit
             for i in range(10):  # Try to register more than limit
-                conn_manager.register_connection(f"test_conn_{i+2}")
+                conn_manager.register_connection(f"test_conn_{i + 2}")
 
             stats = conn_manager.get_stats()
             if stats["active_connections"] > 5:
@@ -477,7 +478,7 @@ class AdvancedFeatureTests:
                 test_name="Test Benchmark",
                 success=True,
                 execution_time=1.5,
-                metrics={"test_metric": 0.95}
+                metrics={"test_metric": 0.95},
             )
 
             if result.test_name != "Test Benchmark" or not result.success:
@@ -528,16 +529,20 @@ def main():
 
     # Save results
     results_file = Path(tester.temp_dir) / "test_results.json"
-    with open(results_file, 'w') as f:
-        json.dump({
-            "timestamp": time.time(),
-            "results": results,
-            "summary": {
-                "total_tests": len(results),
-                "passed_tests": sum(1 for r in results.values() if r),
-                "success_rate": sum(1 for r in results.values() if r) / len(results)
-            }
-        }, f, indent=2)
+    with results_file.open("w") as f:
+        json.dump(
+            {
+                "timestamp": time.time(),
+                "results": results,
+                "summary": {
+                    "total_tests": len(results),
+                    "passed_tests": sum(1 for r in results.values() if r),
+                    "success_rate": sum(1 for r in results.values() if r) / len(results),
+                },
+            },
+            f,
+            indent=2,
+        )
 
     print(f"\nDetailed results saved to: {results_file}")
 

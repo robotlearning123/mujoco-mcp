@@ -12,6 +12,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
+
 async def test_core_functionality():
     """Test core functionality"""
     print("=== MuJoCo-MCP Quick Internal Test ===\n")
@@ -21,7 +22,7 @@ async def test_core_functionality():
         "version_test": False,
         "tools_test": False,
         "mcp_protocol_test": False,
-        "error_handling_test": False
+        "error_handling_test": False,
     }
 
     # 1. Import test
@@ -29,6 +30,7 @@ async def test_core_functionality():
     try:
         from mujoco_mcp.version import __version__
         from mujoco_mcp.mcp_server import handle_list_tools, handle_call_tool
+
         print(f"   ✅ Package imported successfully, version: {__version__}")
         results["import_test"] = True
         results["version_test"] = True
@@ -74,11 +76,12 @@ async def test_core_functionality():
 
     return results
 
+
 def print_summary(results):
     """Print test summary"""
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("Internal Test Summary")
-    print("="*50)
+    print("=" * 50)
 
     total_tests = len(results)
     passed_tests = sum(1 for success in results.values() if success)
@@ -86,7 +89,7 @@ def print_summary(results):
     print(f"Test items: {total_tests}")
     print(f"Tests passed: {passed_tests}")
     print(f"Tests failed: {total_tests - passed_tests}")
-    print(f"Success rate: {(passed_tests/total_tests)*100:.1f}%")
+    print(f"Success rate: {(passed_tests / total_tests) * 100:.1f}%")
 
     print("\nDetailed results:")
     status_map = {True: "✅ PASS", False: "❌ FAIL"}
@@ -102,6 +105,7 @@ def print_summary(results):
     else:
         print("\n❌ Multiple tests failed, need fixes before release.")
         return False
+
 
 async def main():
     start_time = time.time()
@@ -121,6 +125,7 @@ async def main():
     except Exception as e:
         print(f"\n\nSerious error occurred during testing: {e}")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))

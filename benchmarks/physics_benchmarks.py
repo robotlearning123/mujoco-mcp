@@ -4,6 +4,7 @@ Physics Simulation Benchmarks for MuJoCo MCP
 Comprehensive benchmarking suite for performance, accuracy, and stability testing
 """
 
+import argparse
 import time
 import numpy as np
 import json
@@ -24,6 +25,7 @@ from mujoco_mcp.viewer_client import MuJoCoViewerClient
 @dataclass
 class BenchmarkResult:
     """Result of a benchmark test"""
+
     test_name: str
     success: bool
     execution_time: float
@@ -35,6 +37,7 @@ class BenchmarkResult:
 @dataclass
 class PerformanceMetrics:
     """Performance metrics for benchmarking"""
+
     fps: float = 0.0
     cpu_usage: float = 0.0
     memory_usage: float = 0.0
@@ -71,7 +74,7 @@ class PhysicsBenchmark:
                     test_name=self.name,
                     success=False,
                     execution_time=0.0,
-                    error_message="Setup failed"
+                    error_message="Setup failed",
                 )
 
             result = self._execute_benchmark()
@@ -82,7 +85,7 @@ class PhysicsBenchmark:
                 test_name=self.name,
                 success=False,
                 execution_time=time.time() - start_time,
-                error_message=str(e)
+                error_message=str(e),
             )
         finally:
             self.teardown()
@@ -101,7 +104,7 @@ class SimulationStabilityBenchmark(PhysicsBenchmark):
     def __init__(self):
         super().__init__(
             "Simulation Stability",
-            "Tests simulation stability with different models and physics parameters"
+            "Tests simulation stability with different models and physics parameters",
         )
 
     def _execute_benchmark(self) -> BenchmarkResult:
@@ -111,18 +114,16 @@ class SimulationStabilityBenchmark(PhysicsBenchmark):
         models_to_test = [
             ("pendulum", self._create_pendulum_xml()),
             ("double_pendulum", self._create_double_pendulum_xml()),
-            ("cart_pole", self._create_cart_pole_xml())
+            ("cart_pole", self._create_cart_pole_xml()),
         ]
 
         stability_scores = []
 
         for model_name, model_xml in models_to_test:
             # Load model
-            response = self.viewer_client.send_command({
-                "type": "load_model",
-                "model_id": model_name,
-                "model_xml": model_xml
-            })
+            response = self.viewer_client.send_command(
+                {"type": "load_model", "model_id": model_name, "model_xml": model_xml}
+            )
 
             if not response.get("success"):
                 continue
@@ -132,10 +133,9 @@ class SimulationStabilityBenchmark(PhysicsBenchmark):
             energy_values = []
 
             for _step in range(1000):  # 20 seconds at 50Hz
-                state_response = self.viewer_client.send_command({
-                    "type": "get_state",
-                    "model_id": model_name
-                })
+                state_response = self.viewer_client.send_command(
+                    {"type": "get_state", "model_id": model_name}
+                )
 
                 if state_response.get("success"):
                     state = state_response.get("state", {})
@@ -170,8 +170,8 @@ class SimulationStabilityBenchmark(PhysicsBenchmark):
             metrics={
                 "stability_score": avg_stability,
                 "models_tested": len(stability_scores),
-                "energy_conservation": min(stability_scores) if stability_scores else 0.0
-            }
+                "energy_conservation": min(stability_scores) if stability_scores else 0.0,
+            },
         )
 
     def _create_pendulum_xml(self) -> str:
@@ -232,10 +232,7 @@ class PerformanceBenchmark(PhysicsBenchmark):
     """Test simulation performance and throughput"""
 
     def __init__(self):
-        super().__init__(
-            "Performance",
-            "Tests simulation performance, FPS, and resource usage"
-        )
+        super().__init__("Performance", "Tests simulation performance, FPS, and resource usage")
         self.performance_monitor = PerformanceMonitor()
 
     def _execute_benchmark(self) -> BenchmarkResult:
@@ -244,18 +241,16 @@ class PerformanceBenchmark(PhysicsBenchmark):
         # Load a complex model for performance testing
         complex_model_xml = self._create_complex_model_xml()
 
-        response = self.viewer_client.send_command({
-            "type": "load_model",
-            "model_id": "performance_test",
-            "model_xml": complex_model_xml
-        })
+        response = self.viewer_client.send_command(
+            {"type": "load_model", "model_id": "performance_test", "model_xml": complex_model_xml}
+        )
 
         if not response.get("success"):
             return BenchmarkResult(
                 test_name=self.name,
                 success=False,
                 execution_time=0.0,
-                error_message="Failed to load test model"
+                error_message="Failed to load test model",
             )
 
         # Start performance monitoring
@@ -269,10 +264,9 @@ class PerformanceBenchmark(PhysicsBenchmark):
             step_start = time.time()
 
             # Simulate one step
-            state_response = self.viewer_client.send_command({
-                "type": "get_state",
-                "model_id": "performance_test"
-            })
+            state_response = self.viewer_client.send_command(
+                {"type": "get_state", "model_id": "performance_test"}
+            )
 
             step_end = time.time()
             step_times.append(step_end - step_start)
@@ -298,8 +292,8 @@ class PerformanceBenchmark(PhysicsBenchmark):
                 "max_step_time": max_step_time * 1000,  # ms
                 "cpu_usage": metrics.cpu_usage,
                 "memory_usage": metrics.memory_usage,
-                "steps_completed": num_steps
-            }
+                "steps_completed": num_steps,
+            },
         )
 
     def _create_complex_model_xml(self) -> str:
@@ -314,13 +308,16 @@ class PerformanceBenchmark(PhysicsBenchmark):
                         <geom name="link1" type="capsule" size="0.05 0.3" rgba="0.8 0.2 0.2 1"/>
                         <body name="arm2" pos="0 0 0.3">
                             <joint name="joint2" type="hinge" axis="1 0 0"/>
-                            <geom name="link2" type="capsule" size="0.04 0.25" rgba="0.2 0.8 0.2 1"/>
+                            <geom name="link2" type="capsule" size="0.04 0.25"
+                                  rgba="0.2 0.8 0.2 1"/>
                             <body name="arm3" pos="0 0 0.25">
                                 <joint name="joint3" type="hinge" axis="0 1 0"/>
-                                <geom name="link3" type="capsule" size="0.03 0.2" rgba="0.2 0.2 0.8 1"/>
+                                <geom name="link3" type="capsule" size="0.03 0.2"
+                                      rgba="0.2 0.2 0.8 1"/>
                                 <body name="end_effector" pos="0 0 0.2">
                                     <joint name="joint4" type="hinge" axis="0 0 1"/>
-                                    <geom name="gripper" type="box" size="0.05 0.05 0.05" rgba="0.8 0.8 0.2 1"/>
+                                    <geom name="gripper" type="box" size="0.05 0.05 0.05"
+                                          rgba="0.8 0.8 0.2 1"/>
                                 </body>
                             </body>
                         </body>
@@ -335,10 +332,7 @@ class AccuracyBenchmark(PhysicsBenchmark):
     """Test simulation accuracy against known analytical solutions"""
 
     def __init__(self):
-        super().__init__(
-            "Accuracy",
-            "Tests simulation accuracy against analytical solutions"
-        )
+        super().__init__("Accuracy", "Tests simulation accuracy against analytical solutions")
 
     def _execute_benchmark(self) -> BenchmarkResult:
         """Execute accuracy benchmark"""
@@ -346,27 +340,27 @@ class AccuracyBenchmark(PhysicsBenchmark):
         # Test simple pendulum against analytical solution
         pendulum_xml = self._create_simple_pendulum_xml()
 
-        response = self.viewer_client.send_command({
-            "type": "load_model",
-            "model_id": "accuracy_test",
-            "model_xml": pendulum_xml
-        })
+        response = self.viewer_client.send_command(
+            {"type": "load_model", "model_id": "accuracy_test", "model_xml": pendulum_xml}
+        )
 
         if not response.get("success"):
             return BenchmarkResult(
                 test_name=self.name,
                 success=False,
                 execution_time=0.0,
-                error_message="Failed to load test model"
+                error_message="Failed to load test model",
             )
 
         # Set initial conditions
         initial_angle = 0.1  # Small angle for linear approximation
-        self.viewer_client.send_command({
-            "type": "set_joint_positions",
-            "model_id": "accuracy_test",
-            "positions": [initial_angle]
-        })
+        self.viewer_client.send_command(
+            {
+                "type": "set_joint_positions",
+                "model_id": "accuracy_test",
+                "positions": [initial_angle],
+            }
+        )
 
         # Simulate and compare with analytical solution
         dt = 0.02  # 50Hz
@@ -375,7 +369,7 @@ class AccuracyBenchmark(PhysicsBenchmark):
 
         # Analytical solution parameters
         g = 9.81  # gravity
-        L = 1.0   # pendulum length
+        L = 1.0  # pendulum length
         omega = np.sqrt(g / L)  # natural frequency
 
         simulation_angles = []
@@ -387,10 +381,9 @@ class AccuracyBenchmark(PhysicsBenchmark):
             times.append(t)
 
             # Get simulation state
-            state_response = self.viewer_client.send_command({
-                "type": "get_state",
-                "model_id": "accuracy_test"
-            })
+            state_response = self.viewer_client.send_command(
+                {"type": "get_state", "model_id": "accuracy_test"}
+            )
 
             if state_response.get("success"):
                 state = state_response.get("state", {})
@@ -415,7 +408,7 @@ class AccuracyBenchmark(PhysicsBenchmark):
             mae = np.mean(np.abs(simulation_angles - analytical_angles))
 
             # Root mean square error
-            rmse = np.sqrt(np.mean((simulation_angles - analytical_angles)**2))
+            rmse = np.sqrt(np.mean((simulation_angles - analytical_angles) ** 2))
 
             # Relative error
             relative_error = mae / (np.max(np.abs(analytical_angles)) + 1e-6)
@@ -432,15 +425,15 @@ class AccuracyBenchmark(PhysicsBenchmark):
                     "rmse": rmse,
                     "relative_error": relative_error,
                     "accuracy_score": accuracy_score,
-                    "simulation_steps": len(simulation_angles)
-                }
+                    "simulation_steps": len(simulation_angles),
+                },
             )
 
         return BenchmarkResult(
             test_name=self.name,
             success=False,
             execution_time=0.0,
-            error_message="Failed to collect simulation data"
+            error_message="Failed to collect simulation data",
         )
 
     def _create_simple_pendulum_xml(self) -> str:
@@ -451,8 +444,10 @@ class AccuracyBenchmark(PhysicsBenchmark):
             <worldbody>
                 <body name="pendulum" pos="0 0 0">
                     <joint name="hinge" type="hinge" axis="1 0 0" damping="0"/>
-                    <geom name="rod" type="capsule" size="0.01 1.0" pos="0 0 -1" rgba="0.8 0.2 0.2 1"/>
-                    <geom name="mass" type="sphere" size="0.1" pos="0 0 -2" mass="1.0" rgba="0.2 0.8 0.2 1"/>
+                    <geom name="rod" type="capsule" size="0.01 1.0" pos="0 0 -1"
+                          rgba="0.8 0.2 0.2 1"/>
+                    <geom name="mass" type="sphere" size="0.1" pos="0 0 -2" mass="1.0"
+                          rgba="0.2 0.8 0.2 1"/>
                 </body>
             </worldbody>
         </mujoco>
@@ -464,8 +459,7 @@ class ScalabilityBenchmark(PhysicsBenchmark):
 
     def __init__(self):
         super().__init__(
-            "Scalability",
-            "Tests simulation scalability with increasing number of objects"
+            "Scalability", "Tests simulation scalability with increasing number of objects"
         )
 
     def _execute_benchmark(self) -> BenchmarkResult:
@@ -478,11 +472,13 @@ class ScalabilityBenchmark(PhysicsBenchmark):
             # Create model with specified number of objects
             model_xml = self._create_multi_object_xml(count)
 
-            response = self.viewer_client.send_command({
-                "type": "load_model",
-                "model_id": f"scalability_test_{count}",
-                "model_xml": model_xml
-            })
+            response = self.viewer_client.send_command(
+                {
+                    "type": "load_model",
+                    "model_id": f"scalability_test_{count}",
+                    "model_xml": model_xml,
+                }
+            )
 
             if not response.get("success"):
                 continue
@@ -492,10 +488,9 @@ class ScalabilityBenchmark(PhysicsBenchmark):
             start_time = time.time()
 
             for _step in range(num_steps):
-                self.viewer_client.send_command({
-                    "type": "get_state",
-                    "model_id": f"scalability_test_{count}"
-                })
+                self.viewer_client.send_command(
+                    {"type": "get_state", "model_id": f"scalability_test_{count}"}
+                )
 
             end_time = time.time()
             total_time = end_time - start_time
@@ -525,15 +520,15 @@ class ScalabilityBenchmark(PhysicsBenchmark):
                     "max_fps": max(fps_values),
                     "performance_slope": slope,
                     "scalability_score": scalability_score,
-                    "fps_results": fps_results
-                }
+                    "fps_results": fps_results,
+                },
             )
 
         return BenchmarkResult(
             test_name=self.name,
             success=False,
             execution_time=0.0,
-            error_message="Insufficient data for scalability analysis"
+            error_message="Insufficient data for scalability analysis",
         )
 
     def _create_multi_object_xml(self, num_objects: int) -> str:
@@ -588,7 +583,7 @@ class PerformanceMonitor:
                 "timestamp": time.time() - self.start_time,
                 "cpu_usage": cpu_percent,
                 "memory_usage": memory_info.percent,
-                "memory_available": memory_info.available / (1024**3)  # GB
+                "memory_available": memory_info.available / (1024**3),  # GB
             }
             self.samples.append(sample)
 
@@ -603,8 +598,7 @@ class PerformanceMonitor:
         memory_values = [s["memory_usage"] for s in self.samples]
 
         return PerformanceMetrics(
-            cpu_usage=np.mean(cpu_values),
-            memory_usage=np.mean(memory_values)
+            cpu_usage=np.mean(cpu_values), memory_usage=np.mean(memory_values)
         )
 
 
@@ -619,7 +613,7 @@ class BenchmarkSuite:
             SimulationStabilityBenchmark(),
             PerformanceBenchmark(),
             AccuracyBenchmark(),
-            ScalabilityBenchmark()
+            ScalabilityBenchmark(),
         ]
 
         self.results = []
@@ -644,7 +638,7 @@ class BenchmarkSuite:
         results = []
 
         for i, benchmark in enumerate(self.benchmarks):
-            print(f"\n[{i+1}/{len(self.benchmarks)}] Running {benchmark.name}...")
+            print(f"\n[{i + 1}/{len(self.benchmarks)}] Running {benchmark.name}...")
             print(f"Description: {benchmark.description}")
 
             result = benchmark.run()
@@ -665,8 +659,7 @@ class BenchmarkSuite:
 
         with ThreadPoolExecutor(max_workers=len(self.benchmarks)) as executor:
             future_to_benchmark = {
-                executor.submit(benchmark.run): benchmark
-                for benchmark in self.benchmarks
+                executor.submit(benchmark.run): benchmark for benchmark in self.benchmarks
             }
 
             for future in as_completed(future_to_benchmark):
@@ -696,15 +689,15 @@ class BenchmarkSuite:
                     "success": result.success,
                     "execution_time": result.execution_time,
                     "metrics": result.metrics,
-                    "error_message": result.error_message
+                    "error_message": result.error_message,
                 }
                 for result in self.results
-            ]
+            ],
         }
 
         # Save JSON report
         json_file = self.output_dir / "benchmark_report.json"
-        with open(json_file, 'w') as f:
+        with json_file.open("w") as f:
             json.dump(report_data, f, indent=2)
 
         # Generate text summary
@@ -728,14 +721,14 @@ class BenchmarkSuite:
             "successful_tests": len(successful_tests),
             "failed_tests": len(failed_tests),
             "success_rate": len(successful_tests) / len(self.results) if self.results else 0.0,
-            "total_execution_time": sum(r.execution_time for r in self.results)
+            "total_execution_time": sum(r.execution_time for r in self.results),
         }
 
     def _generate_text_report(self):
         """Generate text summary report"""
         report_file = self.output_dir / "benchmark_summary.txt"
 
-        with open(report_file, 'w') as f:
+        with report_file.open("w") as f:
             f.write("MuJoCo MCP Benchmark Suite Results\n")
             f.write("=" * 50 + "\n\n")
 
@@ -764,57 +757,82 @@ class BenchmarkSuite:
     def _generate_plots(self):
         """Generate performance plots"""
         # Performance metrics plot
-        performance_results = [r for r in self.results if r.test_name == "Performance" and r.success]
+        performance_results = [
+            r for r in self.results if r.test_name == "Performance" and r.success
+        ]
 
         if performance_results:
             result = performance_results[0]
             metrics = result.metrics
 
             fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-            fig.suptitle('MuJoCo MCP Performance Metrics')
+            fig.suptitle("MuJoCo MCP Performance Metrics")
 
             # FPS
-            axes[0, 0].bar(['FPS'], [metrics.get('fps', 0)])
-            axes[0, 0].set_title('Frames Per Second')
-            axes[0, 0].set_ylabel('FPS')
+            axes[0, 0].bar(["FPS"], [metrics.get("fps", 0)])
+            axes[0, 0].set_title("Frames Per Second")
+            axes[0, 0].set_ylabel("FPS")
 
             # CPU and Memory usage
-            axes[0, 1].bar(['CPU', 'Memory'], [metrics.get('cpu_usage', 0), metrics.get('memory_usage', 0)])
-            axes[0, 1].set_title('Resource Usage (%)')
-            axes[0, 1].set_ylabel('Percentage')
+            axes[0, 1].bar(
+                ["CPU", "Memory"], [metrics.get("cpu_usage", 0), metrics.get("memory_usage", 0)]
+            )
+            axes[0, 1].set_title("Resource Usage (%)")
+            axes[0, 1].set_ylabel("Percentage")
 
             # Step times
-            axes[1, 0].bar(['Avg Step Time', 'Max Step Time'],
-                          [metrics.get('avg_step_time', 0), metrics.get('max_step_time', 0)])
-            axes[1, 0].set_title('Step Times (ms)')
-            axes[1, 0].set_ylabel('Milliseconds')
+            axes[1, 0].bar(
+                ["Avg Step Time", "Max Step Time"],
+                [metrics.get("avg_step_time", 0), metrics.get("max_step_time", 0)],
+            )
+            axes[1, 0].set_title("Step Times (ms)")
+            axes[1, 0].set_ylabel("Milliseconds")
 
             # Overall scores
-            stability_score = next((r.metrics.get('stability_score', 0) for r in self.results
-                                  if r.test_name == "Simulation Stability" and r.success), 0)
-            accuracy_score = next((r.metrics.get('accuracy_score', 0) for r in self.results
-                                 if r.test_name == "Accuracy" and r.success), 0)
-            scalability_score = next((r.metrics.get('scalability_score', 0) for r in self.results
-                                    if r.test_name == "Scalability" and r.success), 0)
+            stability_score = next(
+                (
+                    r.metrics.get("stability_score", 0)
+                    for r in self.results
+                    if r.test_name == "Simulation Stability" and r.success
+                ),
+                0,
+            )
+            accuracy_score = next(
+                (
+                    r.metrics.get("accuracy_score", 0)
+                    for r in self.results
+                    if r.test_name == "Accuracy" and r.success
+                ),
+                0,
+            )
+            scalability_score = next(
+                (
+                    r.metrics.get("scalability_score", 0)
+                    for r in self.results
+                    if r.test_name == "Scalability" and r.success
+                ),
+                0,
+            )
 
-            axes[1, 1].bar(['Stability', 'Accuracy', 'Scalability'],
-                          [stability_score, accuracy_score, scalability_score])
-            axes[1, 1].set_title('Quality Scores')
-            axes[1, 1].set_ylabel('Score (0-1)')
+            axes[1, 1].bar(
+                ["Stability", "Accuracy", "Scalability"],
+                [stability_score, accuracy_score, scalability_score],
+            )
+            axes[1, 1].set_title("Quality Scores")
+            axes[1, 1].set_ylabel("Score (0-1)")
             axes[1, 1].set_ylim(0, 1)
 
             plt.tight_layout()
-            plt.savefig(self.output_dir / 'performance_metrics.png', dpi=300, bbox_inches='tight')
+            plt.savefig(self.output_dir / "performance_metrics.png", dpi=300, bbox_inches="tight")
             plt.close()
 
 
 def main():
     """Run the complete benchmark suite"""
-    import argparse
 
-    parser = argparse.ArgumentParser(description='MuJoCo MCP Benchmark Suite')
-    parser.add_argument('--parallel', action='store_true', help='Run benchmarks in parallel')
-    parser.add_argument('--output', default='benchmark_results', help='Output directory')
+    parser = argparse.ArgumentParser(description="MuJoCo MCP Benchmark Suite")
+    parser.add_argument("--parallel", action="store_true", help="Run benchmarks in parallel")
+    parser.add_argument("--output", default="benchmark_results", help="Output directory")
 
     args = parser.parse_args()
 

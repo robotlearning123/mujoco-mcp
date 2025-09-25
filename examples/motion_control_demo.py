@@ -40,83 +40,80 @@ class MotionControlDemo:
                 "type": "arm",
                 "joints": 7,
                 "home_position": [0, -0.785, 0, -2.356, 0, 1.571, 0.785],
-                "demo_motions": ["wave", "pick_place", "circle"]
+                "demo_motions": ["wave", "pick_place", "circle"],
             },
             "ur5e": {
                 "path": "universal_robots_ur5e/scene.xml",
                 "type": "arm",
                 "joints": 6,
                 "home_position": [0, -1.57, 1.57, -1.57, -1.57, 0],
-                "demo_motions": ["wave", "pick_place", "spiral"]
+                "demo_motions": ["wave", "pick_place", "spiral"],
             },
             "kuka_iiwa": {
                 "path": "kuka_iiwa_14/scene.xml",
                 "type": "arm",
                 "joints": 7,
                 "home_position": [0, 0.7, 0, -1.4, 0, 1.0, 0],
-                "demo_motions": ["wave", "figure8", "reach"]
+                "demo_motions": ["wave", "figure8", "reach"],
             },
-
             # Quadrupeds
             "anymal_c": {
                 "path": "anybotics_anymal_c/scene.xml",
                 "type": "quadruped",
                 "joints": 12,
                 "home_position": [0.0] * 12,
-                "demo_motions": ["stand", "walk", "trot"]
+                "demo_motions": ["stand", "walk", "trot"],
             },
             "go2": {
                 "path": "unitree_go2/scene.xml",
                 "type": "quadruped",
                 "joints": 12,
                 "home_position": [0.0] * 12,
-                "demo_motions": ["stand", "walk", "jump"]
+                "demo_motions": ["stand", "walk", "jump"],
             },
             "spot": {
                 "path": "google_barkour_vb/scene.xml",
                 "type": "quadruped",
                 "joints": 12,
                 "home_position": [0.0] * 12,
-                "demo_motions": ["stand", "walk", "dance"]
+                "demo_motions": ["stand", "walk", "dance"],
             },
-
             # Humanoids
             "g1": {
                 "path": "unitree_g1/scene.xml",
                 "type": "humanoid",
                 "joints": 37,
                 "home_position": None,  # Use default
-                "demo_motions": ["stand", "wave_hand", "walk"]
+                "demo_motions": ["stand", "wave_hand", "walk"],
             },
             "h1": {
                 "path": "unitree_h1/scene.xml",
                 "type": "humanoid",
                 "joints": 25,
                 "home_position": None,
-                "demo_motions": ["stand", "balance", "squat"]
+                "demo_motions": ["stand", "balance", "squat"],
             },
-
             # Grippers/Hands
             "robotiq_2f85": {
                 "path": "robotiq_2f85/scene.xml",
                 "type": "gripper",
                 "joints": 6,
                 "home_position": [0.0] * 6,
-                "demo_motions": ["open", "close", "pinch"]
+                "demo_motions": ["open", "close", "pinch"],
             },
             "shadow_hand": {
                 "path": "shadow_hand/scene_right.xml",
                 "type": "hand",
                 "joints": 24,
                 "home_position": None,
-                "demo_motions": ["open", "close", "wave", "grasp"]
-            }
+                "demo_motions": ["open", "close", "wave", "grasp"],
+            },
         }
 
     def get_menagerie_path(self) -> str | None:
         """Get MuJoCo Menagerie path"""
         # Check environment variable
-        menagerie_path = os.environ.get('MUJOCO_MENAGERIE_PATH')
+        menagerie_path = os.environ.get("MUJOCO_MENAGERIE_PATH")
         if menagerie_path and Path(menagerie_path).exists():
             return menagerie_path
 
@@ -125,7 +122,7 @@ class MotionControlDemo:
             Path.home() / "mujoco_menagerie",
             Path.home() / "Documents" / "mujoco_menagerie",
             Path.home() / "repos" / "mujoco_menagerie",
-            Path.cwd() / "mujoco_menagerie"
+            Path.cwd() / "mujoco_menagerie",
         ]
 
         for path in possible_paths:
@@ -165,11 +162,9 @@ class MotionControlDemo:
             return False
 
         # Load model
-        response = self.viewer_client.send_command({
-            "type": "load_model",
-            "model_xml": str(model_path),
-            "model_id": model_name
-        })
+        response = self.viewer_client.send_command(
+            {"type": "load_model", "model_xml": str(model_path), "model_id": model_name}
+        )
 
         if response.get("success"):
             self.current_model = model_name
@@ -185,10 +180,9 @@ class MotionControlDemo:
 
     def get_state(self) -> Dict | None:
         """Get current robot state"""
-        response = self.viewer_client.send_command({
-            "type": "get_state",
-            "model_id": self.current_model
-        })
+        response = self.viewer_client.send_command(
+            {"type": "get_state", "model_id": self.current_model}
+        )
 
         if response.get("success"):
             return response
@@ -196,11 +190,9 @@ class MotionControlDemo:
 
     def set_joint_positions(self, positions: List[float]) -> bool:
         """Set joint positions"""
-        response = self.viewer_client.send_command({
-            "type": "set_joint_positions",
-            "model_id": self.current_model,
-            "positions": positions
-        })
+        response = self.viewer_client.send_command(
+            {"type": "set_joint_positions", "model_id": self.current_model, "positions": positions}
+        )
         return response.get("success", False)
 
     def go_home(self) -> bool:
@@ -401,7 +393,7 @@ class MotionControlDemo:
 async def main():
     """Main demo function"""
     print("🤖 MuJoCo Motion Control Demo")
-    print("="*50)
+    print("=" * 50)
 
     demo = MotionControlDemo()
 

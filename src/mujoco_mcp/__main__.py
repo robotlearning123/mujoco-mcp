@@ -3,6 +3,7 @@
 MuJoCo MCP Server CLI Entry Point
 Handles proper asyncio event loop management
 """
+
 import asyncio
 import sys
 import logging
@@ -16,10 +17,8 @@ def setup_logging(level: str = "INFO"):
     """Setup logging configuration"""
     logging.basicConfig(
         level=getattr(logging, level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
 
 
@@ -34,50 +33,38 @@ Examples:
   python -m mujoco_mcp --port 8080       # Custom port
   python -m mujoco_mcp --debug           # Enable debug logging
   python -m mujoco_mcp --host 0.0.0.0    # Listen on all interfaces
-        """
+        """,
     )
 
     parser.add_argument(
         "--host",
         default=os.getenv("MUJOCO_MCP_HOST", "localhost"),
-        help="Host to bind to (default: localhost)"
+        help="Host to bind to (default: localhost)",
     )
 
     parser.add_argument(
         "--port",
         type=int,
         default=int(os.getenv("MUJOCO_MCP_PORT", "8000")),
-        help="Port to bind to (default: 8000)"
+        help="Port to bind to (default: 8000)",
     )
 
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         default=os.getenv("MUJOCO_MCP_LOG_LEVEL", "INFO"),
-        help="Logging level (default: INFO)"
+        help="Logging level (default: INFO)",
     )
 
     parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug mode (equivalent to --log-level DEBUG)"
+        "--debug", action="store_true", help="Enable debug mode (equivalent to --log-level DEBUG)"
     )
 
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"MuJoCo MCP Server v{__version__}"
-    )
+    parser.add_argument("--version", action="version", version=f"MuJoCo MCP Server v{__version__}")
 
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Check configuration and exit"
-    )
+    parser.add_argument("--check", action="store_true", help="Check configuration and exit")
 
     return parser.parse_args()
-
-
 
 
 def check_configuration():
@@ -92,6 +79,7 @@ def check_configuration():
     # Check dependencies
     try:
         import mujoco
+
         print(f"✓ MuJoCo version: {mujoco.__version__}")
     except ImportError:
         print("✗ MuJoCo not installed")
@@ -99,13 +87,15 @@ def check_configuration():
 
     try:
         import mcp
-        print("✓ MCP package available")
+
+        print(f"✓ MCP package available (version: {getattr(mcp, '__version__', 'unknown')})")
     except ImportError:
         print("✗ MCP package not installed")
         return False
 
     try:
         import numpy as np
+
         print(f"✓ NumPy version: {np.__version__}")
     except ImportError:
         print("✗ NumPy not installed")
@@ -135,9 +125,10 @@ def main():
         success = check_configuration()
         sys.exit(0 if success else 1)
 
-    # Import and run MCP server
+    # Import and run MCP server (headless by default)
     try:
-        from .mcp_server import main as mcp_main
+        from .mcp_server_headless import main as mcp_main
+
         asyncio.run(mcp_main())
     except KeyboardInterrupt:
         print("\nMCP server stopped by user")

@@ -48,6 +48,14 @@ select = [
 ignore = [
     # Import and unused variable issues (will be fixed gradually)
     "F841",    # Local variable assigned but never used
+    "PLC0415", # Import should be at the top-level of a file - temporarily ignore for demos
+    "TRY401",  # Redundant exception object included in logging.exception call
+    "E501",    # Line too long - will be handled by formatter
+    "ERA001",  # Found commented-out code - temporary until cleanup
+    "E722",    # Do not use bare except - temporary until proper error handling
+    "ARG002",  # Unused method argument
+    "N806",    # Variable in function should be lowercase - physics conventions
+    "S310",    # Audit URL open for permitted schemes
     
     # Code quality issues - these should be enabled for better code quality
     # "E722",    # Bare except - should be fixed

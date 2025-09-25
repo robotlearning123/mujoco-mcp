@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from mujoco_mcp.rl_integration import create_balancing_env
 
+
 def debug_balancing_env():
     print("Debugging balancing environment...")
 
@@ -19,10 +20,10 @@ def debug_balancing_env():
         print(f"Action space: {env.action_space}")
         print(f"Action space type: {type(env.action_space)}")
 
-        if hasattr(env.action_space, 'shape'):
+        if hasattr(env.action_space, "shape"):
             print(f"Action space shape: {env.action_space.shape}")
 
-        if hasattr(env.action_space, 'n'):
+        if hasattr(env.action_space, "n"):
             print(f"Action space n: {env.action_space.n}")
 
         # Test observation generation
@@ -42,7 +43,9 @@ def debug_balancing_env():
     except Exception as e:
         print(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     debug_balancing_env()

@@ -31,7 +31,9 @@ async def test_basic_scenes():
             await asyncio.sleep(1)
 
             # Step simulation
-            result = await handle_call_tool("step_simulation", {"model_id": scene_type, "steps": 100})
+            result = await handle_call_tool(
+                "step_simulation", {"model_id": scene_type, "steps": 100}
+            )
             print(f"   Step: {result[0].text}")
 
             # Get state
@@ -58,7 +60,9 @@ async def test_complete_workflow():
     if "successfully" in result[0].text or "Created" in result[0].text:
         # Run simulation for a few steps
         for _i in range(5):
-            result = await handle_call_tool("step_simulation", {"model_id": "pendulum", "steps": 20})
+            result = await handle_call_tool(
+                "step_simulation", {"model_id": "pendulum", "steps": 20}
+            )
             await asyncio.sleep(0.2)
 
         # Get final state

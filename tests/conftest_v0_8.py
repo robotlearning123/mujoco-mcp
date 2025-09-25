@@ -17,6 +17,7 @@ def simple_setup():
 @pytest.fixture
 def mock_viewer():
     """模拟viewer，避免GUI依赖"""
+
     class MockViewer:
         def close(self):
             pass

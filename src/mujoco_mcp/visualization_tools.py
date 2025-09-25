@@ -25,6 +25,7 @@ from .viewer_client import MuJoCoViewerClient
 @dataclass
 class PlotConfig:
     """Configuration for real-time plots"""
+
     title: str = "Real-time Plot"
     xlabel: str = "Time (s)"
     ylabel: str = "Value"
@@ -39,6 +40,7 @@ class PlotConfig:
 @dataclass
 class VisualizationData:
     """Data structure for visualization"""
+
     timestamps: deque = field(default_factory=lambda: deque(maxlen=1000))
     values: deque = field(default_factory=lambda: deque(maxlen=1000))
     labels: List[str] = field(default_factory=list)
@@ -68,16 +70,19 @@ class RealTimePlotter:
             colors = plt.cm.tab10(np.linspace(0, 1, 10))
             color = colors[len(self.lines) % len(colors)]
 
-        line, = self.ax.plot([], [],
-                           label=label,
-                           color=color,
-                           linewidth=self.config.line_width,
-                           alpha=self.config.alpha)
+        (line,) = self.ax.plot(
+            [],
+            [],
+            label=label,
+            color=color,
+            linewidth=self.config.line_width,
+            alpha=self.config.alpha,
+        )
         self.lines.append(line)
         self.data.labels.append(label)
 
         # Add empty data arrays for this source
-        if not hasattr(self.data, 'multi_values'):
+        if not hasattr(self.data, "multi_values"):
             self.data.multi_values = []
         self.data.multi_values.append(deque(maxlen=self.config.max_points))
 
@@ -88,8 +93,10 @@ class RealTimePlotter:
         """Update data for all sources"""
         self.data.timestamps.append(timestamp)
 
-        if not hasattr(self.data, 'multi_values'):
-            self.data.multi_values = [deque(maxlen=self.config.max_points) for _ in range(len(values))]
+        if not hasattr(self.data, "multi_values"):
+            self.data.multi_values = [
+                deque(maxlen=self.config.max_points) for _ in range(len(values))
+            ]
 
         for i, value in enumerate(values):
             if i < len(self.data.multi_values):
@@ -114,7 +121,7 @@ class RealTimePlotter:
             self.ax.set_xlim(max(0, times[-1] - 30), times[-1] + 1)  # Show last 30 seconds
 
             all_values = []
-            for value_deque in getattr(self.data, 'multi_values', []):
+            for value_deque in getattr(self.data, "multi_values", []):
                 all_values.extend(list(value_deque))
 
             if all_values:
@@ -129,9 +136,7 @@ class RealTimePlotter:
         if not self.running:
             self.running = True
             self.animation = animation.FuncAnimation(
-                self.fig, self._update_plot,
-                interval=self.config.update_interval,
-                blit=True
+                self.fig, self._update_plot, interval=self.config.update_interval, blit=True
             )
             plt.show()
 
@@ -143,7 +148,7 @@ class RealTimePlotter:
 
     def save_plot(self, filename: str):
         """Save current plot to file"""
-        self.fig.savefig(filename, dpi=300, bbox_inches='tight')
+        self.fig.savefig(filename, dpi=300, bbox_inches="tight")
 
 
 class InteractiveVisualizer:
@@ -160,17 +165,21 @@ class InteractiveVisualizer:
 
         # Create subplots
         self.fig = make_subplots(
-            rows=3, cols=2,
+            rows=3,
+            cols=2,
             subplot_titles=[
-                "Joint Positions", "Joint Velocities",
-                "End-Effector Position", "Control Signals",
-                "Forces/Torques", "Performance Metrics"
+                "Joint Positions",
+                "Joint Velocities",
+                "End-Effector Position",
+                "Control Signals",
+                "Forces/Torques",
+                "Performance Metrics",
             ],
             specs=[
                 [{"secondary_y": False}, {"secondary_y": False}],
                 [{"secondary_y": False}, {"secondary_y": False}],
-                [{"secondary_y": False}, {"secondary_y": False}]
-            ]
+                [{"secondary_y": False}, {"secondary_y": False}],
+            ],
         )
 
         self.fig.update_layout(
@@ -181,7 +190,11 @@ class InteractiveVisualizer:
                 {
                     "buttons": [
                         {"label": "Play", "method": "animate", "args": [None]},
-                        {"label": "Pause", "method": "animate", "args": [[None], {"frame": {"duration": 0}}]}
+                        {
+                            "label": "Pause",
+                            "method": "animate",
+                            "args": [[None], {"frame": {"duration": 0}}],
+                        },
                     ],
                     "direction": "left",
                     "pad": {"r": 10, "t": 87},
@@ -190,9 +203,9 @@ class InteractiveVisualizer:
                     "x": 0.1,
                     "xanchor": "right",
                     "y": 0,
-                    "yanchor": "top"
+                    "yanchor": "top",
                 }
-            ]
+            ],
         )
 
         return self.fig
@@ -204,7 +217,7 @@ class InteractiveVisualizer:
             "row": subplot_row,
             "col": subplot_col,
             "data": deque(maxlen=1000),
-            "timestamps": deque(maxlen=1000)
+            "timestamps": deque(maxlen=1000),
         }
 
     def update_data_stream(self, name: str, timestamp: float, value: Any):
@@ -237,14 +250,10 @@ class InteractiveVisualizer:
                     if not trace_exists:
                         self.fig.add_trace(
                             go.Scatter(
-                                x=x_data,
-                                y=y_data,
-                                mode='lines',
-                                name=name,
-                                line={"width": 2}
+                                x=x_data, y=y_data, mode="lines", name=name, line={"width": 2}
                             ),
                             row=source["row"],
-                            col=source["col"]
+                            col=source["col"],
                         )
 
     def show_dashboard(self):
@@ -284,9 +293,7 @@ class RobotStateMonitor:
             self.start_time = time.time()
 
             self.monitor_thread = threading.Thread(
-                target=self._monitoring_loop,
-                args=(model_id, update_rate),
-                daemon=True
+                target=self._monitoring_loop, args=(model_id, update_rate), daemon=True
             )
             self.monitor_thread.start()
 
@@ -306,20 +313,16 @@ class RobotStateMonitor:
         while self.monitoring:
             try:
                 # Get current state
-                response = self.viewer_client.send_command({
-                    "type": "get_state",
-                    "model_id": model_id
-                })
+                response = self.viewer_client.send_command(
+                    {"type": "get_state", "model_id": model_id}
+                )
 
                 if response.get("success"):
                     state = response.get("state", {})
                     timestamp = time.time() - self.start_time
 
                     # Store state
-                    state_entry = {
-                        "timestamp": timestamp,
-                        "state": state
-                    }
+                    state_entry = {"timestamp": timestamp, "state": state}
                     self.state_history.append(state_entry)
                     self.data_queue.put(state_entry)
 
@@ -335,18 +338,12 @@ class RobotStateMonitor:
     def _setup_visualizations(self):
         """Setup visualization components"""
         # Joint position plotter
-        joint_config = PlotConfig(
-            title="Joint Positions",
-            ylabel="Position (rad)",
-            max_points=1000
-        )
+        joint_config = PlotConfig(title="Joint Positions", ylabel="Position (rad)", max_points=1000)
         self.joint_plotter = RealTimePlotter(joint_config)
 
         # Force/torque plotter
         force_config = PlotConfig(
-            title="Forces and Torques",
-            ylabel="Force/Torque (N/Nm)",
-            max_points=1000
+            title="Forces and Torques", ylabel="Force/Torque (N/Nm)", max_points=1000
         )
         self.force_plotter = RealTimePlotter(force_config)
 
@@ -370,7 +367,7 @@ class RobotStateMonitor:
             # Add data sources if not already done
             if not self.joint_plotter.lines:
                 for i in range(len(qpos)):
-                    self.joint_plotter.add_data_source(f"Joint {i+1}")
+                    self.joint_plotter.add_data_source(f"Joint {i + 1}")
 
             self.joint_plotter.update_data(timestamp, qpos.tolist())
 
@@ -395,16 +392,16 @@ class RobotStateMonitor:
             "metadata": {
                 "start_time": self.start_time,
                 "total_samples": len(self.state_history),
-                "export_time": time.time()
+                "export_time": time.time(),
             },
-            "states": list(self.state_history)
+            "states": list(self.state_history),
         }
 
         filepath = Path(filename)
-        if filepath.suffix == '.json':
-            with open(filepath, 'w') as f:
+        if filepath.suffix == ".json":
+            with filepath.open("w") as f:
                 json.dump(data, f, indent=2, default=str)
-        elif filepath.suffix == '.npz':
+        elif filepath.suffix == ".npz":
             # Export as numpy arrays
             timestamps = [entry["timestamp"] for entry in self.state_history]
             qpos_data = []
@@ -415,10 +412,12 @@ class RobotStateMonitor:
                 qpos_data.append(state.get("qpos", []))
                 qvel_data.append(state.get("qvel", []))
 
-            np.savez(filepath,
-                    timestamps=np.array(timestamps),
-                    qpos=np.array(qpos_data),
-                    qvel=np.array(qvel_data))
+            np.savez(
+                filepath,
+                timestamps=np.array(timestamps),
+                qpos=np.array(qpos_data),
+                qvel=np.array(qvel_data),
+            )
 
     def analyze_performance(self) -> Dict[str, Any]:
         """Analyze performance metrics from monitoring data"""
@@ -440,9 +439,11 @@ class RobotStateMonitor:
 
         analysis = {
             "duration": timestamps[-1] - timestamps[0] if len(timestamps) > 1 else 0,
-            "sample_rate": len(timestamps) / (timestamps[-1] - timestamps[0]) if len(timestamps) > 1 else 0,
+            "sample_rate": len(timestamps) / (timestamps[-1] - timestamps[0])
+            if len(timestamps) > 1
+            else 0,
             "joint_statistics": {},
-            "motion_metrics": {}
+            "motion_metrics": {},
         }
 
         # Joint statistics
@@ -450,15 +451,19 @@ class RobotStateMonitor:
             analysis["joint_statistics"] = {
                 "position_mean": np.mean(qpos_array, axis=0).tolist(),
                 "position_std": np.std(qpos_array, axis=0).tolist(),
-                "position_range": (np.max(qpos_array, axis=0) - np.min(qpos_array, axis=0)).tolist()
+                "position_range": (
+                    np.max(qpos_array, axis=0) - np.min(qpos_array, axis=0)
+                ).tolist(),
             }
 
         if qvel_array.size > 0:
-            analysis["joint_statistics"].update({
-                "velocity_mean": np.mean(qvel_array, axis=0).tolist(),
-                "velocity_std": np.std(qvel_array, axis=0).tolist(),
-                "velocity_max": np.max(np.abs(qvel_array), axis=0).tolist()
-            })
+            analysis["joint_statistics"].update(
+                {
+                    "velocity_mean": np.mean(qvel_array, axis=0).tolist(),
+                    "velocity_std": np.std(qvel_array, axis=0).tolist(),
+                    "velocity_max": np.max(np.abs(qvel_array), axis=0).tolist(),
+                }
+            )
 
         # Motion smoothness metrics
         if qvel_array.size > 0:
@@ -466,7 +471,7 @@ class RobotStateMonitor:
             jerk = np.diff(qvel_array, axis=0)
             analysis["motion_metrics"] = {
                 "smoothness_score": 1.0 / (1.0 + np.mean(np.abs(jerk))),
-                "max_jerk": np.max(np.abs(jerk)).tolist() if jerk.size > 0 else 0
+                "max_jerk": np.max(np.abs(jerk)).tolist() if jerk.size > 0 else 0,
             }
 
         return analysis
@@ -479,15 +484,14 @@ class TrajectoryVisualizer:
         self.trajectories = {}
         self.fig = None
 
-    def add_trajectory(self, name: str, positions: np.ndarray, timestamps: np.ndarray | None = None):
+    def add_trajectory(
+        self, name: str, positions: np.ndarray, timestamps: np.ndarray | None = None
+    ):
         """Add trajectory for visualization"""
         if timestamps is None:
             timestamps = np.arange(len(positions))
 
-        self.trajectories[name] = {
-            "positions": positions,
-            "timestamps": timestamps
-        }
+        self.trajectories[name] = {"positions": positions, "timestamps": timestamps}
 
     def create_3d_plot(self) -> go.Figure:
         """Create 3D trajectory plot"""
@@ -497,15 +501,17 @@ class TrajectoryVisualizer:
             positions = traj["positions"]
 
             if positions.shape[1] >= 3:
-                self.fig.add_trace(go.Scatter3d(
-                    x=positions[:, 0],
-                    y=positions[:, 1],
-                    z=positions[:, 2],
-                    mode='lines+markers',
-                    name=name,
-                    line={"width": 4},
-                    marker={"size": 3}
-                ))
+                self.fig.add_trace(
+                    go.Scatter3d(
+                        x=positions[:, 0],
+                        y=positions[:, 1],
+                        z=positions[:, 2],
+                        mode="lines+markers",
+                        name=name,
+                        line={"width": 4},
+                        marker={"size": 3},
+                    )
+                )
 
         self.fig.update_layout(
             title="3D Robot Trajectories",
@@ -513,9 +519,9 @@ class TrajectoryVisualizer:
                 "xaxis_title": "X (m)",
                 "yaxis_title": "Y (m)",
                 "zaxis_title": "Z (m)",
-                "aspectmode": 'cube'
+                "aspectmode": "cube",
             },
-            showlegend=True
+            showlegend=True,
         )
 
         return self.fig
@@ -540,20 +546,17 @@ class TrajectoryVisualizer:
         frames = []
         for i in range(len(positions)):
             frame_data = go.Scatter3d(
-                x=positions[:i+1, 0],
-                y=positions[:i+1, 1],
-                z=positions[:i+1, 2],
-                mode='lines+markers',
+                x=positions[: i + 1, 0],
+                y=positions[: i + 1, 1],
+                z=positions[: i + 1, 2],
+                mode="lines+markers",
                 name=name,
                 line={"width": 4},
-                marker={"size": 3}
+                marker={"size": 3},
             )
             frames.append(go.Frame(data=[frame_data]))
 
-        fig = go.Figure(
-            data=[go.Scatter3d(x=[], y=[], z=[], mode='lines+markers')],
-            frames=frames
-        )
+        fig = go.Figure(data=[go.Scatter3d(x=[], y=[], z=[], mode="lines+markers")], frames=frames)
 
         fig.update_layout(
             title=f"Animated Trajectory: {name}",
@@ -561,16 +564,26 @@ class TrajectoryVisualizer:
                 "xaxis_title": "X (m)",
                 "yaxis_title": "Y (m)",
                 "zaxis_title": "Z (m)",
-                "aspectmode": 'cube'
+                "aspectmode": "cube",
             },
-            updatemenus=[{
-                "buttons": [
-                    {"label": "Play", "method": "animate", "args": [None, {"frame": {"duration": 50}}]},
-                    {"label": "Pause", "method": "animate", "args": [[None], {"frame": {"duration": 0}}]}
-                ],
-                "direction": "left",
-                "type": "buttons"
-            }]
+            updatemenus=[
+                {
+                    "buttons": [
+                        {
+                            "label": "Play",
+                            "method": "animate",
+                            "args": [None, {"frame": {"duration": 50}}],
+                        },
+                        {
+                            "label": "Pause",
+                            "method": "animate",
+                            "args": [[None], {"frame": {"duration": 0}}],
+                        },
+                    ],
+                    "direction": "left",
+                    "type": "buttons",
+                }
+            ],
         )
 
         fig.show()
@@ -606,22 +619,24 @@ def analyze_trajectory_file(filename: str) -> Dict[str, Any]:
     """Analyze trajectory data from exported file"""
     filepath = Path(filename)
 
-    if filepath.suffix == '.json':
-        with open(filepath) as f:
+    if filepath.suffix == ".json":
+        with filepath.open() as f:
             data = json.load(f)
             states = data.get("states", [])
-    elif filepath.suffix == '.npz':
+    elif filepath.suffix == ".npz":
         data = np.load(filepath)
-        timestamps = data['timestamps']
-        qpos = data['qpos']
-        qvel = data['qvel']
+        timestamps = data["timestamps"]
+        qpos = data["qpos"]
+        qvel = data["qvel"]
 
         states = []
         for i in range(len(timestamps)):
-            states.append({
-                "timestamp": timestamps[i],
-                "state": {"qpos": qpos[i].tolist(), "qvel": qvel[i].tolist()}
-            })
+            states.append(
+                {
+                    "timestamp": timestamps[i],
+                    "state": {"qpos": qpos[i].tolist(), "qvel": qvel[i].tolist()},
+                }
+            )
     else:
         raise ValueError(f"Unsupported file format: {filepath.suffix}")
 
