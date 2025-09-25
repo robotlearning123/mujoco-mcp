@@ -29,6 +29,60 @@ dependencies = [
     "pydantic>=2.0.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.11.0",
+    "coverage>=7.0.0",
+    
+    # Code formatting and linting
+    "black>=23.12.0",
+    "ruff>=0.1.9",
+    "isort>=5.13.0",
+    
+    # Type checking
+    "mypy>=1.8.0",
+    "types-requests>=2.31.0",
+    
+    # Security
+    "bandit[toml]>=1.7.5",
+    "safety>=2.3.0",
+    
+    # Code quality analysis
+    "radon>=6.0.0",
+    "xenon>=0.9.0",
+    
+    # Pre-commit hooks
+    "pre-commit>=3.6.0",
+    
+    # Documentation
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=1.3.0",
+    "myst-parser>=2.0.0",
+    
+    # Development tools
+    "ipython>=8.0.0",
+    "jupyter>=1.0.0",
+    "rich>=13.0.0",
+]
+
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.11.0",
+    "coverage>=7.0.0",
+]
+
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=1.3.0",
+    "myst-parser>=2.0.0",
+]
+
 [project.scripts]
 mujoco-mcp = "mujoco_mcp.__main__:main"
 mujoco-mcp-viewer = "mujoco_mcp.viewer_server:main"
@@ -44,4 +98,58 @@ package-dir = {"" = "src"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = "test_*.py" 
+python_files = "test_*.py"
+
+[tool.mypy]
+python_version = "3.10"
+# Start with basic type checking, can be made stricter over time
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+disallow_untyped_decorators = false
+no_implicit_optional = false
+warn_redundant_casts = false
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = false
+strict_equality = false
+ignore_missing_imports = true
+# Focus on catching real errors first
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.pytest_cache
+  | \.ruff_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["mujoco_mcp"]
+force_single_line = true
+force_sort_within_sections = true
+
+[tool.bandit]
+exclude_dirs = ["tests", "scripts"]
+skips = ["B101", "B603", "B607"]  # Skip assert, subprocess calls
