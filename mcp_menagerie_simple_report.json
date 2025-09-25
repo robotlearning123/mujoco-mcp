@@ -1,0 +1,37 @@
+{
+  "mcp_basic": true,
+  "mcp_scenes": true,
+  "models_tested": 4,
+  "models_downloadable": 4,
+  "models_compatible": 0,
+  "model_results": {
+    "franka_emika_panda": {
+      "category": "arms",
+      "downloadable": true,
+      "compatible": false,
+      "xml_file": "franka_emika_panda/scene.xml",
+      "error": null
+    },
+    "unitree_go1": {
+      "category": "quadrupeds",
+      "downloadable": true,
+      "compatible": false,
+      "xml_file": "unitree_go1/scene.xml",
+      "error": null
+    },
+    "unitree_h1": {
+      "category": "humanoids",
+      "downloadable": true,
+      "compatible": false,
+      "xml_file": "unitree_h1/scene.xml",
+      "error": null
+    },
+    "robotiq_2f85": {
+      "category": "grippers",
+      "downloadable": true,
+      "compatible": false,
+      "xml_file": "robotiq_2f85/scene.xml",
+      "error": null
+    }
+  }
+}

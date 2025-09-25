@@ -1,18 +1,16 @@
 {
-  "timestamp": 1757682828.3599646,
-  "total_tests": 4,
-  "passed_tests": 4,
-  "failed_tests": 0,
-  "success_rate": 100.0,
-  "test_results": {
-    "Server Startup": true,
-    "Tools Listing": true,
-    "Protocol Messages": true,
-    "Error Handling": true
-  },
-  "mcp_version": "1.0",
-  "server_info": {
-    "name": "mujoco-mcp",
-    "version": "0.8.2"
+  "mcp_compliance": {
+    "protocol_version": "2024-11-05",
+    "test_results": {
+      "Protocol Version": false,
+      "Server Structure": true,
+      "JSON-RPC Compliance": false,
+      "Tools Definition": true
+    },
+    "summary": {
+      "total_tests": 4,
+      "passed_tests": 2,
+      "compliance_score": 0.5
+    }
   }
 }
