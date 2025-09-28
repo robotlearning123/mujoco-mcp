@@ -3,23 +3,25 @@
 Simplified RL Test - Tests core RL functionality without MuJoCo viewer dependency
 """
 
+import importlib.util
 import sys
 import time
 import numpy as np
 from pathlib import Path
 
+import pytest
+
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-try:
-    from mujoco_mcp.rl_integration import (
-        RLConfig, MuJoCoRLEnvironment, RLTrainer,
-        create_reaching_env, create_balancing_env, create_walking_env,
-        example_training
-    )
-except ImportError as e:
-    print(f"❌ Import Error: {e}")
-    sys.exit(1)
+if importlib.util.find_spec("gymnasium") is None:
+    pytest.skip("gymnasium is required for RL integration tests", allow_module_level=True)
+
+from mujoco_mcp.rl_integration import (
+    RLConfig, MuJoCoRLEnvironment, RLTrainer,
+    create_reaching_env, create_balancing_env, create_walking_env,
+    example_training
+)
 
 def test_rl_core_functionality():
     """Test core RL functionality without MuJoCo viewer"""

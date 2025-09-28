@@ -4,6 +4,7 @@ Advanced RL Test Suite
 Tests policy evaluation, training workflows, and advanced RL features
 """
 
+import importlib.util
 import sys
 import time
 import numpy as np
@@ -11,18 +12,19 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 
+import pytest
+
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-try:
-    from mujoco_mcp.rl_integration import (
-        RLConfig, MuJoCoRLEnvironment, RLTrainer,
-        ReachingTaskReward, BalancingTaskReward, WalkingTaskReward,
-        create_reaching_env, create_balancing_env, create_walking_env
-    )
-except ImportError as e:
-    print(f"❌ Import Error: {e}")
-    sys.exit(1)
+if importlib.util.find_spec("gymnasium") is None:
+    pytest.skip("gymnasium is required for RL integration tests", allow_module_level=True)
+
+from mujoco_mcp.rl_integration import (
+    RLConfig, MuJoCoRLEnvironment, RLTrainer,
+    ReachingTaskReward, BalancingTaskReward, WalkingTaskReward,
+    create_reaching_env, create_balancing_env, create_walking_env
+)
 
 class AdvancedRLTests:
     """Advanced RL functionality tests"""
