@@ -4,6 +4,7 @@ Comprehensive RL Functionality Test Suite
 Tests all aspects of the MuJoCo MCP RL integration
 """
 
+import importlib.util
 import sys
 import time
 import numpy as np
@@ -11,24 +12,24 @@ import logging
 from pathlib import Path
 from typing import Dict, Any
 
+import pytest
+
 # Add src to path for imports
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT))
 
-try:
-    from mujoco_mcp.rl_integration import (
-        RLConfig, MuJoCoRLEnvironment, RLTrainer,
-        ReachingTaskReward, BalancingTaskReward, WalkingTaskReward,
-        create_reaching_env, create_balancing_env, create_walking_env,
-        example_training
-    )
-    from mujoco_mcp.viewer_client import MuJoCoViewerClient
-    from mujoco_mcp.simulation import MuJoCoSimulation
-except ImportError as e:
-    print(f"❌ Import Error: {e}")
-    print("Make sure MuJoCo MCP is properly installed")
-    sys.exit(1)
+if importlib.util.find_spec("gymnasium") is None:
+    pytest.skip("gymnasium is required for RL integration tests", allow_module_level=True)
+
+from mujoco_mcp.rl_integration import (
+    RLConfig, MuJoCoRLEnvironment, RLTrainer,
+    ReachingTaskReward, BalancingTaskReward, WalkingTaskReward,
+    create_reaching_env, create_balancing_env, create_walking_env,
+    example_training
+)
+from mujoco_mcp.viewer_client import MuJoCoViewerClient
+from mujoco_mcp.simulation import MuJoCoSimulation
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

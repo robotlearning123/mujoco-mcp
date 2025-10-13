@@ -4,6 +4,7 @@ Comprehensive test suite for advanced MuJoCo MCP features
 Tests all new capabilities: controllers, coordination, sensors, RL, benchmarks, visualization
 """
 
+import importlib.util
 import time
 import numpy as np
 import sys
@@ -12,10 +13,22 @@ from typing import Dict
 import tempfile
 import json
 
+import pytest
+
 # Add project to path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT))
+
+missing_optional = [
+    name for name in ("scipy", "gymnasium") if importlib.util.find_spec(name) is None
+]
+
+if missing_optional:
+    pytest.skip(
+        "Missing optional dependencies: " + ", ".join(missing_optional),
+        allow_module_level=True,
+    )
 
 # Import all advanced modules
 from mujoco_mcp.advanced_controllers import (
