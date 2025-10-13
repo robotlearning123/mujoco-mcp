@@ -4,6 +4,7 @@ RL Integration Test with MuJoCo Viewer
 Tests RL functionality with actual MuJoCo physics simulation
 """
 
+import importlib.util
 import sys
 import time
 import subprocess
@@ -15,21 +16,22 @@ from typing import Dict, Any
 import threading
 import logging
 
+import pytest
+
 # Add src to path for imports
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT))
 
-try:
-    from mujoco_mcp.rl_integration import (
-        RLConfig, MuJoCoRLEnvironment, RLTrainer,
-        create_reaching_env, create_balancing_env, create_walking_env
-    )
-    from mujoco_mcp.viewer_server import MuJoCoViewerServer
-    from mujoco_mcp.viewer_client import MuJoCoViewerClient
-except ImportError as e:
-    print(f"❌ Import Error: {e}")
-    sys.exit(1)
+if importlib.util.find_spec("gymnasium") is None:
+    pytest.skip("gymnasium is required for RL integration tests", allow_module_level=True)
+
+from mujoco_mcp.rl_integration import (
+    RLConfig, MuJoCoRLEnvironment, RLTrainer,
+    create_reaching_env, create_balancing_env, create_walking_env
+)
+from mujoco_mcp.viewer_server import MuJoCoViewerServer
+from mujoco_mcp.viewer_client import MuJoCoViewerClient
 
 class RLIntegrationTest:
     """Test RL integration with MuJoCo viewer"""

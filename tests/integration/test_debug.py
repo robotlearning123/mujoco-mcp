@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """Debug the action space issue"""
 
+import importlib.util
 import sys
 from pathlib import Path
 import numpy as np
+
+import pytest
 
 # Add src to path for imports
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT))
+
+if importlib.util.find_spec("gymnasium") is None:
+    pytest.skip("gymnasium is required for RL integration tests", allow_module_level=True)
 
 from mujoco_mcp.rl_integration import create_balancing_env
 
