@@ -27,7 +27,7 @@ Welcome to the MuJoCo MCP documentation. This index provides a comprehensive ove
 ## 📖 Core Documentation
 
 ### System Overview
-- **[README.md](README.md)**
+- **[README.md](../README.md)**
   - Project introduction
   - Quick start guide
   - Basic features
@@ -54,7 +54,7 @@ Welcome to the MuJoCo MCP documentation. This index provides a comprehensive ove
   - Visualization tools
 
 ### Motion Control
-- **[examples/README_MOTION_CONTROL.md](examples/README_MOTION_CONTROL.md)**
+- **[README_MOTION_CONTROL.md](../examples/README_MOTION_CONTROL.md)**
   - Motion control demos
   - MuJoCo Menagerie integration
   - Robot configurations
@@ -77,14 +77,14 @@ Welcome to the MuJoCo MCP documentation. This index provides a comprehensive ove
   - `close_viewer` - Close MuJoCo GUI window
 
 ### Change History
-- **[CHANGELOG.md](CHANGELOG.md)**
+- **[CHANGELOG.md](../CHANGELOG.md)**
   - Version history
   - Feature additions
   - Bug fixes
   - Breaking changes
 
 ### Testing & Quality
-- **[TESTING_SUMMARY.md](TESTING_SUMMARY.md)**
+- **[TESTING_SUMMARY.md](../reports/TESTING_SUMMARY.md)**
   - Test coverage
   - Known issues
   - Performance metrics
@@ -93,6 +93,9 @@ Welcome to the MuJoCo MCP documentation. This index provides a comprehensive ove
 ---
 
 ## 🛠️ Development Resources
+
+### Contributor Guides
+- **[AGENTS.md](AGENTS.md)** - Repository guidelines and workflow expectations
 
 ### Installation & Setup
 
@@ -106,7 +109,7 @@ cd mujoco-mcp
 pip install -e .
 
 # Configure Claude Desktop
-cp cursor_mcp_config.json ~/Library/Application\ Support/Claude/claude_desktop_config.json
+cp configs/cursor_mcp_config.json ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
 #### Advanced Setup

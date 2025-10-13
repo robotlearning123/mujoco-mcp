@@ -10,8 +10,8 @@ import time
 import sys
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# Add project src to path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 
 async def test_mcp_server_startup():
@@ -134,8 +134,12 @@ async def run_compliance_tests():
         "server_info": {"name": "mujoco-mcp", "version": "0.8.2"},
     }
 
+    reports_dir = Path(__file__).resolve().parents[2] / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    report_path = reports_dir / "mcp_compliance_report.json"
+
     # Save report
-    with Path("mcp_compliance_report.json").open("w") as f:
+    with report_path.open("w") as f:
         json.dump(compliance_report, f, indent=2)
 
     print("\n" + "=" * 50)

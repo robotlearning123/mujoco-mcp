@@ -13,7 +13,9 @@ import tempfile
 import json
 
 # Add project to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+sys.path.insert(0, str(REPO_ROOT))
 
 # Import all advanced modules
 from mujoco_mcp.advanced_controllers import (

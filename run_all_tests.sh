@@ -60,7 +60,8 @@ echo ""
 
 # 10. 生成测试摘要
 echo "10. Generating test summary..."
-cat > test_summary.md << EOF
+mkdir -p reports
+cat > reports/test_summary.md << EOF
 # MuJoCo-MCP Test Summary
 
 Date: $(date)
@@ -70,9 +71,9 @@ Date: $(date)
 - Unit Tests: Check pytest output above
 - Code Quality: Check linting/mypy output above
 - Installation: Check test_local_install.sh output
-- MCP Compliance: See mcp_compliance_report.json
+- MCP Compliance: See reports/mcp_compliance_report.json
 - E2E Tests: See e2e_test_report.json
-- Performance: See performance_benchmark_report.json
+- Performance: See reports/performance_benchmark_report.json
 
 ## Package Info
 
@@ -93,5 +94,5 @@ EOF
 echo ""
 echo "=========================================="
 echo "Test suite completed!"
-echo "See test_summary.md for results"
+echo "See reports/test_summary.md for results"
 echo "=========================================="

@@ -8,7 +8,7 @@
 
 🤖 Advanced robotics simulation platform that enables AI assistants to control complex physics simulations through natural language. Built on MuJoCo physics engine and Model Context Protocol for seamless integration with Claude Desktop and other MCP clients.
 
-🚀 **[Quick Start](#quick-start)** | 📚 **[Documentation](DOCUMENTATION_INDEX.md)** | 🏗️ **[Architecture](ARCHITECTURE.md)** | 🔧 **[API Reference](API_REFERENCE.md)** | 🎯 **[Advanced Features](ADVANCED_FEATURES_GUIDE.md)**
+🚀 **[Quick Start](#quick-start)** | 📚 **[Documentation](docs/DOCUMENTATION_INDEX.md)** | 🏗️ **[Architecture](docs/ARCHITECTURE.md)** | 🔧 **[API Reference](docs/API_REFERENCE.md)** | 🎯 **[Advanced Features](docs/ADVANCED_FEATURES_GUIDE.md)**
 
 ## 🌟 Features
 
@@ -166,17 +166,17 @@ python benchmarks/physics_benchmarks.py
 
 ## 📚 Documentation
 
-- **[Documentation Index](DOCUMENTATION_INDEX.md)** - Complete guide to all docs
+- **[Documentation Index](docs/DOCUMENTATION_INDEX.md)** - Complete guide to all docs
 - **[Architecture Guide](ARCHITECTURE.md)** - System design and components
 - **[API Reference](API_REFERENCE.md)** - Complete API documentation
-- **[Advanced Features](ADVANCED_FEATURES_GUIDE.md)** - Controllers, RL, multi-robot
+- **[Advanced Features](docs/ADVANCED_FEATURES_GUIDE.md)** - Controllers, RL, multi-robot
 - **[Motion Control Examples](examples/README_MOTION_CONTROL.md)** - Robot demos
 - **[Testing Summary](TESTING_SUMMARY.md)** - Test coverage and results
 - **[Changelog](CHANGELOG.md)** - Version history
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) and [Repository Guidelines](docs/AGENTS.md) for workflow expectations.
 
 ## 🐛 Troubleshooting
 
@@ -196,7 +196,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
    - Enable connection pooling
    - Check system resources
 
-For more help, see the [Documentation Index](DOCUMENTATION_INDEX.md).
+For more help, see the [Documentation Index](docs/DOCUMENTATION_INDEX.md).
 
 ## 📄 License
 

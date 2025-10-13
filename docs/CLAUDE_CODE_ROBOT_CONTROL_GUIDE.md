@@ -199,7 +199,7 @@ Response: "✅ All control modes functional:
 ### **7.3 Run Full Demo**
 ```bash
 # In terminal:
-python demo_robot_control_mcp.py
+python demos/demo_robot_control_mcp.py
 
 # Or ask Claude:
 You: "Run the complete robot control demonstration"
@@ -299,7 +299,7 @@ You now know how to:
 
 ## 🚀 **Next Steps**
 
-1. **Run the demo**: `python demo_robot_control_mcp.py`
+1. **Run the demo**: `python demos/demo_robot_control_mcp.py`
 2. **Configure Claude Desktop** with the robot control server
 3. **Start experimenting** with natural language robot commands
 4. **Build your own** robot control sequences

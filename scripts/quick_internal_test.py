@@ -4,6 +4,7 @@
 """
 
 import asyncio
+import json
 import sys
 import time
 from pathlib import Path
@@ -66,11 +67,18 @@ async def test_core_functionality():
     print("\n4. Testing error handling...")
     try:
         result = await handle_call_tool("invalid_tool", {})
-        if result and "Unknown tool" in result[0].text:
-            print("   ✅ Error handling working properly")
-            results["error_handling_test"] = True
+        if result:
+            try:
+                payload = json.loads(result[0].text)
+            except json.JSONDecodeError:
+                payload = None
+            if payload and payload.get("status") == "error" and payload.get("error", {}).get("code") == "unknown_tool":
+                print("   ✅ Error handling working properly")
+                results["error_handling_test"] = True
+            else:
+                print(f"   ⚠️  Error handling abnormal: {result[0].text if result else 'No result'}")
         else:
-            print(f"   ⚠️  Error handling abnormal: {result[0].text if result else 'No result'}")
+            print("   ⚠️  Error handling abnormal: No result")
     except Exception as e:
         print(f"   ❌ Error handling test failed: {e}")
 

@@ -9,7 +9,7 @@ import urllib.request
 import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple, List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -158,7 +158,7 @@ class MenagerieLoader:
             ]
         }
     
-    def validate_model(self, model_name: str) -> Dict[str, any]:
+    def validate_model(self, model_name: str) -> Dict[str, Any]:
         """Validate that a model can be loaded and return info"""
         try:
             xml_content = self.get_model_xml(model_name)

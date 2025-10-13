@@ -22,7 +22,7 @@ pip list | grep -E "(mujoco|mcp)"
 
 ## 4. **Test with Demo Script**
 ```bash
-python demo_simple_mcp.py
+python demos/demo_simple_mcp.py
 ```
 **Expected**: Successfully connects and lists tools
 

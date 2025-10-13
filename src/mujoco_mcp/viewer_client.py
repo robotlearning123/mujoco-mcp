@@ -11,7 +11,7 @@ import time
 import subprocess
 import sys
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger("mujoco_mcp.viewer_client")
 
@@ -22,7 +22,7 @@ class MuJoCoViewerClient:
     def __init__(self, host: str = "localhost", port: int = 8888):
         self.host = host
         self.port = port
-        self.socket = None
+        self.socket: Optional[socket.socket] = None
         self.connected = False
         self.auto_start = True  # Auto-start viewer server
         self.reconnect_attempts = 3
@@ -31,29 +31,48 @@ class MuJoCoViewerClient:
     def connect(self) -> bool:
         """Connect to MuJoCo Viewer Server - supports auto-start and retry"""
         for attempt in range(self.reconnect_attempts):
-            try:
-                self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.settimeout(15.0)  # Increased timeout for model replacement
-                self.socket.connect((self.host, self.port))
-                self.connected = True
-                logger.info(f"Connected to MuJoCo Viewer Server at {self.host}:{self.port}")
+            if self._try_connect():
                 return True
-            except Exception as e:
-                logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
 
-                # Try to start viewer server after first failure
-                if attempt == 0 and self.auto_start:
-                    logger.info("Attempting to start MuJoCo Viewer Server...")
-                    if self._start_viewer_server():
-                        time.sleep(3)  # Wait for server to start
-                        continue
+            logger.warning(f"Connection attempt {attempt + 1} failed")
+            self._cleanup_socket()
 
-                if attempt < self.reconnect_attempts - 1:
-                    time.sleep(self.reconnect_delay)
+            # Try to start viewer server after first failure
+            if attempt == 0 and self.auto_start:
+                logger.info("Attempting to start MuJoCo Viewer Server...")
+                if self._start_viewer_server():
+                    time.sleep(3)  # Wait for server to start
+                    continue
+
+            if attempt < self.reconnect_attempts - 1:
+                time.sleep(self.reconnect_delay)
 
         logger.error(f"Failed to connect after {self.reconnect_attempts} attempts")
-        self.connected = False
         return False
+
+    def _try_connect(self) -> bool:
+        """Attempt to establish socket connection."""
+        try:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.settimeout(15.0)  # Increased timeout for model replacement
+            self.socket.connect((self.host, self.port))
+            self.connected = True
+            logger.info(f"Connected to MuJoCo Viewer Server at {self.host}:{self.port}")
+            return True
+        except Exception as e:
+            logger.debug(f"Connection failed: {e}")
+            return False
+
+    def _cleanup_socket(self) -> None:
+        """Clean up socket resources."""
+        if self.socket is not None:
+            try:
+                self.socket.close()
+            except Exception:
+                pass
+            finally:
+                self.socket = None
+        self.connected = False
 
     def disconnect(self):
         """断开连接"""
@@ -68,12 +87,14 @@ class MuJoCoViewerClient:
         if not self.connected or not self.socket:
             return {"success": False, "error": "Not connected to viewer server"}
 
+        MAX_RESPONSE_SIZE = 1024 * 1024  # 1MB limit
+
         try:
-            # 发送命令
+            # Send command
             command_json = json.dumps(command)
             self.socket.send(command_json.encode("utf-8"))
 
-            # 接收响应 - 支持更大的消息
+            # Receive response
             response_data = b""
             while True:
                 chunk = self.socket.recv(8192)
@@ -81,12 +102,12 @@ class MuJoCoViewerClient:
                     break
                 response_data += chunk
 
-                # 检查是否收到完整的JSON (以换行符结束)
+                # Check if complete JSON received (ends with newline)
                 if response_data.endswith(b"\n"):
                     break
 
-                # 防止无限等待
-                if len(response_data) > 1024 * 1024:  # 1MB限制
+                # Prevent excessive memory usage
+                if len(response_data) > MAX_RESPONSE_SIZE:
                     raise ValueError("Response too large")
 
             return json.loads(response_data.decode("utf-8").strip())
@@ -97,21 +118,25 @@ class MuJoCoViewerClient:
 
     def ping(self) -> bool:
         """测试连接是否正常 - 增强版"""
-        if not self.connected:
-            # 尝试重连
-            if not self.connect():
-                return False
+        # Ensure connection exists
+        if not self.connected and not self.connect():
+            return False
 
+        # Try ping command
         try:
             response = self.send_command({"type": "ping"})
             return response.get("success", False)
-        except:
-            # 连接可能已断开，尝试重连
+        except Exception:
+            # Connection lost, try to reconnect once
             self.connected = False
-            if self.connect():
+            if not self.connect():
+                return False
+
+            try:
                 response = self.send_command({"type": "ping"})
                 return response.get("success", False)
-            return False
+            except Exception:
+                return False
 
     def load_model(self, model_source: str, model_id: str = None) -> Dict[str, Any]:
         """Load MuJoCo model to viewer

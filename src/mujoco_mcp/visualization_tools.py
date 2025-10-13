@@ -590,7 +590,7 @@ class TrajectoryVisualizer:
 
 
 # Factory functions for common visualization setups
-def create_robot_monitor(robot_type: str, model_id: str) -> RobotStateMonitor:
+def create_robot_monitor(_robot_type: str, model_id: str) -> RobotStateMonitor:
     """Create robot state monitor for specific robot type"""
     client = MuJoCoViewerClient()
     monitor = RobotStateMonitor(client)

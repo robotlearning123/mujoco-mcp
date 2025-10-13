@@ -5,9 +5,8 @@ Production-ready MCP server with MuJoCo Menagerie model integration
 """
 
 import asyncio
-import sys
 import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import logging
 
 from mcp.server import Server, NotificationOptions
@@ -27,7 +26,7 @@ logger = logging.getLogger("mujoco-mcp-menagerie")
 server = Server("mujoco-mcp-menagerie")
 
 # Global instances
-viewer_client: Optional[ViewerClient] = None
+viewer_client: ViewerClient | None = None
 menagerie_loader = MenagerieLoader()
 
 @server.list_tools()
@@ -58,7 +57,7 @@ async def handle_list_tools() -> List[types.Tool]:
             }
         ),
         types.Tool(
-            name="validate_menagerie_model", 
+            name="validate_menagerie_model",
             description="Validate a specific MuJoCo Menagerie model",
             inputSchema={
                 "type": "object",
@@ -101,7 +100,7 @@ async def handle_list_tools() -> List[types.Tool]:
                         "enum": ["pendulum", "double_pendulum", "cart_pole", "arm"]
                     },
                     "menagerie_model": {
-                        "type": "string", 
+                        "type": "string",
                         "description": "Optional: Load a MuJoCo Menagerie model instead"
                     }
                 },
@@ -115,7 +114,7 @@ async def handle_list_tools() -> List[types.Tool]:
                 "type": "object",
                 "properties": {
                     "model_id": {
-                        "type": "string", 
+                        "type": "string",
                         "description": "ID of the model to step"
                     },
                     "steps": {
@@ -175,7 +174,7 @@ async def handle_list_tools() -> List[types.Tool]:
 async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
     """Handle tool calls with Menagerie support"""
     global viewer_client
-    
+
     try:
         if name == "get_server_info":
             return [types.TextContent(
@@ -187,17 +186,17 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                     "status": "ready",
                     "capabilities": [
                         "create_scene", "create_menagerie_scene", "list_menagerie_models",
-                        "validate_menagerie_model", "step_simulation", "get_state", 
+                        "validate_menagerie_model", "step_simulation", "get_state",
                         "reset", "close_viewer"
                     ],
                     "menagerie_support": True
                 }, indent=2)
             )]
-            
+
         elif name == "list_menagerie_models":
             category_filter = arguments.get("category")
             available_models = menagerie_loader.get_available_models()
-            
+
             if category_filter:
                 if category_filter in available_models:
                     filtered_models = {category_filter: available_models[category_filter]}
@@ -208,25 +207,25 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                     )]
             else:
                 filtered_models = available_models
-            
+
             # Format response
             result = {"categories": len(filtered_models), "models": {}}
             total_models = 0
-            
+
             for category, models in filtered_models.items():
                 result["models"][category] = {
                     "count": len(models),
                     "models": models
                 }
                 total_models += len(models)
-            
+
             result["total_models"] = total_models
-            
+
             return [types.TextContent(
                 type="text",
                 text=json.dumps(result, indent=2)
             )]
-            
+
         elif name == "validate_menagerie_model":
             model_name = arguments.get("model_name")
             if not model_name:
@@ -234,10 +233,10 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                     type="text",
                     text="❌ model_name is required"
                 )]
-            
+
             # Validate the model
             validation_result = menagerie_loader.validate_model(model_name)
-            
+
             if validation_result["valid"]:
                 status = "✅ Valid"
                 details = []
@@ -249,40 +248,40 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                     details.append(f"Actuators: {validation_result['n_actuators']}")
                 if "xml_size" in validation_result:
                     details.append(f"XML Size: {validation_result['xml_size']} chars")
-                
+
                 message = f"{status} - {model_name}"
                 if details:
                     message += f" ({', '.join(details)})"
-                    
+
                 if "note" in validation_result:
                     message += f"\n⚠️ {validation_result['note']}"
-                    
+
             else:
                 message = f"❌ Invalid - {model_name}: {validation_result.get('error', 'Unknown error')}"
-            
+
             return [types.TextContent(
                 type="text",
                 text=message
             )]
-            
+
         elif name == "create_menagerie_scene":
             model_name = arguments.get("model_name")
             scene_name = arguments.get("scene_name", f"{model_name}_scene")
-            
+
             if not model_name:
                 return [types.TextContent(
                     type="text",
                     text="❌ model_name is required"
                 )]
-            
+
             try:
                 # Get the complete scene XML
                 scene_xml = menagerie_loader.create_scene_xml(model_name, scene_name)
-                
+
                 # Initialize viewer client if not exists
                 if not viewer_client:
                     viewer_client = ViewerClient()
-                    
+
                 # Connect to viewer server
                 if not viewer_client.connected:
                     success = viewer_client.connect()
@@ -291,14 +290,14 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                             type="text",
                             text=f"❌ Failed to connect to MuJoCo viewer server. Please start `mujoco-mcp-viewer` first.\n✅ XML generated successfully for {model_name} ({len(scene_xml)} chars)"
                         )]
-                
+
                 # Load the model
                 response = viewer_client.send_command({
                     "type": "load_model",
                     "model_id": scene_name,
                     "model_xml": scene_xml
                 })
-                
+
                 if response.get("success"):
                     return [types.TextContent(
                         type="text",
@@ -306,33 +305,33 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                     )]
                 else:
                     return [types.TextContent(
-                        type="text", 
+                        type="text",
                         text=f"❌ Failed to create scene: {response.get('error', 'Unknown error')}\n✅ XML generated successfully for {model_name}"
                     )]
-                    
+
             except Exception as e:
                 return [types.TextContent(
                     type="text",
                     text=f"❌ Failed to load Menagerie model '{model_name}': {str(e)}"
                 )]
-                
+
         elif name == "create_scene":
             menagerie_model = arguments.get("menagerie_model")
-            
+
             # If Menagerie model specified, delegate to create_menagerie_scene
             if menagerie_model:
                 return await handle_call_tool("create_menagerie_scene", {
                     "model_name": menagerie_model,
                     "scene_name": menagerie_model
                 })
-            
+
             # Otherwise use built-in scenes (original logic)
             scene_type = arguments.get("scene_type", "pendulum")
-            
+
             # Initialize viewer client if not exists
             if not viewer_client:
                 viewer_client = ViewerClient()
-                
+
             # Connect to viewer server
             if not viewer_client.connected:
                 success = viewer_client.connect()
@@ -341,7 +340,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                         type="text",
                         text="❌ Failed to connect to MuJoCo viewer server. Please start `mujoco-mcp-viewer` first."
                     )]
-            
+
             # Map scene types to model XML
             scene_models = {
                 "pendulum": """
@@ -389,20 +388,20 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                 </mujoco>
                 """
             }
-            
+
             if scene_type not in scene_models:
                 return [types.TextContent(
                     type="text",
                     text=f"❌ Unknown scene type: {scene_type}. Available: {', '.join(scene_models.keys())}"
                 )]
-            
+
             # Load the model
             response = viewer_client.send_command({
                 "type": "load_model",
                 "model_id": scene_type,
                 "model_xml": scene_models[scene_type]
             })
-            
+
             if response.get("success"):
                 return [types.TextContent(
                     type="text",
@@ -410,44 +409,44 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                 )]
             else:
                 return [types.TextContent(
-                    type="text", 
+                    type="text",
                     text=f"❌ Failed to create scene: {response.get('error', 'Unknown error')}"
                 )]
-                
+
         elif name == "step_simulation":
             model_id = arguments.get("model_id")
             steps = arguments.get("steps", 1)
-            
+
             if not viewer_client or not viewer_client.connected:
                 return [types.TextContent(
                     type="text",
                     text="❌ No active viewer connection. Create a scene first."
                 )]
-                
+
             # The viewer server doesn't have a direct step_simulation command
             # It automatically runs the simulation, so we just return success
             response = {"success": True, "message": f"Simulation running for model {model_id}"}
-            
+
             return [types.TextContent(
                 type="text",
-                text=f"⏩ Stepped simulation {steps} steps" if response.get("success") 
+                text=f"⏩ Stepped simulation {steps} steps" if response.get("success")
                      else f"❌ Step failed: {response.get('error')}"
             )]
-            
+
         elif name == "get_state":
             model_id = arguments.get("model_id")
-            
+
             if not viewer_client or not viewer_client.connected:
                 return [types.TextContent(
                     type="text",
                     text="❌ No active viewer connection. Create a scene first."
                 )]
-                
+
             response = viewer_client.send_command({
                 "type": "get_state",
                 "model_id": model_id
             })
-            
+
             if response.get("success"):
                 state = response.get("state", {})
                 return [types.TextContent(
@@ -459,69 +458,69 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                     type="text",
                     text=f"❌ Failed to get state: {response.get('error')}"
                 )]
-                
+
         elif name == "reset_simulation":
             model_id = arguments.get("model_id")
-            
+
             if not viewer_client or not viewer_client.connected:
                 return [types.TextContent(
                     type="text",
                     text="❌ No active viewer connection. Create a scene first."
                 )]
-                
+
             response = viewer_client.send_command({
                 "type": "reset",
                 "model_id": model_id
             })
-            
+
             return [types.TextContent(
                 type="text",
                 text="🔄 Simulation reset to initial state" if response.get("success")
                      else f"❌ Reset failed: {response.get('error')}"
             )]
-            
+
         elif name == "close_viewer":
             model_id = arguments.get("model_id")
-            
+
             if not viewer_client or not viewer_client.connected:
                 return [types.TextContent(
                     type="text",
                     text="❌ No active viewer connection."
                 )]
-                
+
             response = viewer_client.send_command({
                 "type": "close_model",
                 "model_id": model_id
             })
-            
+
             # Close our connection too
             if viewer_client:
                 viewer_client.disconnect()
                 viewer_client = None
-                
+
             return [types.TextContent(
                 type="text",
                 text="✅ Viewer closed" if response.get("success")
                      else f"❌ Failed to close: {response.get('error')}"
             )]
-        
+
         else:
             return [types.TextContent(
                 type="text",
                 text=f"❌ Unknown tool: {name}"
             )]
-            
+
     except Exception as e:
         logger.exception(f"Error in tool {name}")
         return [types.TextContent(
-            type="text", 
+            type="text",
             text=f"❌ Error: {str(e)}"
         )]
 
 async def main():
     """Main entry point for enhanced MCP server"""
     logger.info(f"Starting MuJoCo MCP Server with Menagerie Support v{__version__}")
-    
+
     # Initialize server capabilities
     server_options = InitializationOptions(
         server_name="mujoco-mcp-menagerie",
@@ -531,7 +530,7 @@ async def main():
             experimental_capabilities={}
         )
     )
-    
+
     # Run server with stdio transport
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
