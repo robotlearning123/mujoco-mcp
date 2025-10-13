@@ -10,7 +10,9 @@ import sys
 from pathlib import Path
 
 # Add src to path for testing
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+sys.path.insert(0, str(REPO_ROOT))
 
 async def test_enhanced_mcp_server():
     """Test the enhanced MCP server with Menagerie support"""

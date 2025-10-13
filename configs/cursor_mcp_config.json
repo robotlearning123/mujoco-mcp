@@ -1,0 +1,15 @@
+{
+  "mujoco-mcp": {
+    "command": "python",
+    "args": [
+      "-m",
+      "mujoco_mcp"
+    ],
+    "cwd": ".",
+    "env": {
+      "PYTHONUNBUFFERED": "1",
+      "PYTHONPATH": "./src",
+      "MUJOCO_MCP_LOG_LEVEL": "INFO"
+    }
+  }
+}

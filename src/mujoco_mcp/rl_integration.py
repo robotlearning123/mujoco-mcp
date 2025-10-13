@@ -611,7 +611,7 @@ class RLTrainer:
         episode_lengths = []
 
         for episode in range(num_episodes):
-            obs, _ = self.env.reset()
+            _obs, _ = self.env.reset()
             episode_reward = 0
             episode_length = 0
             done = False

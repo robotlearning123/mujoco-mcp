@@ -9,6 +9,8 @@ import time
 import sys
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 def run_basic_benchmark():
     """Run basic performance benchmark"""
     start_time = time.time()
@@ -27,7 +29,8 @@ def run_basic_benchmark():
         import_error = str(e)
         # Fallback to local development setup
         try:
-            sys.path.insert(0, str(Path(__file__).parent / "src"))
+            sys.path.insert(0, str(REPO_ROOT / "src"))
+            sys.path.insert(0, str(REPO_ROOT))
             import mujoco_mcp
             from mujoco_mcp.version import __version__
             import_success = True
@@ -54,7 +57,10 @@ def run_basic_benchmark():
     }
     
     # Save report
-    with open('performance_benchmark_report.json', 'w') as f:
+    reports_dir = REPO_ROOT / "reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    report_path = reports_dir / 'performance_benchmark_report.json'
+    with report_path.open('w') as f:
         json.dump(results, f, indent=2)
     
     print(f"✅ Basic benchmark completed in {execution_time:.3f}s")

@@ -143,3 +143,7 @@ Thumbs.db
 /data/
 /models/downloaded/
 /output/
+
+# Generated reports
+reports/*
+!reports/README.md

@@ -6,10 +6,12 @@ MCP Protocol Version: 2024-11-05
 """
 
 import asyncio
-import sys
 import json
-from typing import Dict, Any, List, Optional
 import logging
+import sys
+import time
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
 
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
@@ -29,12 +31,73 @@ logger = logging.getLogger("mujoco-mcp")
 # Create server instance
 server = Server("mujoco-mcp")
 
-# Global viewer client
-viewer_client: Optional[ViewerClient] = None
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _ResourcePayload:
+    content: str
+    mime_type: str | None = None
+
+
+viewer_client: ViewerClient | None = None
+
+
+def _json_content(payload: Dict[str, Any]) -> List[types.TextContent]:
+    """Serialize payload as indented JSON for MCP text responses."""
+    return [
+        types.TextContent(
+            type="text",
+            text=json.dumps(payload, indent=2, ensure_ascii=False)
+        )
+    ]
+
+
+def _success(message: str, data: Dict[str, Any] | None = None) -> List[types.TextContent]:
+    """Create a standard success payload."""
+    payload: Dict[str, Any] = {"status": "ok", "message": message}
+    if data is not None:
+        payload["data"] = data
+    return _json_content(payload)
+
+
+def _error(
+    code: str,
+    message: str,
+    remediation: str | None = None,
+    details: Dict[str, Any] | None = None,
+) -> List[types.TextContent]:
+    """Create a standard error payload following MCP guidance."""
+    error_body: Dict[str, Any] = {
+        "status": "error",
+        "error": {
+            "code": code,
+            "message": message,
+        },
+    }
+
+    if remediation:
+        error_body["error"]["remediation"] = remediation
+    if details:
+        error_body["error"]["details"] = details
+
+    return _json_content(error_body)
+
+
+def _redact_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Redact large or sensitive payloads before logging tool calls."""
+    return {
+        key: "<redacted>" if isinstance(value, str) and len(value) > 256 else value
+        for key, value in arguments.items()
+    }
 
 @server.list_tools()
 async def handle_list_tools() -> List[types.Tool]:
-    """Return list of available MuJoCo MCP tools"""
+    """Return list of available MuJoCo MCP tools."""
+
     return [
         types.Tool(
             name="get_server_info",
@@ -44,8 +107,9 @@ async def handle_list_tools() -> List[types.Tool]:
                 "type": "object",
                 "properties": {},
                 "required": [],
-                "additionalProperties": False
-            }
+                "additionalProperties": False,
+                "examples": [{}],
+            },
         ),
         types.Tool(
             name="create_scene",
@@ -57,12 +121,16 @@ async def handle_list_tools() -> List[types.Tool]:
                     "scene_type": {
                         "type": "string",
                         "description": "Type of scene to create",
-                        "enum": ["pendulum", "double_pendulum", "cart_pole", "arm"]
+                        "enum": ["pendulum", "double_pendulum", "cart_pole", "arm"],
                     }
                 },
                 "required": ["scene_type"],
-                "additionalProperties": False
-            }
+                "additionalProperties": False,
+                "examples": [
+                    {"scene_type": "pendulum"},
+                    {"scene_type": "double_pendulum"},
+                ],
+            },
         ),
         types.Tool(
             name="step_simulation",
@@ -72,19 +140,22 @@ async def handle_list_tools() -> List[types.Tool]:
                 "type": "object",
                 "properties": {
                     "model_id": {
-                        "type": "string", 
-                        "description": "ID of the model to step"
+                        "type": "string",
+                        "description": "ID of the model to step",
                     },
                     "steps": {
                         "type": "integer",
                         "description": "Number of simulation steps",
                         "default": 1,
-                        "minimum": 1
-                    }
+                        "minimum": 1,
+                    },
                 },
                 "required": ["model_id"],
-                "additionalProperties": False
-            }
+                "additionalProperties": False,
+                "examples": [
+                    {"model_id": "pendulum", "steps": 5},
+                ],
+            },
         ),
         types.Tool(
             name="get_state",
@@ -95,12 +166,13 @@ async def handle_list_tools() -> List[types.Tool]:
                 "properties": {
                     "model_id": {
                         "type": "string",
-                        "description": "ID of the model to get state from"
+                        "description": "ID of the model to get state from",
                     }
                 },
                 "required": ["model_id"],
-                "additionalProperties": False
-            }
+                "additionalProperties": False,
+                "examples": [{"model_id": "pendulum"}],
+            },
         ),
         types.Tool(
             name="reset_simulation",
@@ -111,12 +183,13 @@ async def handle_list_tools() -> List[types.Tool]:
                 "properties": {
                     "model_id": {
                         "type": "string",
-                        "description": "ID of the model to reset"
+                        "description": "ID of the model to reset",
                     }
                 },
                 "required": ["model_id"],
-                "additionalProperties": False
-            }
+                "additionalProperties": False,
+                "examples": [{"model_id": "pendulum"}],
+            },
         ),
         types.Tool(
             name="close_viewer",
@@ -127,53 +200,161 @@ async def handle_list_tools() -> List[types.Tool]:
                 "properties": {
                     "model_id": {
                         "type": "string",
-                        "description": "ID of the model viewer to close"
+                        "description": "ID of the model viewer to close",
                     }
                 },
                 "required": ["model_id"],
-                "additionalProperties": False
-            }
-        )
+                "additionalProperties": False,
+                "examples": [{"model_id": "pendulum"}],
+            },
+        ),
     ]
+
+
+def _state_snapshot() -> Dict[str, Any]:
+    """Return a lightweight snapshot of the first active simulation."""
+
+    if not viewer_client or not viewer_client.connected:
+        return {
+            "status": "ok",
+            "data": {
+                "active": False,
+                "message": "Viewer connection inactive",
+            },
+        }
+
+    try:
+        response = viewer_client.send_command({"type": "get_state"})
+        if not response.get("success"):
+            return {
+                "status": "error",
+                "error": {
+                    "code": "viewer_error",
+                    "message": response.get("error", "Unable to fetch state."),
+                },
+            }
+
+        state = response.get("state")
+        if state is None:
+            state_keys = ["time", "qpos", "qvel", "ctrl", "xpos"]
+            state = {key: response[key] for key in state_keys if key in response}
+
+        return {
+            "status": "ok",
+            "data": {
+                "active": True,
+                "state": state,
+            },
+        }
+    except Exception as exc:  # pragma: no cover - defensive path
+        logger.exception("Failed to build state snapshot")
+        return {
+            "status": "error",
+            "error": {
+                "code": "internal_error",
+                "message": "Failed to gather simulation state.",
+                "details": {"exception": str(exc)},
+            },
+        }
+
+
+@server.list_resources()
+async def handle_list_resources() -> List[types.Resource]:
+    """Advertise available resources following MCP guidelines."""
+
+    return [
+        types.Resource(
+            name="simulation_state",
+            title="Simulation State Snapshot",
+            uri="simulation://state",
+            description="Latest state snapshot of the first active simulation (if any).",
+            mimeType="application/json",
+        ),
+        types.Resource(
+            name="server_config",
+            title="Server Configuration",
+            uri="simulation://config",
+            description="Server capabilities, version, and protocol metadata.",
+            mimeType="application/json",
+        ),
+    ]
+
+
+@server.read_resource()
+async def handle_read_resource(uri: str):
+    """Provide resource contents for the advertised URIs."""
+
+    if uri == "simulation://state":
+        payload = _state_snapshot()
+    elif uri == "simulation://config":
+        tools = await handle_list_tools()
+        payload = {
+            "status": "ok",
+            "data": {
+                "version": __version__,
+                "protocol_version": MCP_PROTOCOL_VERSION,
+                "tools": [tool.name for tool in tools],
+            },
+        }
+    else:
+        payload = {
+            "status": "error",
+            "error": {
+                "code": "unknown_resource",
+                "message": f"Resource '{uri}' is not available.",
+            },
+        }
+
+    return [_ResourcePayload(content=json.dumps(payload), mime_type="application/json")]
 
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
-    """Handle tool calls with MCP-compliant responses"""
+    """Handle tool calls with MCP-compliant responses."""
+
     global viewer_client
-    
-    # Log the tool call for debugging
-    logger.debug(f"Tool call: {name} with arguments: {arguments}")
-    
+    start = time.perf_counter()
+    redacted_args = _redact_arguments(arguments)
+
     try:
         if name == "get_server_info":
-            return [types.TextContent(
-                type="text",
-                text=json.dumps({
+            logger.info("get_server_info invoked")
+            return _success(
+                "Server information",
+                {
                     "name": "MuJoCo MCP Server",
                     "version": __version__,
                     "description": "Control MuJoCo physics simulations through MCP",
-                    "status": "ready",
-                    "capabilities": ["create_scene", "step_simulation", "get_state", "reset", "close_viewer"]
-                }, indent=2)
-            )]
-            
-        elif name == "create_scene":
+                    "protocol_version": MCP_PROTOCOL_VERSION,
+                    "capabilities": [
+                        "create_scene",
+                        "step_simulation",
+                        "get_state",
+                        "reset_simulation",
+                        "close_viewer",
+                    ],
+                },
+            )
+
+        if name not in {"create_scene", "step_simulation", "get_state", "reset_simulation", "close_viewer"}:
+            logger.warning("Unknown tool requested", extra={"tool": name})
+            return _error(
+                code="unknown_tool",
+                message=f"Tool '{name}' is not available.",
+                remediation="Call list_tools to discover supported tools.",
+            )
+
+        if not viewer_client:
+            viewer_client = ViewerClient()
+
+        if not viewer_client.connected and not viewer_client.connect():
+            return _error(
+                code="viewer_unavailable",
+                message="Failed to connect to the MuJoCo viewer server.",
+                remediation="Start 'mujoco-mcp-viewer' and retry the tool call.",
+            )
+
+        if name == "create_scene":
             scene_type = arguments.get("scene_type", "pendulum")
-            
-            # Initialize viewer client if not exists
-            if not viewer_client:
-                viewer_client = ViewerClient()
-                
-            # Connect to viewer server
-            if not viewer_client.connected:
-                success = viewer_client.connect()
-                if not success:
-                    return [types.TextContent(
-                        type="text",
-                        text="❌ Failed to connect to MuJoCo viewer server. Please start `mujoco-mcp-viewer` first."
-                    )]
-            
-            # Map scene types to model XML
             scene_models = {
                 "pendulum": """
                 <mujoco>
@@ -218,160 +399,145 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                         </body>
                     </worldbody>
                 </mujoco>
-                """
+                """,
+                "arm": """
+                <mujoco>
+                    <worldbody>
+                        <body name="base">
+                            <joint name="hinge" type="hinge" axis="0 0 1"/>
+                            <geom name="link" type="capsule" size="0.02 0.4" rgba="0.8 0.2 0.2 1"/>
+                        </body>
+                    </worldbody>
+                </mujoco>
+                """,
             }
-            
+
             if scene_type not in scene_models:
-                return [types.TextContent(
-                    type="text",
-                    text=f"❌ Unknown scene type: {scene_type}. Available: {', '.join(scene_models.keys())}"
-                )]
-            
-            # Load the model
-            response = viewer_client.send_command({
-                "type": "load_model",
-                "model_id": scene_type,
-                "model_xml": scene_models[scene_type]
-            })
-            
-            if response.get("success"):
-                return [types.TextContent(
-                    type="text",
-                    text=f"✅ Created {scene_type} scene successfully! Viewer window opened."
-                )]
-            else:
-                return [types.TextContent(
-                    type="text", 
-                    text=f"❌ Failed to create scene: {response.get('error', 'Unknown error')}"
-                )]
-                
-        elif name == "step_simulation":
-            model_id = arguments.get("model_id")
-            steps = arguments.get("steps", 1)
-            
-            if not viewer_client or not viewer_client.connected:
-                return [types.TextContent(
-                    type="text",
-                    text="❌ No active viewer connection. Create a scene first."
-                )]
-                
-            # The viewer server doesn't have a direct step_simulation command
-            # It automatically runs the simulation, so we just return success
-            response = {"success": True, "message": f"Simulation running for model {model_id}"}
-            
-            return [types.TextContent(
-                type="text",
-                text=f"⏩ Stepped simulation {steps} steps" if response.get("success") 
-                     else f"❌ Step failed: {response.get('error')}"
-            )]
-            
-        elif name == "get_state":
-            model_id = arguments.get("model_id")
-            
-            if not viewer_client or not viewer_client.connected:
-                return [types.TextContent(
-                    type="text",
-                    text="❌ No active viewer connection. Create a scene first."
-                )]
-                
-            response = viewer_client.send_command({
-                "type": "get_state",
-                "model_id": model_id
-            })
-            
-            if response.get("success"):
-                state = response.get("state", {})
-                return [types.TextContent(
-                    type="text",
-                    text=json.dumps(state, indent=2)
-                )]
-            else:
-                return [types.TextContent(
-                    type="text",
-                    text=f"❌ Failed to get state: {response.get('error')}"
-                )]
-                
-        elif name == "reset_simulation":
-            model_id = arguments.get("model_id")
-            
-            if not viewer_client or not viewer_client.connected:
-                return [types.TextContent(
-                    type="text",
-                    text="❌ No active viewer connection. Create a scene first."
-                )]
-                
-            response = viewer_client.send_command({
-                "type": "reset",
-                "model_id": model_id
-            })
-            
-            return [types.TextContent(
-                type="text",
-                text="🔄 Simulation reset to initial state" if response.get("success")
-                     else f"❌ Reset failed: {response.get('error')}"
-            )]
-            
-        elif name == "close_viewer":
-            model_id = arguments.get("model_id")
-            
-            if not viewer_client or not viewer_client.connected:
-                return [types.TextContent(
-                    type="text",
-                    text="❌ No active viewer connection."
-                )]
-                
-            response = viewer_client.send_command({
-                "type": "close_model",
-                "model_id": model_id
-            })
-            
-            # Close our connection too
+                return _error(
+                    code="invalid_scene",
+                    message=f"Scene type '{scene_type}' is not supported.",
+                    remediation=f"Use one of: {', '.join(scene_models)}.",
+                )
+
+            response = viewer_client.send_command(
+                {
+                    "type": "load_model",
+                    "model_id": scene_type,
+                    "model_xml": scene_models[scene_type],
+                }
+            )
+
+            if not response.get("success"):
+                return _error(
+                    code="viewer_error",
+                    message=response.get("error", "Unknown viewer error"),
+                )
+
+            return _success(
+                "Scene created",
+                {
+                    "model_id": scene_type,
+                    "viewer_response": response,
+                },
+            )
+
+        model_id = arguments.get("model_id")
+        if not model_id:
+            return _error(
+                code="missing_argument",
+                message="The 'model_id' argument is required.",
+                remediation="Pass the target model identifier in the tool arguments.",
+            )
+
+        if name == "step_simulation":
+            steps = max(1, int(arguments.get("steps", 1)))
+            # Simulation runs continuously; acknowledge the request.
+            return _success(
+                "Simulation step acknowledged",
+                {"model_id": model_id, "steps": steps},
+            )
+
+        if name == "get_state":
+            response = viewer_client.send_command({"type": "get_state", "model_id": model_id})
+            if not response.get("success"):
+                return _error(
+                    code="viewer_error",
+                    message=response.get("error", "Failed to retrieve state."),
+                )
+
+            state = response.get("state")
+            if state is None:
+                state_keys = ["time", "qpos", "qvel", "qacc", "ctrl", "xpos"]
+                state = {key: response[key] for key in state_keys if key in response}
+
+            return _success("Simulation state", {"model_id": model_id, "state": state})
+
+        if name == "reset_simulation":
+            response = viewer_client.send_command({"type": "reset", "model_id": model_id})
+            if not response.get("success"):
+                return _error(
+                    code="viewer_error",
+                    message=response.get("error", "Reset failed."),
+                )
+            return _success("Simulation reset", {"model_id": model_id})
+
+        if name == "close_viewer":
+            response = viewer_client.send_command({"type": "close_model", "model_id": model_id})
             if viewer_client:
                 viewer_client.disconnect()
                 viewer_client = None
-                
-            return [types.TextContent(
-                type="text",
-                text="❌ Viewer closed" if response.get("success")
-                     else f"❌ Failed to close: {response.get('error')}"
-            )]
-        
-        else:
-            return [types.TextContent(
-                type="text",
-                text=f"❌ Unknown tool: {name}"
-            )]
-            
-    except Exception as e:
-        logger.exception(f"Error in tool {name}")
-        return [types.TextContent(
-            type="text", 
-            text=f"❌ Error: {str(e)}"
-        )]
+
+            if not response.get("success"):
+                return _error(
+                    code="viewer_error",
+                    message=response.get("error", "Failed to close viewer."),
+                )
+
+            return _success("Viewer closed", {"model_id": model_id})
+
+        return _error(
+            code="unknown_tool",
+            message=f"Tool '{name}' is not available.",
+        )
+
+    except Exception as exc:
+        logger.exception("Error in tool handler", extra={"tool": name, "arguments": redacted_args})
+        return _error(
+            code="internal_error",
+            message="Unexpected server error.",
+            details={"exception": str(exc)},
+        )
+    finally:
+        duration_ms = (time.perf_counter() - start) * 1000
+        logger.info(
+            "Tool handled",
+            extra={"tool": name, "duration_ms": round(duration_ms, 2), "arguments": redacted_args},
+        )
 
 async def main():
     """Main entry point for MCP server"""
     logger.info(f"Starting MuJoCo MCP Server v{__version__}")
     logger.info(f"MCP Protocol Version: {MCP_PROTOCOL_VERSION}")
-    
+
     # Initialize server capabilities with enhanced configuration
     capabilities = server.get_capabilities(
         notification_options=NotificationOptions(),
         experimental_capabilities={}
     )
-    
+
     server_options = InitializationOptions(
         server_name="mujoco-mcp",
         server_version=__version__,
         capabilities=capabilities,
+        protocol_versions=[MCP_PROTOCOL_VERSION],
         instructions="MuJoCo physics simulation server with viewer support. "
                     f"Implements MCP Protocol {MCP_PROTOCOL_VERSION}. "
                     "Provides tools for creating scenes, controlling simulation, and managing state."
     )
-    
+
     logger.info(f"Server capabilities: {capabilities}")
     logger.info("MCP server initialization complete")
-    
+
     # Run server with stdio transport
     try:
         async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
@@ -381,8 +547,8 @@ async def main():
                 write_stream,
                 server_options
             )
-    except Exception as e:
-        logger.error(f"MCP server error: {e}")
+    except Exception as exc:
+        logger.exception("MCP server error", extra={"exception": str(exc)})
         raise
 
 if __name__ == "__main__":

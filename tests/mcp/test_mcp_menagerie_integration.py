@@ -13,7 +13,9 @@ from typing import Dict, Any
 import urllib.request
 
 # Add src to path for testing
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+sys.path.insert(0, str(REPO_ROOT))
 
 # Priority models for testing (most common/stable ones)
 PRIORITY_MODELS = {

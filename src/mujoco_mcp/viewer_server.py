@@ -13,8 +13,10 @@ import logging
 import subprocess
 import sys
 from pathlib import Path
-from types import ModuleType
-from typing import Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 _LOGGER = logging.getLogger("mujoco_mcp.viewer_server")
 
@@ -47,7 +49,7 @@ def get_viewer_class() -> type:
 
     module = _load_viewer_module()
     try:
-        return getattr(module, "MuJoCoViewerServer")
+        return module.MuJoCoViewerServer
     except AttributeError as exc:  # pragma: no cover - defensive guard
         raise ImportError(
             "mujoco_viewer_server does not define MuJoCoViewerServer"
@@ -62,7 +64,6 @@ class MuJoCoViewerServer(get_viewer_class()):  # type: ignore[misc]
     expects ``mujoco_mcp.viewer_server.MuJoCoViewerServer`` to be instantiable.
     """
 
-    pass
 
 
 def _resolve_script_path() -> Path:
@@ -75,7 +76,7 @@ def _resolve_script_path() -> Path:
     return path
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main() -> int:
     """CLI entry point that spawns the viewer server in a child process."""
 
     logging.basicConfig(level=logging.INFO)

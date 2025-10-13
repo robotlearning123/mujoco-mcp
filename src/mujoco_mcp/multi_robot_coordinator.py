@@ -387,13 +387,13 @@ class MultiRobotCoordinator:
         # Generate formation positions
         if formation_type == "line":
             positions = []
-            for i, robot_id in enumerate(robots):
+            for i, _robot_id in enumerate(robots):
                 x = (i - n_robots / 2) * spacing
                 positions.append([x, 0, 0])
         elif formation_type == "circle":
             radius = spacing
             positions = []
-            for i, robot_id in enumerate(robots):
+            for i, _robot_id in enumerate(robots):
                 angle = 2 * np.pi * i / n_robots
                 x = radius * np.cos(angle)
                 y = radius * np.sin(angle)

@@ -126,7 +126,7 @@ The timeout issue was caused by MuJoCo trying to open viewer windows. The headle
 
 **Test it now:**
 ```bash
-python demo_working_mcp.py
+python demos/demo_working_mcp.py
 ```
 
 You'll see all physics simulations working without any timeouts! 🚀
