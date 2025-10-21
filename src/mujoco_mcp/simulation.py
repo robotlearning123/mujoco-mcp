@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Tuple
 
 import mujoco
 import numpy as np
@@ -15,8 +15,8 @@ class MuJoCoSimulation:
 
     def __init__(self, model_xml: str | None = None, model_path: str | None = None):
         """Initialize MuJoCo simulation."""
-        self.model: Optional[mujoco.MjModel] = None
-        self.data: Optional[mujoco.MjData] = None
+        self.model: mujoco.MjModel | None = None
+        self.data: mujoco.MjData | None = None
         self.sim_id = str(uuid.uuid4())
         self._initialized = False
 
@@ -180,6 +180,29 @@ class MuJoCoSimulation:
             "timestep": model.opt.timestep,
         }
 
+    def get_state_snapshot(self) -> Dict[str, Any]:
+        """Return a structured snapshot of the current simulation state."""
+        model, data = self._require_sim()
+
+        state: Dict[str, Any] = {
+            "time": data.time,
+            "qpos": data.qpos.tolist(),
+            "qvel": data.qvel.tolist(),
+            "qacc": data.qacc.tolist() if getattr(data, "qacc", None) is not None else [],
+            "ctrl": data.ctrl.tolist() if model.nu > 0 else [],
+            "xpos": data.xpos.tolist(),
+            "xquat": data.xquat.tolist(),
+            "statistics": self.get_model_info(),
+        }
+
+        try:
+            state["sensor"] = self.get_sensor_data()
+        except RuntimeError:
+            # Sensors are optional; ignore if unavailable.
+            state["sensor"] = {}
+
+        return state
+
     def render_frame(
         self, width: int = 640, height: int = 480, camera_id: int = -1, scene_option=None
     ) -> np.ndarray:
@@ -197,6 +220,12 @@ class MuJoCoSimulation:
             logger.warning(f"Hardware rendering failed: {e}, falling back to software rendering")
             # Fallback to software rendering
             return self._render_software_fallback(width, height)
+
+    def close(self) -> None:
+        """Release references to MuJoCo objects so GC can reclaim memory."""
+        self.model = None
+        self.data = None
+        self._initialized = False
 
     def _render_software_fallback(self, width: int, height: int) -> np.ndarray:
         """Fallback software rendering when hardware rendering fails."""

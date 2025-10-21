@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+MuJoCo MCP Server Evaluation Questions
+Complex, realistic questions requiring multiple tool calls and physics understanding.
+All questions use read-only operations and have verifiable answers.
+-->
+<evaluation>
+  <qa_pair>
+    <question>Create a pendulum in headless mode with model_id 'test_pendulum'. Step the simulation exactly 250 times. What is the simulation time (in seconds) after these steps? Round to 3 decimal places.</question>
+    <answer>0.500</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Create a double_pendulum simulation. Without stepping, get the initial state and count how many degrees of freedom (nq) the system has.</question>
+    <answer>2</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Create a cart_pole in headless mode. Check the initial state - how many joint positions (length of qpos array) does the cart_pole system have?</question>
+    <answer>2</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Create a pendulum, step it 100 times, then reset it. After resetting, what is the simulation time?</question>
+    <answer>0.0</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Get server info and list all the capabilities. How many capabilities are listed in the capabilities array?</question>
+    <answer>6</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Create an arm simulation in headless mode. Get the state in concise format. What is the value of the 'nq' field in the concise response?</question>
+    <answer>1</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Create a pendulum with custom model_id 'physics_test_01', step it 50 times. Then create another pendulum with model_id 'physics_test_02', don't step it. Get the state of 'physics_test_02' - what is its simulation time?</question>
+    <answer>0.0</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Create a double_pendulum. Step it exactly 500 steps. Get the state in detailed format. What is the simulation time rounded to 2 decimal places?</question>
+    <answer>1.00</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Check the server protocol_version from server info. What is the exact protocol version string?</question>
+    <answer>2024-11-05</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Create a cart_pole simulation. Get its initial state and check the 'statistics' field. What is the value of 'nu' (number of actuators)?</question>
+    <answer>0</answer>
+  </qa_pair>
+</evaluation>

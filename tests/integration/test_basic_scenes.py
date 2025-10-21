@@ -1,111 +1,98 @@
 #!/usr/bin/env python3
 """
-Test basic MCP scene creation and control
-Tests the built-in scenes without requiring Menagerie
+Integration tests validating the basic MCP tool workflow without relying on the GUI viewer.
 """
 
-import asyncio
+from __future__ import annotations
+
+import json
+import uuid
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add project to path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT))
 
+from mujoco_mcp import mcp_server as mcp_module
 from mujoco_mcp.mcp_server import handle_list_tools, handle_call_tool
 
 
-async def test_basic_scenes():
-    """Test creating and controlling basic scenes"""
-    print("🔧 Testing basic scene creation...")
+async def _call_tool(name: str, arguments: dict[str, object]) -> dict[str, object]:
+    """Invoke a tool and return the parsed JSON payload."""
+    result = await handle_call_tool(name, arguments)
+    assert result, "Tool returned no content"
+    payload = json.loads(result[0].text)
+    assert payload["status"] == "ok", payload
+    return payload
 
+
+@pytest.mark.asyncio
+async def test_headless_basic_scenes():
+    """Headless mode should support create → step → get_state → reset → close operations."""
     scenes = ["pendulum", "double_pendulum", "cart_pole"]
 
     for scene_type in scenes:
-        print(f"\n   Testing {scene_type}...")
+        model_id = f"{scene_type}_{uuid.uuid4().hex[:8]}"
 
-        # Create scene
-        result = await handle_call_tool("create_scene", {"scene_type": scene_type})
-        print(f"   Create: {result[0].text}")
+        create_payload = await _call_tool(
+            "create_scene",
+            {"scene_type": scene_type, "mode": "headless", "model_id": model_id},
+        )
+        assert create_payload["data"]["mode"] == "headless"
+        initial_state = create_payload["data"]["state"]
+        assert initial_state["statistics"]["nq"] > 0
 
-        if "successfully" in result[0].text or "Created" in result[0].text:
-            await asyncio.sleep(1)
+        step_payload = await _call_tool(
+            "step_simulation", {"model_id": model_id, "steps": 25}
+        )
+        assert step_payload["data"]["mode"] == "headless"
+        assert step_payload["data"]["steps"] == 25
+        assert step_payload["data"]["time"] > initial_state["time"]
 
-            # Step simulation
-            result = await handle_call_tool(
-                "step_simulation", {"model_id": scene_type, "steps": 100}
-            )
-            print(f"   Step: {result[0].text}")
+        state_payload = await _call_tool("get_state", {"model_id": model_id})
+        assert state_payload["data"]["mode"] == "headless"
+        assert state_payload["data"]["state"]["time"] >= step_payload["data"]["time"]
 
-            # Get state
-            result = await handle_call_tool("get_state", {"model_id": scene_type})
-            print(f"   State: {result[0].text[:100]}...")
+        await _call_tool("reset_simulation", {"model_id": model_id})
+        reset_state = await _call_tool("get_state", {"model_id": model_id})
+        assert reset_state["data"]["state"]["time"] == 0.0
 
-            # Reset
-            result = await handle_call_tool("reset_simulation", {"model_id": scene_type})
-            print(f"   Reset: {result[0].text}")
-
-            await asyncio.sleep(0.5)
-
-    print("\n✅ Basic scene tests completed")
-
-
-async def test_complete_workflow():
-    """Test a complete workflow"""
-    print("\n🔧 Testing complete workflow...")
-
-    # Create pendulum
-    result = await handle_call_tool("create_scene", {"scene_type": "pendulum"})
-    print(f"   {result[0].text}")
-
-    if "successfully" in result[0].text or "Created" in result[0].text:
-        # Run simulation for a few steps
-        for _i in range(5):
-            result = await handle_call_tool(
-                "step_simulation", {"model_id": "pendulum", "steps": 20}
-            )
-            await asyncio.sleep(0.2)
-
-        # Get final state
-        result = await handle_call_tool("get_state", {"model_id": "pendulum"})
-        print(f"   Final state obtained: {len(result[0].text)} characters")
-
-        # Close viewer
-        result = await handle_call_tool("close_viewer", {"model_id": "pendulum"})
-        print(f"   {result[0].text}")
-
-        print("   ✅ Complete workflow test passed")
-        return True
-
-    print("   ❌ Complete workflow test failed")
-    return False
+        close_payload = await _call_tool("close_viewer", {"model_id": model_id})
+        assert close_payload["data"]["mode"] == "headless"
 
 
-async def main():
-    """Run all basic tests"""
-    print("🚀 Testing Basic MCP Scenes")
-    print("=" * 50)
+@pytest.mark.asyncio
+async def test_auto_mode_fallback_without_viewer(monkeypatch: pytest.MonkeyPatch):
+    """Auto mode should gracefully fall back to headless execution when the viewer is unavailable."""
 
-    # List tools
+    model_id = f"auto_mode_{uuid.uuid4().hex[:8]}"
+
+    original_viewer_client = mcp_module.ViewerClient
+
+    class AlwaysFailViewer(original_viewer_client):
+        """Viewer client stub that always fails to connect."""
+
+        def connect(self) -> bool:  # type: ignore[override]
+            return False
+
+    monkeypatch.setattr(mcp_module, "viewer_client", None)
+    monkeypatch.setattr(mcp_module, "ViewerClient", AlwaysFailViewer)
+
+    create_payload = await _call_tool(
+        "create_scene",
+        {"scene_type": "pendulum", "model_id": model_id},
+    )
+    assert create_payload["data"]["mode"] == "headless"
+
     tools = await handle_list_tools()
-    print(f"Available tools: {[t.name for t in tools]}")
+    tool_names = {tool.name for tool in tools}
+    assert {"get_server_info", "create_scene", "step_simulation", "get_state", "reset_simulation", "close_viewer"} <= tool_names
 
-    # Test server info
-    result = await handle_call_tool("get_server_info", {})
-    print(f"Server info: {result[0].text[:100]}...")
+    server_info = await _call_tool("get_server_info", {})
+    assert "headless_mode" in server_info["data"]["capabilities"]
 
-    # Test scenes
-    await test_basic_scenes()
-
-    # Test complete workflow
-    success = await test_complete_workflow()
-
-    if success:
-        print("\n🎉 All basic tests passed!")
-    else:
-        print("\n⚠️  Some tests had issues")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    await _call_tool("close_viewer", {"model_id": model_id})

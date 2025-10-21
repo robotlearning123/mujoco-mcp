@@ -19,7 +19,7 @@ This document provides a comprehensive overview of the MuJoCo MCP system archite
 │  ┌─────────────────┐  ┌──────────────────┐  ┌───────────────────┐    │
 │  │   mcp_server.py │  │ Protocol Handler │  │  Tool Registry    │    │
 │  │                 │  │                  │  │                   │    │
-│  │  - List Tools   │  │  - JSON-RPC 2.0  │  │ - 9 MCP Tools     │    │
+│  │  - List Tools   │  │  - JSON-RPC 2.0  │  │ - 6 MCP Tools     │    │
 │  │  - Call Tools   │  │  - Error Handling │  │ - Natural Lang    │    │
 │  │  - Capabilities │  │  - Request Router │  │ - Validation      │    │
 │  └─────────────────┘  └──────────────────┘  └───────────────────┘    │

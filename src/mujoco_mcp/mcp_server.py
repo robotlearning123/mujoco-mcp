@@ -11,7 +11,8 @@ import logging
 import sys
 import time
 from dataclasses import dataclass
-from typing import Dict, Any, List, Optional
+from pathlib import Path
+from typing import Dict, Any, List
 
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
@@ -20,9 +21,13 @@ import mcp.types as types
 
 from .version import __version__
 from .viewer_client import MuJoCoViewerClient as ViewerClient
+from .simulation import MuJoCoSimulation
 
 # MCP Protocol constants
 MCP_PROTOCOL_VERSION = "2024-11-05"
+
+# MCP Best Practices: Character limit for responses (25K tokens ≈ 100K chars)
+CHARACTER_LIMIT = 100000
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -45,13 +50,43 @@ class _ResourcePayload:
 
 viewer_client: ViewerClient | None = None
 
+# Managed headless simulations (fallback when viewer is unavailable)
+headless_simulations: Dict[str, MuJoCoSimulation] = {}
+
+# MCP Best Practice: Externalize domain data (scene models) to separate files
+MODELS_DIR = Path(__file__).parent.parent.parent / "models"
+BUILTIN_SCENE_TYPES = ["pendulum", "double_pendulum", "cart_pole", "arm"]
+ALLOWED_SCENE_MODES = {"auto", "viewer", "headless"}
+
+
+def _load_scene_model(scene_type: str) -> str:
+    """Load scene model XML from external file.
+
+    MCP Best Practice: Separate domain data from code for easier
+    maintenance and testing.
+    """
+    model_file = MODELS_DIR / f"{scene_type}.xml"
+    if not model_file.exists():
+        raise FileNotFoundError(f"Scene model not found: {model_file}")
+    return model_file.read_text()
+
 
 def _json_content(payload: Dict[str, Any]) -> List[types.TextContent]:
-    """Serialize payload as indented JSON for MCP text responses."""
+    """Serialize payload as indented JSON for MCP text responses with character limit."""
+    text = json.dumps(payload, indent=2, ensure_ascii=False)
+
+    # MCP Best Practice: Implement character limits to prevent token overflow
+    if len(text) > CHARACTER_LIMIT:
+        truncated_payload = payload.copy()
+        if "data" in truncated_payload:
+            truncated_payload["data"] = "[TRUNCATED - Response exceeded 100K character limit]"
+        truncated_payload["warning"] = f"Response truncated from {len(text)} to {CHARACTER_LIMIT} characters"
+        text = json.dumps(truncated_payload, indent=2, ensure_ascii=False)
+
     return [
         types.TextContent(
             type="text",
-            text=json.dumps(payload, indent=2, ensure_ascii=False)
+            text=text
         )
     ]
 
@@ -94,6 +129,25 @@ def _redact_arguments(arguments: Dict[str, Any]) -> Dict[str, Any]:
         for key, value in arguments.items()
     }
 
+
+def _format_state(state: Dict[str, Any], format_type: str = "detailed") -> Dict[str, Any]:
+    """Format simulation state based on requested detail level.
+
+    MCP Best Practice: Provide concise vs detailed response format options
+    to optimize token usage and LLM context.
+    """
+    if format_type == "concise":
+        # Return minimal state for quick checks
+        return {
+            "time": state.get("time", 0.0),
+            "nq": len(state.get("qpos", [])),
+            "nv": len(state.get("qvel", [])),
+            "summary": f"{len(state.get('qpos', []))} DOF at t={state.get('time', 0.0):.3f}s"
+        }
+    else:
+        # Return full detailed state (default)
+        return state
+
 @server.list_tools()
 async def handle_list_tools() -> List[types.Tool]:
     """Return list of available MuJoCo MCP tools."""
@@ -101,7 +155,7 @@ async def handle_list_tools() -> List[types.Tool]:
     return [
         types.Tool(
             name="get_server_info",
-            description="Get information about the MuJoCo MCP server",
+            description="Get information about the MuJoCo MCP server including version, capabilities, and protocol details",
             inputSchema={
                 "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
@@ -110,42 +164,63 @@ async def handle_list_tools() -> List[types.Tool]:
                 "additionalProperties": False,
                 "examples": [{}],
             },
+            # MCP Best Practice: Tool annotations for LLM optimization
+            readOnlyHint=True,  # Read-only operation
+            destructiveHint=False,  # Non-destructive
+            idempotentHint=True,  # Same result on repeated calls
+            openWorldHint=False,  # Purely informational, no external system interaction
         ),
         types.Tool(
             name="create_scene",
-            description="Create a physics simulation scene",
+            description="Create a physics simulation scene. Supports pendulum, double_pendulum, cart_pole, and arm scenes. Can run in viewer mode (with GUI) or headless mode.",
             inputSchema={
                 "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "scene_type": {
                         "type": "string",
-                        "description": "Type of scene to create",
-                        "enum": ["pendulum", "double_pendulum", "cart_pole", "arm"],
-                    }
+                        "description": "Type of scene to create: pendulum (simple), double_pendulum (chaotic), cart_pole (balancing), arm (robot)",
+                        "enum": BUILTIN_SCENE_TYPES,
+                    },
+                    "model_id": {
+                        "type": "string",
+                        "description": "Optional custom identifier for the simulation (default: same as scene_type)",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "description": "Execution mode: 'auto' (try viewer, fallback headless), 'viewer' (require GUI), 'headless' (no GUI)",
+                        "enum": sorted(ALLOWED_SCENE_MODES),
+                        "default": "auto",
+                    },
                 },
                 "required": ["scene_type"],
                 "additionalProperties": False,
                 "examples": [
                     {"scene_type": "pendulum"},
-                    {"scene_type": "double_pendulum"},
+                    {"scene_type": "cart_pole", "mode": "headless", "model_id": "cart"},
+                    {"scene_type": "double_pendulum", "mode": "viewer"},
+                    {"scene_type": "arm", "model_id": "robot_arm_1", "mode": "auto"},
                 ],
             },
+            readOnlyHint=False,  # Creates simulation state
+            destructiveHint=False,  # Non-destructive (creates new, doesn't destroy existing)
+            idempotentHint=False,  # Multiple calls create different simulations
+            openWorldHint=True,  # Interacts with MuJoCo physics engine
         ),
         types.Tool(
             name="step_simulation",
-            description="Step the physics simulation forward",
+            description="Step the physics simulation forward in time. Each step advances the simulation by one timestep (typically 0.002 seconds). Use this to animate the simulation.",
             inputSchema={
                 "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "model_id": {
                         "type": "string",
-                        "description": "ID of the model to step",
+                        "description": "ID of the model to step (from create_scene)",
                     },
                     "steps": {
                         "type": "integer",
-                        "description": "Number of simulation steps",
+                        "description": "Number of simulation steps to execute (default: 1, typical: 100-500 for visible motion)",
                         "default": 1,
                         "minimum": 1,
                     },
@@ -153,60 +228,96 @@ async def handle_list_tools() -> List[types.Tool]:
                 "required": ["model_id"],
                 "additionalProperties": False,
                 "examples": [
-                    {"model_id": "pendulum", "steps": 5},
+                    {"model_id": "pendulum", "steps": 1},
+                    {"model_id": "pendulum", "steps": 100},
+                    {"model_id": "cart_pole", "steps": 500},
                 ],
             },
+            readOnlyHint=False,  # Modifies simulation state
+            destructiveHint=False,  # Non-destructive (advances time, doesn't destroy)
+            idempotentHint=False,  # Each call advances time differently
+            openWorldHint=True,  # Interacts with MuJoCo physics engine
         ),
         types.Tool(
             name="get_state",
-            description="Get current state of the simulation",
+            description="Get current state of the simulation including joint positions, velocities, and time. Returns detailed physics state for analysis.",
             inputSchema={
                 "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "model_id": {
                         "type": "string",
-                        "description": "ID of the model to get state from",
+                        "description": "ID of the model to get state from (from create_scene)",
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Response format: 'concise' (time + summary) or 'detailed' (full state arrays)",
+                        "enum": ["concise", "detailed"],
+                        "default": "detailed",
                     }
                 },
                 "required": ["model_id"],
                 "additionalProperties": False,
-                "examples": [{"model_id": "pendulum"}],
+                "examples": [
+                    {"model_id": "pendulum"},
+                    {"model_id": "pendulum", "format": "concise"},
+                    {"model_id": "cart_pole", "format": "detailed"},
+                ],
             },
+            readOnlyHint=True,  # Read-only operation
+            destructiveHint=False,  # Non-destructive
+            idempotentHint=True,  # Same state if simulation hasn't advanced
+            openWorldHint=True,  # Reads from MuJoCo physics engine
         ),
         types.Tool(
             name="reset_simulation",
-            description="Reset simulation to initial state",
+            description="Reset simulation to initial state. Resets joint positions, velocities, and time back to t=0. Useful for rerunning experiments.",
             inputSchema={
                 "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "model_id": {
                         "type": "string",
-                        "description": "ID of the model to reset",
+                        "description": "ID of the model to reset (from create_scene)",
                     }
                 },
                 "required": ["model_id"],
                 "additionalProperties": False,
-                "examples": [{"model_id": "pendulum"}],
+                "examples": [
+                    {"model_id": "pendulum"},
+                    {"model_id": "cart_pole"},
+                    {"model_id": "robot_arm_1"},
+                ],
             },
+            readOnlyHint=False,  # Modifies simulation state
+            destructiveHint=False,  # Non-destructive (resets, doesn't delete)
+            idempotentHint=True,  # Multiple resets produce same initial state
+            openWorldHint=True,  # Interacts with MuJoCo physics engine
         ),
         types.Tool(
             name="close_viewer",
-            description="Close the MuJoCo viewer window",
+            description="Close the MuJoCo viewer window and clean up simulation resources. Use this when done with a simulation to free memory.",
             inputSchema={
                 "$schema": "http://json-schema.org/draft-07/schema#",
                 "type": "object",
                 "properties": {
                     "model_id": {
                         "type": "string",
-                        "description": "ID of the model viewer to close",
+                        "description": "ID of the model viewer to close (from create_scene)",
                     }
                 },
                 "required": ["model_id"],
                 "additionalProperties": False,
-                "examples": [{"model_id": "pendulum"}],
+                "examples": [
+                    {"model_id": "pendulum"},
+                    {"model_id": "cart_pole"},
+                    {"model_id": "robot_arm_1"},
+                ],
             },
+            readOnlyHint=False,  # Modifies system state
+            destructiveHint=True,  # Destroys the simulation
+            idempotentHint=False,  # Can't close twice (will error)
+            openWorldHint=True,  # Closes MuJoCo viewer/simulation
         ),
     ]
 
@@ -214,16 +325,29 @@ async def handle_list_tools() -> List[types.Tool]:
 def _state_snapshot() -> Dict[str, Any]:
     """Return a lightweight snapshot of the first active simulation."""
 
-    if not viewer_client or not viewer_client.connected:
+    if headless_simulations:
+        model_id, simulation = next(iter(headless_simulations.items()))
         return {
             "status": "ok",
             "data": {
-                "active": False,
-                "message": "Viewer connection inactive",
+                "active": True,
+                "mode": "headless",
+                "model_id": model_id,
+                "state": simulation.get_state_snapshot(),
             },
         }
 
     try:
+        if not viewer_client or not viewer_client.connected:
+            return {
+                "status": "ok",
+                "data": {
+                    "active": False,
+                    "mode": "viewer",
+                    "message": "Viewer connection inactive",
+                },
+            }
+
         response = viewer_client.send_command({"type": "get_state"})
         if not response.get("success"):
             return {
@@ -243,6 +367,7 @@ def _state_snapshot() -> Dict[str, Any]:
             "status": "ok",
             "data": {
                 "active": True,
+                "mode": "viewer",
                 "state": state,
             },
         }
@@ -307,6 +432,7 @@ async def handle_read_resource(uri: str):
 
     return [_ResourcePayload(content=json.dumps(payload), mime_type="application/json")]
 
+
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.TextContent]:
     """Handle tool calls with MCP-compliant responses."""
@@ -331,6 +457,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                         "get_state",
                         "reset_simulation",
                         "close_viewer",
+                        "headless_mode",
                     ],
                 },
             )
@@ -343,101 +470,94 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                 remediation="Call list_tools to discover supported tools.",
             )
 
-        if not viewer_client:
-            viewer_client = ViewerClient()
-
-        if not viewer_client.connected and not viewer_client.connect():
-            return _error(
-                code="viewer_unavailable",
-                message="Failed to connect to the MuJoCo viewer server.",
-                remediation="Start 'mujoco-mcp-viewer' and retry the tool call.",
-            )
-
         if name == "create_scene":
-            scene_type = arguments.get("scene_type", "pendulum")
-            scene_models = {
-                "pendulum": """
-                <mujoco>
-                    <worldbody>
-                        <body name="pole" pos="0 0 1">
-                            <joint name="hinge" type="hinge" axis="1 0 0"/>
-                            <geom name="pole" type="capsule" size="0.02 0.6" rgba="0.8 0.2 0.2 1"/>
-                            <body name="mass" pos="0 0 -0.6">
-                                <geom name="mass" type="sphere" size="0.05" rgba="0.2 0.8 0.2 1"/>
-                            </body>
-                        </body>
-                    </worldbody>
-                </mujoco>
-                """,
-                "double_pendulum": """
-                <mujoco>
-                    <worldbody>
-                        <body name="pole1" pos="0 0 1">
-                            <joint name="hinge1" type="hinge" axis="1 0 0"/>
-                            <geom name="pole1" type="capsule" size="0.02 0.4" rgba="0.8 0.2 0.2 1"/>
-                            <body name="pole2" pos="0 0 -0.4">
-                                <joint name="hinge2" type="hinge" axis="1 0 0"/>
-                                <geom name="pole2" type="capsule" size="0.02 0.4" rgba="0.2 0.8 0.2 1"/>
-                                <body name="mass" pos="0 0 -0.4">
-                                    <geom name="mass" type="sphere" size="0.05" rgba="0.2 0.2 0.8 1"/>
-                                </body>
-                            </body>
-                        </body>
-                    </worldbody>
-                </mujoco>
-                """,
-                "cart_pole": """
-                <mujoco>
-                    <worldbody>
-                        <body name="cart" pos="0 0 0.1">
-                            <joint name="slider" type="slide" axis="1 0 0"/>
-                            <geom name="cart" type="box" size="0.1 0.1 0.1" rgba="0.8 0.2 0.2 1"/>
-                            <body name="pole" pos="0 0 0.1">
-                                <joint name="hinge" type="hinge" axis="0 1 0"/>
-                                <geom name="pole" type="capsule" size="0.02 0.5" rgba="0.2 0.8 0.2 1"/>
-                            </body>
-                        </body>
-                    </worldbody>
-                </mujoco>
-                """,
-                "arm": """
-                <mujoco>
-                    <worldbody>
-                        <body name="base">
-                            <joint name="hinge" type="hinge" axis="0 0 1"/>
-                            <geom name="link" type="capsule" size="0.02 0.4" rgba="0.8 0.2 0.2 1"/>
-                        </body>
-                    </worldbody>
-                </mujoco>
-                """,
-            }
+            requested_mode = arguments.get("mode", "auto")
+            if requested_mode not in ALLOWED_SCENE_MODES:
+                return _error(
+                    code="invalid_mode",
+                    message=f"Unsupported execution mode '{requested_mode}'.",
+                    remediation=f"Use one of: {', '.join(sorted(ALLOWED_SCENE_MODES))}.",
+                )
 
-            if scene_type not in scene_models:
+            scene_type = arguments.get("scene_type")
+            if scene_type not in BUILTIN_SCENE_TYPES:
                 return _error(
                     code="invalid_scene",
                     message=f"Scene type '{scene_type}' is not supported.",
-                    remediation=f"Use one of: {', '.join(scene_models)}.",
+                    remediation=f"Use one of: {', '.join(sorted(BUILTIN_SCENE_TYPES))}.",
                 )
 
-            response = viewer_client.send_command(
-                {
-                    "type": "load_model",
-                    "model_id": scene_type,
-                    "model_xml": scene_models[scene_type],
-                }
-            )
+            model_id = arguments.get("model_id") or scene_type
 
-            if not response.get("success"):
+            if requested_mode != "viewer" and model_id in headless_simulations:
                 return _error(
-                    code="viewer_error",
-                    message=response.get("error", "Unknown viewer error"),
+                    code="duplicate_model",
+                    message=f"Simulation '{model_id}' already exists in headless mode.",
+                    remediation="Close the existing simulation or provide a different model_id.",
                 )
 
+            # Load scene model XML from external file
+            try:
+                model_xml = _load_scene_model(scene_type)
+            except FileNotFoundError as exc:
+                return _error(
+                    code="model_not_found",
+                    message=f"Scene model file not found: {scene_type}",
+                    details={"error": str(exc)},
+                )
+
+            if requested_mode in {"auto", "viewer"}:
+                if viewer_client is None:
+                    viewer_client = ViewerClient()
+                if viewer_client.connected or viewer_client.connect():
+                    viewer_response = viewer_client.send_command(
+                        {
+                            "type": "load_model",
+                            "model_id": model_id,
+                            "model_xml": model_xml,
+                        }
+                    )
+                    if not viewer_response.get("success"):
+                        return _error(
+                            code="viewer_error",
+                            message=viewer_response.get("error", "Unknown viewer error"),
+                        )
+
+                    headless_simulations.pop(model_id, None)
+                    return _success(
+                        "Scene created (viewer mode)",
+                        {
+                            "model_id": model_id,
+                            "mode": "viewer",
+                            "viewer_response": viewer_response,
+                        },
+                    )
+
+                if requested_mode == "viewer":
+                    return _error(
+                        code="viewer_unavailable",
+                        message="Failed to connect to the MuJoCo viewer server.",
+                        remediation="Start 'mujoco-mcp-viewer' or request mode='headless'.",
+                    )
+
+            try:
+                simulation = MuJoCoSimulation(model_xml=model_xml)
+            except Exception as exc:
+                logger.exception("Failed to create headless simulation")
+                return _error(
+                    code="headless_error",
+                    message="Failed to create headless simulation.",
+                    remediation="Ensure MuJoCo is installed and accessible.",
+                    details={"exception": str(exc)},
+                )
+
+            headless_simulations[model_id] = simulation
             return _success(
-                "Scene created",
+                "Scene created (headless mode)",
                 {
-                    "model_id": scene_type,
-                    "viewer_response": response,
+                    "model_id": model_id,
+                    "mode": "headless",
+                    "state": simulation.get_state_snapshot(),
                 },
             )
 
@@ -449,15 +569,63 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                 remediation="Pass the target model identifier in the tool arguments.",
             )
 
+        headless_simulation = headless_simulations.get(model_id)
+
         if name == "step_simulation":
             steps = max(1, int(arguments.get("steps", 1)))
-            # Simulation runs continuously; acknowledge the request.
+
+            if headless_simulation:
+                headless_simulation.step(steps)
+                return _success(
+                    "Simulation step completed",
+                    {
+                        "model_id": model_id,
+                        "mode": "headless",
+                        "steps": steps,
+                        "time": headless_simulation.get_time(),
+                    },
+                )
+
+            if viewer_client is None:
+                viewer_client = ViewerClient()
+            if not viewer_client.connected and not viewer_client.connect():
+                return _error(
+                    code="viewer_unavailable",
+                    message="Failed to connect to the MuJoCo viewer server.",
+                    remediation="Start 'mujoco-mcp-viewer' or recreate the scene in headless mode.",
+                )
+
             return _success(
                 "Simulation step acknowledged",
-                {"model_id": model_id, "steps": steps},
+                {"model_id": model_id, "mode": "viewer", "steps": steps},
             )
 
         if name == "get_state":
+            # MCP Best Practice: Support concise/detailed format parameter
+            format_type = arguments.get("format", "detailed")
+
+            if headless_simulation:
+                full_state = headless_simulation.get_state_snapshot()
+                formatted_state = _format_state(full_state, format_type)
+                return _success(
+                    "Simulation state",
+                    {
+                        "model_id": model_id,
+                        "mode": "headless",
+                        "format": format_type,
+                        "state": formatted_state,
+                    },
+                )
+
+            if viewer_client is None:
+                viewer_client = ViewerClient()
+            if not viewer_client.connected and not viewer_client.connect():
+                return _error(
+                    code="viewer_unavailable",
+                    message="Failed to connect to the MuJoCo viewer server.",
+                    remediation="Start 'mujoco-mcp-viewer' or create the scene in headless mode.",
+                )
+
             response = viewer_client.send_command({"type": "get_state", "model_id": model_id})
             if not response.get("success"):
                 return _error(
@@ -470,18 +638,59 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                 state_keys = ["time", "qpos", "qvel", "qacc", "ctrl", "xpos"]
                 state = {key: response[key] for key in state_keys if key in response}
 
-            return _success("Simulation state", {"model_id": model_id, "state": state})
+            formatted_state = _format_state(state, format_type)
+            return _success(
+                "Simulation state",
+                {"model_id": model_id, "mode": "viewer", "format": format_type, "state": formatted_state},
+            )
 
         if name == "reset_simulation":
+            if headless_simulation:
+                headless_simulation.reset()
+                return _success(
+                    "Simulation reset",
+                    {"model_id": model_id, "mode": "headless"},
+                )
+
+            if viewer_client is None:
+                viewer_client = ViewerClient()
+            if not viewer_client.connected and not viewer_client.connect():
+                return _error(
+                    code="viewer_unavailable",
+                    message="Failed to connect to the MuJoCo viewer server.",
+                    remediation="Start 'mujoco-mcp-viewer' or recreate the scene in headless mode.",
+                )
+
             response = viewer_client.send_command({"type": "reset", "model_id": model_id})
             if not response.get("success"):
                 return _error(
                     code="viewer_error",
                     message=response.get("error", "Reset failed."),
                 )
-            return _success("Simulation reset", {"model_id": model_id})
+
+            return _success(
+                "Simulation reset",
+                {"model_id": model_id, "mode": "viewer"},
+            )
 
         if name == "close_viewer":
+            if headless_simulation:
+                headless_simulation.close()
+                del headless_simulations[model_id]
+                return _success(
+                    "Simulation closed",
+                    {"model_id": model_id, "mode": "headless"},
+                )
+
+            if viewer_client is None:
+                viewer_client = ViewerClient()
+            if not viewer_client.connected and not viewer_client.connect():
+                return _error(
+                    code="viewer_unavailable",
+                    message="Failed to connect to the MuJoCo viewer server.",
+                    remediation="Start 'mujoco-mcp-viewer' before attempting to close the viewer.",
+                )
+
             response = viewer_client.send_command({"type": "close_model", "model_id": model_id})
             if viewer_client:
                 viewer_client.disconnect()
@@ -493,7 +702,10 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
                     message=response.get("error", "Failed to close viewer."),
                 )
 
-            return _success("Viewer closed", {"model_id": model_id})
+            return _success(
+                "Viewer closed",
+                {"model_id": model_id, "mode": "viewer"},
+            )
 
         return _error(
             code="unknown_tool",

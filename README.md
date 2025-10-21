@@ -126,17 +126,18 @@ for _ in range(1000):
 
 ## 🛠️ MCP Tools Available
 
-| Tool | Description | Example |
-|------|-------------|---------|
-| `get_server_info` | Get server status | Returns version, capabilities |
-| `create_scene` | Create physics simulation | `{"scene_type": "pendulum"}` |
-| `step_simulation` | Advance simulation | `{"steps": 100}` |
-| `get_state` | Get current state | Returns positions, velocities |
-| `set_joint_positions` | Control joints | `{"positions": [0, 0.785, 0]}` |
-| `reset_simulation` | Reset to initial | Resets physics state |
-| `execute_command` | Natural language | `{"command": "move arm up"}` |
-| `get_loaded_models` | List active models | Returns all loaded models |
-| `close_viewer` | Close GUI window | Closes visualization |
+The MuJoCo MCP server provides **6 core tools** for physics simulation control:
+
+| Tool | Description | Parameters | Annotations |
+|------|-------------|------------|-------------|
+| `get_server_info` | Get server status and capabilities | None | 🔍 Read-only, Idempotent |
+| `create_scene` | Create physics simulation | `scene_type`, `model_id`, `mode` | 🌍 OpenWorld |
+| `step_simulation` | Advance simulation in time | `model_id`, `steps` | 🌍 OpenWorld |
+| `get_state` | Get current simulation state | `model_id`, `format` | 🔍 Read-only, Idempotent, 🌍 OpenWorld |
+| `reset_simulation` | Reset to initial state | `model_id` | Idempotent, 🌍 OpenWorld |
+| `close_viewer` | Close simulation and free resources | `model_id` | 💥 Destructive, 🌍 OpenWorld |
+
+All tools follow MCP best practices with proper schema validation, character limits, and comprehensive error handling.
 
 ## 🚀 Advanced Setup
 

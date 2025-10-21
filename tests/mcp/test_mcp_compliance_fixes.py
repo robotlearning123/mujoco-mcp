@@ -103,7 +103,17 @@ def _check_schema_validation_examples() -> bool:
                 "type": "string",
                 "description": "Type of scene to create",
                 "enum": ["pendulum", "double_pendulum", "cart_pole", "arm"],
-            }
+            },
+            "model_id": {
+                "type": "string",
+                "description": "Optional custom identifier for the simulation",
+            },
+            "mode": {
+                "type": "string",
+                "description": "Execution mode for the simulation",
+                "enum": ["auto", "viewer", "headless"],
+                "default": "auto",
+            },
         },
         "required": ["scene_type"],
         "additionalProperties": False,
@@ -116,9 +126,16 @@ def _check_schema_validation_examples() -> bool:
         validate(instance={}, schema=create_scene_schema)
     print("✅ Invalid input correctly rejected")
 
+    validate(instance={"scene_type": "pendulum", "mode": "headless"}, schema=create_scene_schema)
+    print("✅ Optional mode property accepts headless value")
+
     with pytest.raises(jsonschema.ValidationError):
         validate(instance={"scene_type": "invalid"}, schema=create_scene_schema)
     print("✅ Invalid enum value correctly rejected")
+
+    with pytest.raises(jsonschema.ValidationError):
+        validate(instance={"scene_type": "pendulum", "mode": "unsupported"}, schema=create_scene_schema)
+    print("✅ Invalid mode correctly rejected")
     return True
 
 

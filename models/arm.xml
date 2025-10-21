@@ -1,0 +1,8 @@
+<mujoco>
+    <worldbody>
+        <body name="base">
+            <joint name="hinge" type="hinge" axis="0 0 1"/>
+            <geom name="link" type="capsule" size="0.02 0.4" rgba="0.8 0.2 0.2 1"/>
+        </body>
+    </worldbody>
+</mujoco>
