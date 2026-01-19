@@ -65,6 +65,16 @@ class RLConfig:
                 f"control_timestep ({self.control_timestep}) must be >= "
                 f"physics_timestep ({self.physics_timestep})"
             )
+        # Validate space sizes (0 is allowed for auto-detection, but negative is not)
+        if self.observation_space_size < 0:
+            raise ValueError(
+                f"observation_space_size cannot be negative, got {self.observation_space_size}"
+            )
+        if self.action_space_size < 0:
+            raise ValueError(f"action_space_size cannot be negative, got {self.action_space_size}")
+        # Validate reward scale (zero reward scale breaks learning)
+        if self.reward_scale == 0:
+            raise ValueError("reward_scale cannot be zero (would disable all rewards)")
         if not isinstance(self.action_space_type, ActionSpaceType):
             raise ValueError(
                 f"action_space_type must be an ActionSpaceType enum, "
@@ -675,15 +685,28 @@ class MuJoCoRLEnvironment(gym.Env):
             qpos = np.array(response.get("qpos", []))
             qvel = np.array(response.get("qvel", []))
 
+            # Validate we actually received data
+            if len(qpos) == 0 or len(qvel) == 0:
+                logger.error(f"Server returned empty state arrays for model {self.model_id}")
+                raise RuntimeError(
+                    f"Server returned success but provided empty state data "
+                    f"(qpos length: {len(qpos)}, qvel length: {len(qvel)})"
+                )
+
             # Combine position and velocity
             observation = np.concatenate([qpos, qvel])
 
-            # Pad or truncate to match observation space
+            # Validate observation size matches expected
             obs_size = self.observation_space.shape[0]
-            if len(observation) < obs_size:
-                observation = np.pad(observation, (0, obs_size - len(observation)))
-            elif len(observation) > obs_size:
-                observation = observation[:obs_size]
+            if len(observation) != obs_size:
+                logger.error(
+                    f"Observation size mismatch for model {self.model_id}: "
+                    f"got {len(observation)}, expected {obs_size}"
+                )
+                raise RuntimeError(
+                    f"Observation size mismatch for model {self.model_id}: "
+                    f"got {len(observation)} values, expected {obs_size}"
+                )
 
             return observation.astype(np.float32)
 

@@ -55,24 +55,24 @@ class ModelViewer:
                 logger.info(f"Loading model {model_id} from XML string")
                 self.model = mujoco.MjModel.from_xml_string(model_source)
         except FileNotFoundError as e:
-            logger.error(f"Model file not found for {model_id}: {model_source}")
+            logger.exception(f"Model file not found for {model_id}: {model_source}")
             raise RuntimeError(f"Failed to load model {model_id}: file not found at {model_source}") from e
         except Exception as e:
-            logger.error(f"Failed to load MuJoCo model {model_id}: {e}")
+            logger.exception(f"Failed to load MuJoCo model {model_id}: {e}")
             raise RuntimeError(f"Failed to load model {model_id}: {e}") from e
 
         # Create simulation data
         try:
             self.data = mujoco.MjData(self.model)
         except Exception as e:
-            logger.error(f"Failed to create MjData for model {model_id}: {e}")
+            logger.exception(f"Failed to create MjData for model {model_id}: {e}")
             raise RuntimeError(f"Failed to initialize simulation data for {model_id}: {e}") from e
 
         # Start viewer
         try:
             self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
         except Exception as e:
-            logger.error(f"Failed to launch viewer for model {model_id}: {e}")
+            logger.exception(f"Failed to launch viewer for model {model_id}: {e}")
             raise RuntimeError(f"Failed to start viewer for {model_id}: {e}") from e
 
         # Start simulation loop
@@ -141,7 +141,7 @@ class ModelViewer:
                 logger.warning(f"Error closing viewer for {self.model_id}: {e}")
             except Exception as e:
                 # Unexpected errors should be logged as errors
-                logger.error(f"Unexpected error closing viewer for {self.model_id}: {e}")
+                logger.exception(f"Unexpected error closing viewer for {self.model_id}: {e}")
             finally:
                 self.viewer = None
         logger.info(f"Closed ModelViewer for {self.model_id}")
@@ -197,7 +197,7 @@ class MuJoCoViewerServer:
             return {"success": False, "error": f"Invalid parameters: {e}"}
         except RuntimeError as e:
             # Expected runtime errors (model loading failures, etc.)
-            logger.error(f"Runtime error handling command {cmd_type}: {e}")
+            logger.exception(f"Runtime error handling command {cmd_type}: {e}")
             return {"success": False, "error": str(e)}
         except Exception as e:
             # Unexpected errors - these indicate bugs
@@ -476,16 +476,19 @@ class MuJoCoViewerServer:
                 response_json = json.dumps(response) + "\n"
                 client_socket.send(response_json.encode("utf-8"))
 
-        except Exception as e:
-            logger.exception(f"Error handling client {address}: {e}")
+        except (OSError, ConnectionError, json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
+            # Expected network/protocol errors
+            logger.warning(f"Client communication error from {address}: {e}")
             try:
                 error_response = {"success": False, "error": str(e)}
                 client_socket.send(json.dumps(error_response).encode("utf-8"))
-            except (OSError, BrokenPipeError) as send_error:
-                logger.exception(f"Failed to send error response to {address}: {send_error}")
+            except (OSError, BrokenPipeError):
                 # Client likely disconnected, safe to ignore
-            except Exception as send_error:
-                logger.exception(f"Unexpected error sending error response to {address}")
+                logger.debug(f"Could not send error response to {address} (client disconnected)")
+        except Exception as e:
+            # Unexpected errors - log and re-raise to prevent masking bugs
+            logger.exception(f"Unexpected error handling client {address}: {e}")
+            raise
         finally:
             client_socket.close()
             logger.info(f"Client {address} disconnected")

@@ -68,8 +68,12 @@ class MuJoCoViewerClient:
         if self.socket is not None:
             try:
                 self.socket.close()
-            except Exception:
-                pass
+            except OSError as e:
+                # Expected socket close failures during abnormal disconnection
+                logger.debug(f"Socket close error (expected during cleanup): {e}")
+            except Exception as e:
+                # Unexpected errors should be logged for investigation
+                logger.warning(f"Unexpected error during socket cleanup: {e}")
             finally:
                 self.socket = None
         self.connected = False
@@ -309,8 +313,13 @@ class MuJoCoViewerClient:
 
         return diagnostics
 
-    def _check_viewer_process(self) -> bool:
-        """Check if viewer process is running."""
+    def _check_viewer_process(self) -> bool | None:
+        """Check if viewer process is running.
+
+        Returns:
+            True if process confirmed running, False if confirmed not running,
+            None if unable to determine (tool unavailable or error).
+        """
         try:
             # Check if port is in use with lsof command
             result = subprocess.run(
@@ -322,13 +331,13 @@ class MuJoCoViewerClient:
             return bool(result.stdout.strip())
         except FileNotFoundError:
             logger.warning("lsof command not available, cannot check viewer process")
-            return False  # Tool unavailable, not a failure
+            return None  # Tool unavailable - unable to determine
         except subprocess.TimeoutExpired:
-            logger.exception(f"lsof command timeout checking port {self.port}")
-            return False
+            logger.warning(f"lsof command timeout checking port {self.port}")
+            return None  # Timeout - unable to determine
         except Exception as e:
-            logger.exception(f"Failed to check viewer process on port {self.port}: {e}")
-            return False
+            logger.warning(f"Failed to check viewer process on port {self.port}: {e}")
+            return None  # Error - unable to determine
 
 
 class ViewerManager:

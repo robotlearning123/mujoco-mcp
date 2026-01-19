@@ -92,6 +92,12 @@ class CoordinatedTask:
         """Validate coordinated task parameters."""
         if not self.robots:
             raise ValueError("robots list cannot be empty")
+        # Check for empty robot IDs
+        empty_ids = [i for i, rid in enumerate(self.robots) if not rid or not rid.strip()]
+        if empty_ids:
+            raise ValueError(
+                f"robots list contains empty IDs at indices {empty_ids}: {self.robots}"
+            )
         if self.timeout <= 0:
             raise ValueError(f"timeout must be positive, got {self.timeout}")
 
@@ -345,8 +351,14 @@ class MultiRobotCoordinator:
                 # Send control commands
                 self._send_control_commands()
 
+            except (ConnectionError, TimeoutError) as e:
+                # Expected transient errors - log and continue
+                self.logger.warning(f"Transient error in coordination loop: {e}")
             except Exception as e:
-                self.logger.exception(f"Error in coordination loop: {e}")
+                # Critical errors (state corruption, programming bugs) - fail fast
+                self.logger.exception(f"CRITICAL error in coordination loop: {e}")
+                self.running = False
+                raise
 
             # Maintain control frequency
             elapsed = time.time() - start_time
