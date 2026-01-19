@@ -14,6 +14,8 @@ import queue
 from abc import ABC, abstractmethod
 import logging
 
+logger = logging.getLogger(__name__)
+
 # Domain-specific types for type safety
 Quality = NewType("Quality", float)  # Sensor quality (0-1 range)
 Timestamp = NewType("Timestamp", float)  # Time in seconds since epoch

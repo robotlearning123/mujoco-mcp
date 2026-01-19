@@ -171,8 +171,7 @@ class RobotController:
         controller["target_velocities"] = np.array(velocities)
         controller["control_mode"] = "velocity"
 
-        # Apply velocity control (simplified PD controller)
-        kp = 100.0  # Position gain
+        # Apply velocity control (simplified P controller on velocity)
         kv = 10.0  # Velocity gain
 
         for i in range(model.nu):

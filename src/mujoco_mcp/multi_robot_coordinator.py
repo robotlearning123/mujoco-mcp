@@ -374,7 +374,7 @@ class MultiRobotCoordinator:
             available_robots = [
                 robot_id
                 for robot_id, state in self.robot_states.items()
-                if state.status in ["idle", "ready"]
+                if state.status == RobotStatus.IDLE
             ]
 
             # Allocate new tasks
@@ -548,7 +548,7 @@ class MultiRobotCoordinator:
         self.task_allocator.add_task(task)
         return task.task_id
 
-    def get_task_status(self, task_id: str) -> str | None:
+    def get_task_status(self, task_id: str) -> TaskStatus | None:
         """Get status of a task"""
         with self.task_lock:
             if task_id in self.task_allocator.active_tasks:

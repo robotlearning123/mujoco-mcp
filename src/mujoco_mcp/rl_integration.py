@@ -321,13 +321,10 @@ class MuJoCoRLEnvironment(gym.Env):
         if self.config.task_type == TaskType.REACHING:
             target = np.array([0.5, 0.0, 0.5])  # Default target position
             return ReachingTaskReward(target)
-        elif self.config.task_type == TaskType.BALANCING:
+        if self.config.task_type == TaskType.BALANCING:
             return BalancingTaskReward()
-        elif self.config.task_type == TaskType.WALKING:
-            return WalkingTaskReward()
-        else:
-            # Default reward function
-            return ReachingTaskReward(np.array([0.0, 0.0, 1.0]))
+        # TaskType.WALKING
+        return WalkingTaskReward()
 
     def _create_model_xml(self) -> str:
         """Create model XML for the RL task"""
