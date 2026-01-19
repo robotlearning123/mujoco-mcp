@@ -328,15 +328,24 @@ class MuJoCoRLEnvironment(gym.Env):
 
     def _create_model_xml(self) -> str:
         """Create model XML for the RL task"""
-        if self.config.task_type == TaskType.REACHING and self.config.robot_type == "franka_panda":
+        is_franka_reaching = (
+            self.config.task_type == TaskType.REACHING
+            and self.config.robot_type == "franka_panda"
+        )
+        if is_franka_reaching:
             return self._create_franka_reaching_xml()
-        elif self.config.task_type == TaskType.BALANCING:
+
+        if self.config.task_type == TaskType.BALANCING:
             return self._create_cart_pole_xml()
-        elif self.config.task_type == TaskType.WALKING and "quadruped" in self.config.robot_type:
+
+        is_quadruped_walking = (
+            self.config.task_type == TaskType.WALKING
+            and "quadruped" in self.config.robot_type
+        )
+        if is_quadruped_walking:
             return self._create_quadruped_xml()
-        else:
-            # Default simple arm
-            return self._create_simple_arm_xml()
+
+        return self._create_simple_arm_xml()
 
     def _create_franka_reaching_xml(self) -> str:
         """Create Franka Panda XML for reaching task"""
@@ -628,12 +637,9 @@ class MuJoCoRLEnvironment(gym.Env):
 
         continuous_action = np.zeros(n_joints)
         if joint_idx < n_joints:
-            if action_type == 0:
-                continuous_action[joint_idx] = -1.0  # Negative
-            elif action_type == 1:
-                continuous_action[joint_idx] = 0.0  # Zero
-            else:
-                continuous_action[joint_idx] = 1.0  # Positive
+            # Map action_type: 0 -> -1.0, 1 -> 0.0, 2 -> 1.0
+            action_values = {0: -1.0, 1: 0.0, 2: 1.0}
+            continuous_action[joint_idx] = action_values[action_type]
 
         return continuous_action
 

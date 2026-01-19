@@ -240,39 +240,12 @@ class MuJoCoViewerClient:
     def _start_viewer_server(self) -> bool:
         """Attempt to start MuJoCo Viewer Server - supports macOS mjpython."""
         try:
-            # Find viewer server script
-            script_paths = [
-                "mujoco_viewer_server.py",
-                os.path.join(os.path.dirname(__file__), "..", "..", "mujoco_viewer_server.py"),
-                os.path.join(os.getcwd(), "mujoco_viewer_server.py"),
-            ]
-
-            viewer_script = None
-            for path in script_paths:
-                if os.path.exists(path):
-                    viewer_script = os.path.abspath(path)
-                    break
-
+            viewer_script = self._find_viewer_script()
             if not viewer_script:
                 logger.error("Could not find mujoco_viewer_server.py")
                 return False
 
-            # Check if mjpython is needed (macOS)
-            python_executable = sys.executable
-            if sys.platform == "darwin":  # macOS
-                # Try to find mjpython
-                mjpython_result = subprocess.run(
-                    ["which", "mjpython"], capture_output=True, text=True
-                )
-                if mjpython_result.returncode == 0:
-                    mjpython_path = mjpython_result.stdout.strip()
-                    if mjpython_path:
-                        python_executable = mjpython_path
-                        logger.info(f"Using mjpython for macOS: {mjpython_path}")
-                else:
-                    logger.warning("mjpython not found on macOS, viewer may not work properly")
-
-            # Start process
+            python_executable = self._get_python_executable()
             cmd = [python_executable, viewer_script, "--port", str(self.port)]
             logger.info(f"Starting viewer with command: {' '.join(cmd)}")
 
@@ -289,6 +262,35 @@ class MuJoCoViewerClient:
         except Exception as e:
             logger.exception(f"Failed to start viewer server: {e}")
             return False
+
+    def _find_viewer_script(self) -> str | None:
+        """Find the viewer server script in common locations."""
+        script_paths = [
+            "mujoco_viewer_server.py",
+            os.path.join(os.path.dirname(__file__), "..", "..", "mujoco_viewer_server.py"),
+            os.path.join(os.getcwd(), "mujoco_viewer_server.py"),
+        ]
+
+        for path in script_paths:
+            if os.path.exists(path):
+                return os.path.abspath(path)
+        return None
+
+    def _get_python_executable(self) -> str:
+        """Get appropriate Python executable (mjpython on macOS if available)."""
+        if sys.platform != "darwin":
+            return sys.executable
+
+        mjpython_result = subprocess.run(
+            ["which", "mjpython"], capture_output=True, text=True
+        )
+        if mjpython_result.returncode == 0 and mjpython_result.stdout.strip():
+            mjpython_path = mjpython_result.stdout.strip()
+            logger.info(f"Using mjpython for macOS: {mjpython_path}")
+            return mjpython_path
+
+        logger.warning("mjpython not found on macOS, viewer may not work properly")
+        return sys.executable
 
     def get_diagnostics(self) -> Dict[str, Any]:
         """Get connection diagnostic information."""
@@ -337,17 +339,16 @@ class ViewerManager:
 
     def create_client(self, model_id: str, port: int | None = None) -> bool:
         """Create viewer client for specific model."""
-        if port is None:
-            port = self.default_port
+        actual_port = port if port is not None else self.default_port
 
-        client = MuJoCoViewerClient(port=port)
-        if client.connect():
-            self.clients[model_id] = client
-            logger.info(f"Created viewer client for model {model_id}")
-            return True
-        else:
+        client = MuJoCoViewerClient(port=actual_port)
+        if not client.connect():
             logger.error(f"Failed to create viewer client for model {model_id}")
             return False
+
+        self.clients[model_id] = client
+        logger.info(f"Created viewer client for model {model_id}")
+        return True
 
     def get_client(self, model_id: str) -> MuJoCoViewerClient | None:
         """Get viewer client for specified model."""

@@ -265,15 +265,11 @@ class TrajectoryPlanner:
         frequency: float = 100.0,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Convert Cartesian trajectory to joint space"""
+        joint_waypoints = np.array([
+            robot_kinematics.inverse_kinematics(cart_pos)
+            for cart_pos in cartesian_waypoints
+        ])
 
-        # Convert waypoints to joint space
-        joint_waypoints = []
-        for cart_pos in cartesian_waypoints:
-            joint_pos = robot_kinematics.inverse_kinematics(cart_pos)
-            joint_waypoints.append(joint_pos)
-        joint_waypoints = np.array(joint_waypoints)
-
-        # Generate joint space trajectory
         return TrajectoryPlanner.spline_trajectory(joint_waypoints, times, frequency)
 
 
@@ -447,14 +443,15 @@ class RobotController:
         self, target_positions: np.ndarray, current_positions: np.ndarray
     ) -> np.ndarray:
         """Apply PID control to reach target positions"""
-        commands = []
+        n_valid = min(self.n_joints, len(target_positions), len(current_positions))
 
-        for i in range(self.n_joints):
-            if i < len(target_positions) and i < len(current_positions):
-                command = self.pid_controllers[i].update(target_positions[i], current_positions[i])
-                commands.append(command)
-            else:
-                commands.append(0.0)
+        commands = [
+            self.pid_controllers[i].update(target_positions[i], current_positions[i])
+            for i in range(n_valid)
+        ]
+
+        # Pad with zeros if we have fewer valid joints than expected
+        commands.extend([0.0] * (self.n_joints - n_valid))
 
         return np.array(commands)
 
@@ -481,58 +478,66 @@ class RobotController:
         self.trajectory_index = 0
 
 
-# Factory functions for common control scenarios
+# Robot configuration presets
+_ROBOT_CONFIGS = {
+    # Robotic arms
+    "franka_panda": {
+        "joints": 7,
+        "kp": [100, 100, 100, 100, 50, 50, 25],
+        "ki": [0.1, 0.1, 0.1, 0.1, 0.05, 0.05, 0.01],
+        "kd": [10, 10, 10, 10, 5, 5, 2.5],
+    },
+    "ur5e": {
+        "joints": 6,
+        "kp": [150, 150, 100, 100, 50, 50],
+        "ki": [0.2, 0.2, 0.1, 0.1, 0.05, 0.05],
+        "kd": [15, 15, 10, 10, 5, 5],
+    },
+    # Quadrupeds
+    "anymal_c": {
+        "joints": 12,
+        "kp": [200] * 12,
+        "ki": [0.5] * 12,
+        "kd": [20] * 12,
+    },
+    "go2": {
+        "joints": 12,
+        "kp": [180] * 12,
+        "ki": [0.3] * 12,
+        "kd": [18] * 12,
+    },
+    # Humanoids
+    "g1": {
+        "joints": 37,
+        "kp": [100] * 37,
+        "ki": [0.1] * 37,
+        "kd": [10] * 37,
+    },
+    "h1": {
+        "joints": 25,
+        "kp": [120] * 25,
+        "ki": [0.15] * 25,
+        "kd": [12] * 25,
+    },
+}
+
+
+def _create_controller(robot_type: str, default: str) -> RobotController:
+    """Create controller from preset configuration."""
+    config = _ROBOT_CONFIGS.get(robot_type, _ROBOT_CONFIGS[default])
+    return RobotController(config)
+
+
 def create_arm_controller(robot_type: str = "franka_panda") -> RobotController:
     """Create controller optimized for robotic arms"""
-
-    arm_configs = {
-        "franka_panda": {
-            "joints": 7,
-            "kp": [100, 100, 100, 100, 50, 50, 25],
-            "ki": [0.1, 0.1, 0.1, 0.1, 0.05, 0.05, 0.01],
-            "kd": [10, 10, 10, 10, 5, 5, 2.5],
-        },
-        "ur5e": {
-            "joints": 6,
-            "kp": [150, 150, 100, 100, 50, 50],
-            "ki": [0.2, 0.2, 0.1, 0.1, 0.05, 0.05],
-            "kd": [15, 15, 10, 10, 5, 5],
-        },
-    }
-
-    config = arm_configs.get(robot_type, arm_configs["franka_panda"])
-    return RobotController(config)
+    return _create_controller(robot_type, "franka_panda")
 
 
 def create_quadruped_controller(robot_type: str = "anymal_c") -> RobotController:
     """Create controller optimized for quadruped robots"""
-
-    quadruped_configs = {
-        "anymal_c": {
-            "joints": 12,
-            "kp": [200] * 12,  # Higher gains for stability
-            "ki": [0.5] * 12,
-            "kd": [20] * 12,
-        },
-        "go2": {"joints": 12, "kp": [180] * 12, "ki": [0.3] * 12, "kd": [18] * 12},
-    }
-
-    config = quadruped_configs.get(robot_type, quadruped_configs["anymal_c"])
-    return RobotController(config)
+    return _create_controller(robot_type, "anymal_c")
 
 
 def create_humanoid_controller(robot_type: str = "g1") -> RobotController:
     """Create controller optimized for humanoid robots"""
-
-    humanoid_configs = {
-        "g1": {
-            "joints": 37,
-            "kp": [100] * 37,  # Variable gains per joint group
-            "ki": [0.1] * 37,
-            "kd": [10] * 37,
-        },
-        "h1": {"joints": 25, "kp": [120] * 25, "ki": [0.15] * 25, "kd": [12] * 25},
-    }
-
-    config = humanoid_configs.get(robot_type, humanoid_configs["g1"])
-    return RobotController(config)
+    return _create_controller(robot_type, "g1")

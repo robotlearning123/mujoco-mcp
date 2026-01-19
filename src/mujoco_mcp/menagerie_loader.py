@@ -215,55 +215,58 @@ class MenagerieLoader:
             RuntimeError: If model validation fails.
         """
         xml_content = self.get_model_xml(model_name)
+        self._validate_xml_structure(model_name, xml_content)
+        return self._validate_with_mujoco(model_name, xml_content)
 
-        # Basic validation
+    def _validate_xml_structure(self, model_name: str, xml_content: str) -> None:
+        """Validate basic XML structure."""
         if not xml_content.strip():
             raise ValueError(f"Model '{model_name}' has empty XML content")
 
-        # Try to parse XML
         try:
             root = ET.fromstring(xml_content)
-            if root.tag != "mujoco":
-                raise ValueError(
-                    f"Invalid MuJoCo XML for model '{model_name}': "
-                    f"root element is '{root.tag}', expected 'mujoco'"
-                )
         except ET.ParseError as e:
             logger.error(f"XML parse error for model '{model_name}': {e}")
             raise
 
-        # Try MuJoCo loading if available
+        if root.tag != "mujoco":
+            raise ValueError(
+                f"Invalid MuJoCo XML for model '{model_name}': "
+                f"root element is '{root.tag}', expected 'mujoco'"
+            )
+
+    def _validate_with_mujoco(self, model_name: str, xml_content: str) -> Dict[str, Any]:
+        """Validate model using MuJoCo library if available."""
         try:
             import mujoco
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as tmp:
-                tmp.write(xml_content)
-                tmp_path = tmp.name
-
-            try:
-                model = mujoco.MjModel.from_xml_path(tmp_path)
-                return {
-                    "valid": True,
-                    "n_bodies": model.nbody,
-                    "n_joints": model.njnt,
-                    "n_actuators": model.nu,
-                    "xml_size": len(xml_content)
-                }
-            except Exception as e:
-                logger.error(f"MuJoCo model validation failed for '{model_name}': {e}")
-                raise RuntimeError(
-                    f"Failed to load MuJoCo model '{model_name}': {e}"
-                ) from e
-            finally:
-                os.unlink(tmp_path)
-
         except ImportError:
-            # MuJoCo not available, just return basic validation
             logger.info(f"MuJoCo validation skipped for '{model_name}' (not installed)")
             return {
                 "valid": True,
                 "xml_size": len(xml_content),
-                "note": "MuJoCo validation skipped (not installed)"
+                "note": "MuJoCo validation skipped (not installed)",
             }
+
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as tmp:
+                tmp.write(xml_content)
+                tmp_path = tmp.name
+
+            model = mujoco.MjModel.from_xml_path(tmp_path)
+            return {
+                "valid": True,
+                "n_bodies": model.nbody,
+                "n_joints": model.njnt,
+                "n_actuators": model.nu,
+                "xml_size": len(xml_content),
+            }
+        except Exception as e:
+            logger.error(f"MuJoCo model validation failed for '{model_name}': {e}")
+            raise RuntimeError(f"Failed to load MuJoCo model '{model_name}': {e}") from e
+        finally:
+            if tmp_path:
+                os.unlink(tmp_path)
     
     def create_scene_xml(self, model_name: str, scene_name: Optional[str] = None) -> str:
         """Create a complete scene XML for a Menagerie model"""

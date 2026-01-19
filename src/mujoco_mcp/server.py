@@ -48,18 +48,15 @@ def load_model(model_string: str, name: str | None = None) -> Dict[str, Any]:
 @mcp.tool()
 def get_loaded_models() -> Dict[str, Any]:
     """Get list of all loaded models"""
-    models = []
-    for model_id, data in simulations.items():
-        models.append({
+    models = [
+        {
             "id": model_id,
             "name": data.get("name", model_id),
-            "created": data.get("created", False)
-        })
-    return {
-        "status": "success",
-        "count": len(models),
-        "models": models
-    }
+            "created": data.get("created", False),
+        }
+        for model_id, data in simulations.items()
+    ]
+    return {"status": "success", "count": len(models), "models": models}
 
 
 @mcp.tool()
