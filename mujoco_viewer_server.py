@@ -5,11 +5,16 @@ Supports concurrent multi-model management
 Uses official mujoco.viewer.launch_passive() API
 Communicates with MCP server via Socket
 
-Fixed issues:
-1. Support for multiple concurrent connections
-2. Increased receive buffer size
-3. Improved error handling and timeout management
-4. Support for independent management of multiple models
+Key Features:
+1. Multiple concurrent client connections (daemon threads)
+2. Increased receive buffer size (65536 bytes)
+3. Socket timeout increased to 15 seconds for model replacement operations
+4. Structured error handling with three-tier classification:
+   - Expected parameter errors (KeyError, ValueError, TypeError)
+   - Expected runtime errors (RuntimeError, model loading failures)
+   - Unexpected errors (catch-all Exception with full logging)
+5. Independent management of multiple models
+6. Graceful handling of user interrupts (KeyboardInterrupt never suppressed)
 """
 
 import time
@@ -45,8 +50,9 @@ class ModelViewer:
         self.simulation_running = False
         self.created_time = time.time()
 
-        # Load model - supports file path or XML string
-        # Paths are resolved relative to the XML file's directory
+        # Load model - supports both file paths and XML strings
+        # File paths are loaded via MjModel.from_xml_path() which handles asset resolution
+        # XML strings are loaded directly via MjModel.from_xml_string()
         try:
             if os.path.exists(model_source):
                 logger.info(f"Loading model {model_id} from file: {model_source}")
@@ -192,15 +198,15 @@ class MuJoCoViewerServer:
             return {"success": False, "error": f"Unknown command: {cmd_type}"}
 
         except (KeyError, ValueError, TypeError) as e:
-            # Expected parameter validation errors
-            logger.warning(f"Invalid parameters for command {cmd_type}: {e}")
+            # Missing or invalid parameter errors (e.g., missing required keys, wrong types)
+            logger.warning(f"Invalid command parameters for {cmd_type}: {e}")
             return {"success": False, "error": f"Invalid parameters: {e}"}
         except RuntimeError as e:
-            # Expected runtime errors (model loading failures, etc.)
+            # Explicit runtime errors raised by command handlers (model loading, viewer operations)
             logger.exception(f"Runtime error handling command {cmd_type}: {e}")
             return {"success": False, "error": str(e)}
         except Exception as e:
-            # Unexpected errors - these indicate bugs
+            # Unexpected errors indicate bugs that need investigation
             logger.exception(f"Unexpected error handling command {cmd_type}: {e}")
             return {"success": False, "error": f"Internal server error: {str(e)}"}
 
@@ -477,18 +483,17 @@ class MuJoCoViewerServer:
                 client_socket.send(response_json.encode("utf-8"))
 
         except (OSError, ConnectionError, json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
-            # Expected network/protocol errors
+            # Expected network/protocol/validation errors (includes message size limit violations)
             logger.warning(f"Client communication error from {address}: {e}")
             try:
                 error_response = {"success": False, "error": str(e)}
                 client_socket.send(json.dumps(error_response).encode("utf-8"))
             except (OSError, BrokenPipeError):
-                # Client likely disconnected, safe to ignore
-                logger.debug(f"Could not send error response to {address} (client disconnected)")
+                # Cannot send error response (client disconnected or network failure)
+                logger.debug(f"Could not send error response to {address}")
         except Exception as e:
-            # Unexpected errors - log and re-raise to prevent masking bugs
+            # Unexpected errors - log for investigation (daemon thread will terminate)
             logger.exception(f"Unexpected error handling client {address}: {e}")
-            raise
         finally:
             client_socket.close()
             logger.info(f"Client {address} disconnected")

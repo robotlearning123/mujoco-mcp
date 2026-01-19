@@ -352,13 +352,15 @@ class MultiRobotCoordinator:
                 self._send_control_commands()
 
             except (ConnectionError, TimeoutError) as e:
-                # Expected transient errors - log and continue
-                self.logger.warning(f"Transient error in coordination loop: {e}")
+                # Network/communication errors - log and retry on next iteration
+                # These may recover if connection is restored
+                self.logger.warning(f"Transient communication error in coordination loop: {e}")
+                # Loop continues to retry
             except Exception as e:
-                # Critical errors (state corruption, programming bugs) - fail fast
+                # Unexpected errors (programming bugs, state corruption) - stop coordination
                 self.logger.exception(f"CRITICAL error in coordination loop: {e}")
                 self.running = False
-                raise
+                raise  # Re-raise to notify caller of failure
 
             # Maintain control frequency
             elapsed = time.time() - start_time
@@ -463,11 +465,25 @@ class MultiRobotCoordinator:
 
     def _execute_sequential_tasks(self, task: CoordinatedTask):
         """Execute tasks in sequence"""
-        # Implementation for sequential task execution
+        self.logger.error(
+            f"Sequential task execution not implemented for task {task.task_id}. "
+            f"Supported task types: COOPERATIVE_MANIPULATION, FORMATION_CONTROL"
+        )
+        raise NotImplementedError(
+            "Sequential task execution is not yet implemented. "
+            "Supported task types: COOPERATIVE_MANIPULATION, FORMATION_CONTROL"
+        )
 
     def _execute_parallel_tasks(self, task: CoordinatedTask):
         """Execute tasks in parallel"""
-        # Implementation for parallel task execution
+        self.logger.error(
+            f"Parallel task execution not implemented for task {task.task_id}. "
+            f"Supported task types: COOPERATIVE_MANIPULATION, FORMATION_CONTROL"
+        )
+        raise NotImplementedError(
+            "Parallel task execution is not yet implemented. "
+            "Supported task types: COOPERATIVE_MANIPULATION, FORMATION_CONTROL"
+        )
 
     def _check_collisions(self):
         """Check for potential collisions"""

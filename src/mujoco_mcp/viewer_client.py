@@ -69,10 +69,12 @@ class MuJoCoViewerClient:
             try:
                 self.socket.close()
             except OSError as e:
-                # Expected socket close failures during abnormal disconnection
-                logger.debug(f"Socket close error (expected during cleanup): {e}")
+                # Socket close errors during cleanup (e.g., socket already closed, connection reset)
+                # These are common during abnormal disconnection and can be safely ignored
+                logger.debug(f"Socket close error during cleanup: {e}")
             except Exception as e:
-                # Unexpected errors should be logged for investigation
+                # Unexpected errors during cleanup that aren't socket-related
+                # These warrant investigation as they may indicate resource leaks
                 logger.warning(f"Unexpected error during socket cleanup: {e}")
             finally:
                 self.socket = None
@@ -154,16 +156,19 @@ class MuJoCoViewerClient:
         try:
             response = self.send_command({"type": "ping"})
             return response.get("success", False)
-        except Exception:
-            # Connection lost, try to reconnect once
+        except (OSError, ConnectionError, ValueError) as e:
+            # Expected communication errors - try to reconnect once
+            logger.warning(f"Ping failed with {type(e).__name__}: {e}, attempting reconnect")
             self.connected = False
             if not self.connect():
+                logger.error("Reconnection attempt failed")
                 return False
 
             try:
                 response = self.send_command({"type": "ping"})
                 return response.get("success", False)
-            except Exception:
+            except (OSError, ConnectionError, ValueError) as e:
+                logger.error(f"Ping failed after reconnect: {e}")
                 return False
 
     def load_model(self, model_source: str, model_id: str = None) -> Dict[str, Any]:
@@ -336,7 +341,10 @@ class MuJoCoViewerClient:
             logger.warning(f"lsof command timeout checking port {self.port}")
             return None  # Timeout - unable to determine
         except Exception as e:
-            logger.warning(f"Failed to check viewer process on port {self.port}: {e}")
+            logger.exception(
+                f"Unexpected error checking viewer process on port {self.port}: "
+                f"{type(e).__name__}: {e}"
+            )
             return None  # Error - unable to determine
 
 
