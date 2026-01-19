@@ -46,18 +46,34 @@ class ModelViewer:
         self.created_time = time.time()
 
         # Load model - supports file path or XML string
-        if os.path.exists(model_source):
-            # If it's a file path, use from_xml_path to load
-            # (so relative paths are resolved correctly)
-            self.model = mujoco.MjModel.from_xml_path(model_source)
-        else:
-            # Otherwise assume it's an XML string
-            self.model = mujoco.MjModel.from_xml_string(model_source)
+        # Paths are resolved relative to the XML file's directory
+        try:
+            if os.path.exists(model_source):
+                logger.info(f"Loading model {model_id} from file: {model_source}")
+                self.model = mujoco.MjModel.from_xml_path(model_source)
+            else:
+                logger.info(f"Loading model {model_id} from XML string")
+                self.model = mujoco.MjModel.from_xml_string(model_source)
+        except FileNotFoundError as e:
+            logger.error(f"Model file not found for {model_id}: {model_source}")
+            raise RuntimeError(f"Failed to load model {model_id}: file not found at {model_source}") from e
+        except Exception as e:
+            logger.error(f"Failed to load MuJoCo model {model_id}: {e}")
+            raise RuntimeError(f"Failed to load model {model_id}: {e}") from e
 
-        self.data = mujoco.MjData(self.model)
+        # Create simulation data
+        try:
+            self.data = mujoco.MjData(self.model)
+        except Exception as e:
+            logger.error(f"Failed to create MjData for model {model_id}: {e}")
+            raise RuntimeError(f"Failed to initialize simulation data for {model_id}: {e}") from e
 
         # Start viewer
-        self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
+        try:
+            self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
+        except Exception as e:
+            logger.error(f"Failed to launch viewer for model {model_id}: {e}")
+            raise RuntimeError(f"Failed to start viewer for {model_id}: {e}") from e
 
         # Start simulation loop
         self.simulation_running = True
@@ -107,13 +123,25 @@ class ModelViewer:
                     self.viewer.close()
                 elif hasattr(self.viewer, "_window") and self.viewer._window:
                     # For older MuJoCo versions, try to close the window directly
-                    with contextlib.suppress(builtins.BaseException):
+                    try:
                         self.viewer._window.close()
+                    except (AttributeError, RuntimeError) as e:
+                        logger.debug(f"Failed to close viewer window for {self.model_id}: {e}")
+
                 # Wait for simulation thread to finish
                 if hasattr(self, "sim_thread") and self.sim_thread.is_alive():
                     self.sim_thread.join(timeout=2.0)
-            except Exception as e:
+                    if self.sim_thread.is_alive():
+                        logger.warning(f"Simulation thread for {self.model_id} did not terminate within timeout")
+            except KeyboardInterrupt:
+                # Never suppress user interrupts
+                raise
+            except (AttributeError, RuntimeError, OSError) as e:
+                # Expected errors during cleanup
                 logger.warning(f"Error closing viewer for {self.model_id}: {e}")
+            except Exception as e:
+                # Unexpected errors should be logged as errors
+                logger.error(f"Unexpected error closing viewer for {self.model_id}: {e}")
             finally:
                 self.viewer = None
         logger.info(f"Closed ModelViewer for {self.model_id}")
@@ -160,11 +188,21 @@ class MuJoCoViewerServer:
             handler = self._command_handlers.get(cmd_type)
             if handler:
                 return handler(command)
+            logger.warning(f"Unknown command type received: {cmd_type}")
             return {"success": False, "error": f"Unknown command: {cmd_type}"}
 
-        except Exception as e:
-            logger.exception(f"Error handling command {cmd_type}: {e}")
+        except (KeyError, ValueError, TypeError) as e:
+            # Expected parameter validation errors
+            logger.warning(f"Invalid parameters for command {cmd_type}: {e}")
+            return {"success": False, "error": f"Invalid parameters: {e}"}
+        except RuntimeError as e:
+            # Expected runtime errors (model loading failures, etc.)
+            logger.error(f"Runtime error handling command {cmd_type}: {e}")
             return {"success": False, "error": str(e)}
+        except Exception as e:
+            # Unexpected errors - these indicate bugs
+            logger.exception(f"Unexpected error handling command {cmd_type}: {e}")
+            return {"success": False, "error": f"Internal server error: {str(e)}"}
 
     def _check_viewer_available(self, model_id: str | None) -> Dict[str, Any] | None:
         """Check if viewer is available for the given model. Returns error dict or None if OK."""
@@ -286,12 +324,14 @@ class MuJoCoViewerServer:
 
     def _handle_ping(self, command: Dict[str, Any]) -> Dict[str, Any]:
         """Ping the server."""
-        models_count = 1 if self.current_viewer else 0
+        with self.viewer_lock:
+            models_count = 1 if self.current_viewer else 0
+            current_model = self.current_model_id
         return {
             "success": True,
             "pong": True,
             "models_count": models_count,
-            "current_model": self.current_model_id,
+            "current_model": current_model,
             "server_running": self.running,
             "server_info": {
                 "version": "0.7.4",

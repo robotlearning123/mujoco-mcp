@@ -19,6 +19,8 @@ from enum import Enum
 from .viewer_client import MuJoCoViewerClient
 from .sensor_feedback import SensorManager
 
+logger = logging.getLogger(__name__)
+
 
 class ActionSpaceType(Enum):
     """Types of action spaces for RL environments."""
@@ -669,9 +671,9 @@ class MuJoCoRLEnvironment(gym.Env):
         response = self.viewer_client.send_command({"type": "get_state", "model_id": self.model_id})
 
         if response.get("success"):
-            state = response.get("state", {})
-            qpos = np.array(state.get("qpos", []))
-            qvel = np.array(state.get("qvel", []))
+            # Extract qpos and qvel directly from response (not nested under "state")
+            qpos = np.array(response.get("qpos", []))
+            qvel = np.array(response.get("qvel", []))
 
             # Combine position and velocity
             observation = np.concatenate([qpos, qvel])

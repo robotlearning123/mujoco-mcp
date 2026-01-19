@@ -93,8 +93,7 @@ class MuJoCoViewerClient:
 
         Raises:
             ConnectionError: If not connected to viewer server.
-            ValueError: If response is too large (>1MB).
-            json.JSONDecodeError: If response is not valid JSON.
+            ValueError: If response is too large (>1MB), not valid JSON, or cannot be decoded as UTF-8.
             OSError: If socket communication fails.
         """
         if not self.connected or not self.socket:
@@ -134,9 +133,11 @@ class MuJoCoViewerClient:
             raise OSError(f"Failed to communicate with viewer server: {e}") from e
         except json.JSONDecodeError as e:
             logger.exception(f"Invalid JSON response: {e}")
-            raise
+            self.connected = False  # Connection is likely corrupted
+            raise ValueError(f"Server returned invalid JSON: {e}") from e
         except UnicodeDecodeError as e:
             logger.exception(f"Response decode error: {e}")
+            self.connected = False  # Connection is likely corrupted
             raise ValueError(f"Failed to decode server response as UTF-8: {e}") from e
 
     def ping(self) -> bool:

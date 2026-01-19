@@ -59,20 +59,15 @@ class RobotState:
     last_update: float = field(default_factory=time.time)
 
     def __post_init__(self):
-        """Validate robot state dimensions and make arrays immutable."""
+        """Validate robot state dimensions.
+
+        Note: Arrays are kept mutable to allow state updates via update_robot_state().
+        """
         if len(self.joint_positions) != len(self.joint_velocities):
             raise ValueError(
                 f"joint_positions length ({len(self.joint_positions)}) must match "
                 f"joint_velocities length ({len(self.joint_velocities)})"
             )
-
-        # Make numpy arrays immutable
-        self.joint_positions.flags.writeable = False
-        self.joint_velocities.flags.writeable = False
-        if self.end_effector_pos is not None:
-            self.end_effector_pos.flags.writeable = False
-        if self.end_effector_vel is not None:
-            self.end_effector_vel.flags.writeable = False
 
     def is_stale(self, timeout: float = 1.0) -> bool:
         """Check if state is stale"""
@@ -91,6 +86,7 @@ class CoordinatedTask:
     timeout: float = 30.0
     status: TaskStatus = TaskStatus.PENDING
     start_time: float | None = None
+    completion_callback: Callable | None = None
 
     def __post_init__(self):
         """Validate coordinated task parameters."""
@@ -98,7 +94,6 @@ class CoordinatedTask:
             raise ValueError("robots list cannot be empty")
         if self.timeout <= 0:
             raise ValueError(f"timeout must be positive, got {self.timeout}")
-    completion_callback: Callable | None = None
 
 
 class CollisionChecker:
