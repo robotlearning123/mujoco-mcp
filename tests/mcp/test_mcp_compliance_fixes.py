@@ -79,7 +79,8 @@ async def _check_response_format() -> bool:
 
     print("Testing Response Format...")
     response = await handle_call_tool("get_server_info", {})
-    assert response and response[0].type == "text"
+    assert response
+    assert response[0].type == "text"
     payload = json.loads(response[0].text)
     assert payload.get("status") == "ok"
     details = payload.get("data", {})

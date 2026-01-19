@@ -14,25 +14,64 @@ from abc import ABC, abstractmethod
 import logging
 from collections import deque
 import json
+from enum import Enum
 
 from .viewer_client import MuJoCoViewerClient
 from .sensor_feedback import SensorManager
 
 
-@dataclass
+class ActionSpaceType(Enum):
+    """Types of action spaces for RL environments."""
+
+    CONTINUOUS = "continuous"
+    DISCRETE = "discrete"
+
+
+class TaskType(Enum):
+    """Types of RL tasks."""
+
+    REACHING = "reaching"
+    BALANCING = "balancing"
+    WALKING = "walking"
+
+
+@dataclass(frozen=True)
 class RLConfig:
     """Configuration for RL environment"""
 
     robot_type: str
-    task_type: str
+    task_type: TaskType
     max_episode_steps: int = 1000
     reward_scale: float = 1.0
-    action_space_type: str = "continuous"  # "continuous" or "discrete"
+    action_space_type: ActionSpaceType = ActionSpaceType.CONTINUOUS
     observation_space_size: int = 0
     action_space_size: int = 0
     render_mode: str | None = None
     physics_timestep: float = 0.002
     control_timestep: float = 0.02
+
+    def __post_init__(self):
+        """Validate RL configuration parameters."""
+        if self.max_episode_steps <= 0:
+            raise ValueError(f"max_episode_steps must be positive, got {self.max_episode_steps}")
+        if self.physics_timestep <= 0:
+            raise ValueError(f"physics_timestep must be positive, got {self.physics_timestep}")
+        if self.control_timestep <= 0:
+            raise ValueError(f"control_timestep must be positive, got {self.control_timestep}")
+        if self.control_timestep < self.physics_timestep:
+            raise ValueError(
+                f"control_timestep ({self.control_timestep}) must be >= "
+                f"physics_timestep ({self.physics_timestep})"
+            )
+        if not isinstance(self.action_space_type, ActionSpaceType):
+            raise ValueError(
+                f"action_space_type must be an ActionSpaceType enum, "
+                f"got {type(self.action_space_type)}"
+            )
+        if not isinstance(self.task_type, TaskType):
+            raise ValueError(
+                f"task_type must be a TaskType enum, got {type(self.task_type)}"
+            )
 
 
 class TaskReward(ABC):
@@ -187,7 +226,31 @@ class WalkingTaskReward(TaskReward):
 
 
 class MuJoCoRLEnvironment(gym.Env):
-    """Gymnasium-compatible RL environment for MuJoCo MCP"""
+    """Gymnasium-compatible RL environment for MuJoCo MCP.
+
+    Example:
+        >>> # Create configuration
+        >>> config = RLConfig(
+        ...     robot_type="arm",
+        ...     task_type=TaskType.REACHING,
+        ...     max_episode_steps=1000,
+        ...     action_space_type=ActionSpaceType.CONTINUOUS,
+        ...     observation_space_size=10,
+        ...     action_space_size=6
+        ... )
+        >>>
+        >>> # Create environment
+        >>> env = MuJoCoRLEnvironment(config)
+        >>>
+        >>> # Training loop
+        >>> observation, info = env.reset()
+        >>> for _ in range(1000):
+        ...     action = env.action_space.sample()  # Random policy
+        ...     observation, reward, terminated, truncated, info = env.step(action)
+        ...     if terminated or truncated:
+        ...         observation, info = env.reset()
+        >>> env.close()
+    """
 
     def __init__(self, config: RLConfig):
         super().__init__()
@@ -236,7 +299,7 @@ class MuJoCoRLEnvironment(gym.Env):
             n_joints = 6  # Default
 
         # Action space
-        if self.config.action_space_type == "continuous":
+        if self.config.action_space_type == ActionSpaceType.CONTINUOUS:
             # Continuous joint torques/positions
             self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(n_joints,), dtype=np.float32)
         else:
@@ -255,12 +318,12 @@ class MuJoCoRLEnvironment(gym.Env):
 
     def _create_reward_function(self) -> TaskReward:
         """Create task-specific reward function"""
-        if self.config.task_type == "reaching":
+        if self.config.task_type == TaskType.REACHING:
             target = np.array([0.5, 0.0, 0.5])  # Default target position
             return ReachingTaskReward(target)
-        elif self.config.task_type == "balancing":
+        elif self.config.task_type == TaskType.BALANCING:
             return BalancingTaskReward()
-        elif self.config.task_type == "walking":
+        elif self.config.task_type == TaskType.WALKING:
             return WalkingTaskReward()
         else:
             # Default reward function
@@ -268,11 +331,11 @@ class MuJoCoRLEnvironment(gym.Env):
 
     def _create_model_xml(self) -> str:
         """Create model XML for the RL task"""
-        if self.config.task_type == "reaching" and self.config.robot_type == "franka_panda":
+        if self.config.task_type == TaskType.REACHING and self.config.robot_type == "franka_panda":
             return self._create_franka_reaching_xml()
-        elif self.config.task_type == "balancing":
+        elif self.config.task_type == TaskType.BALANCING:
             return self._create_cart_pole_xml()
-        elif self.config.task_type == "walking" and "quadruped" in self.config.robot_type:
+        elif self.config.task_type == TaskType.WALKING and "quadruped" in self.config.robot_type:
             return self._create_quadruped_xml()
         else:
             # Default simple arm
@@ -442,7 +505,27 @@ class MuJoCoRLEnvironment(gym.Env):
     def reset(
         self, seed: int | None = None, options: Dict | None = None
     ) -> Tuple[np.ndarray, Dict]:
-        """Reset environment for new episode"""
+        """Reset the environment to start a new episode.
+
+        Args:
+            seed: Random seed for reproducibility (optional).
+            options: Additional reset options (optional, currently unused).
+
+        Returns:
+            Tuple containing:
+            - observation (np.ndarray): Initial state observation of shape determined by observation_space
+            - info (Dict): Diagnostic information including episode count and current step
+
+        Raises:
+            RuntimeError: If connection to viewer server fails or model loading fails.
+
+        Note:
+            This method:
+            - Resets the episode step counter to 0
+            - Reloads the MuJoCo model in the viewer
+            - Resets reward function internal state
+            - Returns the initial observation and info dict
+        """
         super().reset(seed=seed)
 
         # Connect to viewer if needed
@@ -476,7 +559,26 @@ class MuJoCoRLEnvironment(gym.Env):
         return observation, info
 
     def step(self, action: Union[np.ndarray, int]) -> Tuple[np.ndarray, float, bool, bool, Dict]:
-        """Execute one step in the environment"""
+        """Execute one environment step by applying an action.
+
+        Args:
+            action: Action to execute. Can be:
+                   - np.ndarray: Continuous actions (for Box action space)
+                   - int: Discrete action index (converted to continuous internally)
+
+        Returns:
+            Tuple containing:
+            - observation (np.ndarray): State after executing the action
+            - reward (float): Reward obtained from the transition
+            - terminated (bool): Whether episode ended due to task completion/failure
+            - truncated (bool): Whether episode ended due to time limit
+            - info (Dict): Diagnostic information including step count, timing, etc.
+
+        Note:
+            The Gymnasium API separates episode termination into two flags:
+            - terminated: Task-specific ending (e.g., goal reached, robot fell)
+            - truncated: Episode ended due to max_episode_steps limit
+        """
         step_start_time = time.time()
 
         # Convert action if needed
@@ -553,7 +655,14 @@ class MuJoCoRLEnvironment(gym.Env):
         )
 
     def _get_observation(self) -> np.ndarray:
-        """Get current observation from simulation"""
+        """Get current observation from simulation.
+
+        Returns:
+            Current observation as float32 numpy array.
+
+        Raises:
+            RuntimeError: If state cannot be retrieved from simulation.
+        """
         response = self.viewer_client.send_command({"type": "get_state", "model_id": self.model_id})
 
         if response.get("success"):
@@ -573,8 +682,10 @@ class MuJoCoRLEnvironment(gym.Env):
 
             return observation.astype(np.float32)
 
-        # Return zero observation if state unavailable
-        return np.zeros(self.observation_space.shape[0], dtype=np.float32)
+        # State fetch failed - raise error instead of returning zeros
+        error_msg = response.get("error", "Unknown error")
+        logger.error(f"Failed to get observation from model {self.model_id}: {error_msg}")
+        raise RuntimeError(f"Cannot get observation from simulation: {error_msg}")
 
     def _get_info(self) -> Dict[str, Any]:
         """Get additional information about current state"""
@@ -586,11 +697,27 @@ class MuJoCoRLEnvironment(gym.Env):
         }
 
     def render(self):
-        """Render environment (MuJoCo viewer handles this)"""
+        """Render the current environment state.
+
+        Note:
+            The MuJoCo viewer server automatically renders the simulation in real-time,
+            so this method is a no-op. Rendering is handled by the standalone viewer
+            process that displays the simulation continuously.
+
+            For programmatic frame capture, use the viewer_client.capture_render() method.
+        """
         # The MuJoCo viewer automatically renders the simulation
 
     def close(self):
-        """Close environment"""
+        """Clean up and close the environment.
+
+        Note:
+            This method:
+            - Closes the model in the viewer server
+            - Disconnects from the viewer server
+            - Should be called when the environment is no longer needed
+            - Safe to call multiple times (idempotent)
+        """
         if self.viewer_client.connected:
             self.viewer_client.send_command({"type": "close_model", "model_id": self.model_id})
             self.viewer_client.disconnect()
@@ -606,7 +733,24 @@ class RLTrainer:
         self.logger = logging.getLogger(__name__)
 
     def random_policy_baseline(self, num_episodes: int = 10) -> Dict[str, float]:
-        """Run random policy baseline"""
+        """Evaluate random policy performance as a baseline.
+
+        Args:
+            num_episodes: Number of episodes to run (default: 10).
+
+        Returns:
+            Dictionary containing baseline statistics:
+            - mean_reward: Average total reward per episode
+            - std_reward: Standard deviation of episode rewards
+            - mean_length: Average episode length in steps
+            - std_length: Standard deviation of episode lengths
+            - min_reward: Minimum episode reward
+            - max_reward: Maximum episode reward
+
+        Note:
+            This provides a performance baseline for comparing learned policies.
+            Random actions are sampled uniformly from the action space.
+        """
         rewards = []
         episode_lengths = []
 
@@ -646,7 +790,27 @@ class RLTrainer:
         return results
 
     def evaluate_policy(self, policy_fn: Callable, num_episodes: int = 10) -> Dict[str, float]:
-        """Evaluate a policy function"""
+        """Evaluate a learned or handcrafted policy.
+
+        Args:
+            policy_fn: Callable that maps observations to actions. Should accept
+                      a numpy array observation and return an action compatible
+                      with the environment's action space.
+            num_episodes: Number of episodes to run for evaluation (default: 10).
+
+        Returns:
+            Dictionary containing evaluation statistics:
+            - mean_reward: Average total reward per episode
+            - std_reward: Standard deviation of episode rewards
+            - mean_length: Average episode length in steps
+            - std_length: Standard deviation of episode lengths
+            - min_reward: Minimum episode reward
+            - max_reward: Maximum episode reward
+
+        Note:
+            The policy_fn is called at each timestep with the current observation.
+            No gradient computation or training occurs during evaluation.
+        """
         rewards = []
         episode_lengths = []
 
@@ -674,7 +838,19 @@ class RLTrainer:
         }
 
     def save_training_data(self, filepath: str):
-        """Save training history to file"""
+        """Save training history and configuration to JSON file.
+
+        Args:
+            filepath: Path where training data should be saved (with .json extension).
+
+        Note:
+            Saves:
+            - training_history: List of training episodes and their statistics
+            - best_reward: Best reward achieved during training
+            - env_config: Environment configuration (robot_type, task_type, max_episode_steps)
+
+            The file is written in JSON format with indentation for readability.
+        """
         data = {
             "training_history": self.training_history,
             "best_reward": self.best_reward,
@@ -685,7 +861,7 @@ class RLTrainer:
             },
         }
 
-        with filepath.open("w") as f:
+        with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
 
 
@@ -694,9 +870,9 @@ def create_reaching_env(robot_type: str = "franka_panda") -> MuJoCoRLEnvironment
     """Create reaching task environment"""
     config = RLConfig(
         robot_type=robot_type,
-        task_type="reaching",
+        task_type=TaskType.REACHING,
         max_episode_steps=500,
-        action_space_type="continuous",
+        action_space_type=ActionSpaceType.CONTINUOUS,
     )
     return MuJoCoRLEnvironment(config)
 
@@ -705,9 +881,9 @@ def create_balancing_env() -> MuJoCoRLEnvironment:
     """Create balancing task environment"""
     config = RLConfig(
         robot_type="cart_pole",
-        task_type="balancing",
+        task_type=TaskType.BALANCING,
         max_episode_steps=1000,
-        action_space_type="discrete",
+        action_space_type=ActionSpaceType.DISCRETE,
     )
     return MuJoCoRLEnvironment(config)
 
@@ -716,9 +892,9 @@ def create_walking_env(robot_type: str = "quadruped") -> MuJoCoRLEnvironment:
     """Create walking task environment"""
     config = RLConfig(
         robot_type=robot_type,
-        task_type="walking",
+        task_type=TaskType.WALKING,
         max_episode_steps=2000,
-        action_space_type="continuous",
+        action_space_type=ActionSpaceType.CONTINUOUS,
     )
     return MuJoCoRLEnvironment(config)
 

@@ -24,28 +24,49 @@ class MenagerieLoader:
         self.cache_dir.mkdir(exist_ok=True)
         
     def download_file(self, model_name: str, file_path: str) -> str:
-        """Download a file from the Menagerie repository"""
+        """Download a file from the Menagerie repository.
+
+        Args:
+            model_name: Name of the model (directory in repository).
+            file_path: Path to file within model directory.
+
+        Returns:
+            File content as string.
+
+        Raises:
+            RuntimeError: If download fails or HTTP error occurs.
+            UnicodeDecodeError: If file content cannot be decoded as UTF-8.
+        """
         url = f"{self.BASE_URL}/{model_name}/{file_path}"
-        
+
         # Check cache first
         cache_file = self.cache_dir / model_name / file_path
         if cache_file.exists():
             return cache_file.read_text()
-        
+
         try:
             with urllib.request.urlopen(url, timeout=10) as response:
                 if response.getcode() == 200:
                     content = response.read().decode('utf-8')
-                    
+
                     # Save to cache
                     cache_file.parent.mkdir(parents=True, exist_ok=True)
                     cache_file.write_text(content)
-                    
+
                     return content
                 else:
-                    raise Exception(f"HTTP {response.getcode()}")
+                    raise RuntimeError(
+                        f"HTTP error {response.getcode()} downloading {url}"
+                    )
+        except urllib.error.URLError as e:
+            logger.error(f"Network error downloading {url}: {e}")
+            raise RuntimeError(f"Failed to download {url}: {e}") from e
+        except UnicodeDecodeError as e:
+            logger.error(f"UTF-8 decode error for {url}: {e}")
+            raise
         except Exception as e:
-            raise Exception(f"Failed to download {url}: {e}")
+            logger.error(f"Unexpected error downloading {url}: {e}")
+            raise RuntimeError(f"Failed to download {url}: {e}") from e
     
     def resolve_includes(self, xml_content: str, model_name: str, visited: Optional[set] = None) -> str:
         """Resolve XML include directives recursively"""
@@ -102,31 +123,52 @@ class MenagerieLoader:
         return ET.tostring(root, encoding='unicode')
     
     def get_model_xml(self, model_name: str) -> str:
-        """Get complete XML for a Menagerie model with includes resolved"""
-        
+        """Get complete XML for a Menagerie model with includes resolved.
+
+        Args:
+            model_name: Name of the Menagerie model.
+
+        Returns:
+            Complete XML content with all includes resolved.
+
+        Raises:
+            ValueError: If model_name is empty.
+            RuntimeError: If no XML files could be loaded for the model.
+        """
+        if not model_name or not model_name.strip():
+            raise ValueError("Model name cannot be empty")
+
         # Try different common file patterns
         possible_files = [
             f"{model_name}.xml",
-            "scene.xml", 
+            "scene.xml",
             f"{model_name}_mjx.xml"
         ]
-        
+
+        errors = []
         for xml_file in possible_files:
             try:
                 # Download main XML file
                 xml_content = self.download_file(model_name, xml_file)
-                
+
                 # Resolve includes
                 resolved_xml = self.resolve_includes(xml_content, model_name)
-                
+
                 logger.info(f"Successfully loaded {model_name} from {xml_file}")
                 return resolved_xml
-                
+
             except Exception as e:
-                logger.debug(f"Failed to load {model_name} from {xml_file}: {e}")
+                error_msg = f"Failed to load {model_name} from {xml_file}: {e}"
+                logger.debug(error_msg)
+                errors.append(error_msg)
                 continue
-        
-        raise Exception(f"Could not load any XML files for model {model_name}")
+
+        # All attempts failed
+        logger.error(f"Could not load model '{model_name}' from any of: {possible_files}")
+        raise RuntimeError(
+            f"Could not load any XML files for model '{model_name}'. "
+            f"Tried {len(possible_files)} files. Errors: {'; '.join(errors)}"
+        )
     
     def get_available_models(self) -> Dict[str, List[str]]:
         """Get list of available models by category (cached/hardcoded for performance)"""
@@ -159,53 +201,69 @@ class MenagerieLoader:
         }
     
     def validate_model(self, model_name: str) -> Dict[str, Any]:
-        """Validate that a model can be loaded and return info"""
+        """Validate that a model can be loaded and return info.
+
+        Args:
+            model_name: Name of the Menagerie model to validate.
+
+        Returns:
+            Dictionary containing validation results (n_bodies, n_joints, n_actuators, xml_size).
+
+        Raises:
+            ValueError: If XML content is empty or invalid.
+            ET.ParseError: If XML cannot be parsed.
+            RuntimeError: If model validation fails.
+        """
+        xml_content = self.get_model_xml(model_name)
+
+        # Basic validation
+        if not xml_content.strip():
+            raise ValueError(f"Model '{model_name}' has empty XML content")
+
+        # Try to parse XML
         try:
-            xml_content = self.get_model_xml(model_name)
-            
-            # Basic validation
-            if not xml_content.strip():
-                return {"valid": False, "error": "Empty XML content"}
-            
-            # Try to parse XML
+            root = ET.fromstring(xml_content)
+            if root.tag != "mujoco":
+                raise ValueError(
+                    f"Invalid MuJoCo XML for model '{model_name}': "
+                    f"root element is '{root.tag}', expected 'mujoco'"
+                )
+        except ET.ParseError as e:
+            logger.error(f"XML parse error for model '{model_name}': {e}")
+            raise
+
+        # Try MuJoCo loading if available
+        try:
+            import mujoco
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as tmp:
+                tmp.write(xml_content)
+                tmp_path = tmp.name
+
             try:
-                root = ET.fromstring(xml_content)
-                if root.tag != "mujoco":
-                    return {"valid": False, "error": "Not a valid MuJoCo XML (root is not 'mujoco')"}
-            except ET.ParseError as e:
-                return {"valid": False, "error": f"XML parse error: {e}"}
-            
-            # Try MuJoCo loading if available
-            try:
-                import mujoco
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as tmp:
-                    tmp.write(xml_content)
-                    tmp_path = tmp.name
-                
-                try:
-                    model = mujoco.MjModel.from_xml_path(tmp_path)
-                    result = {
-                        "valid": True,
-                        "n_bodies": model.nbody,
-                        "n_joints": model.njnt,
-                        "n_actuators": model.nu,
-                        "xml_size": len(xml_content)
-                    }
-                finally:
-                    os.unlink(tmp_path)
-                    
-                return result
-                
-            except ImportError:
-                # MuJoCo not available, just return basic validation
+                model = mujoco.MjModel.from_xml_path(tmp_path)
                 return {
                     "valid": True,
-                    "xml_size": len(xml_content),
-                    "note": "MuJoCo validation skipped (not installed)"
+                    "n_bodies": model.nbody,
+                    "n_joints": model.njnt,
+                    "n_actuators": model.nu,
+                    "xml_size": len(xml_content)
                 }
-                
-        except Exception as e:
-            return {"valid": False, "error": str(e)}
+            except Exception as e:
+                logger.error(f"MuJoCo model validation failed for '{model_name}': {e}")
+                raise RuntimeError(
+                    f"Failed to load MuJoCo model '{model_name}': {e}"
+                ) from e
+            finally:
+                os.unlink(tmp_path)
+
+        except ImportError:
+            # MuJoCo not available, just return basic validation
+            logger.info(f"MuJoCo validation skipped for '{model_name}' (not installed)")
+            return {
+                "valid": True,
+                "xml_size": len(xml_content),
+                "note": "MuJoCo validation skipped (not installed)"
+            }
     
     def create_scene_xml(self, model_name: str, scene_name: Optional[str] = None) -> str:
         """Create a complete scene XML for a Menagerie model"""

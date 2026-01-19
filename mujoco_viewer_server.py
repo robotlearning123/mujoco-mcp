@@ -407,10 +407,11 @@ class MuJoCoViewerServer:
                     try:
                         json.loads(data.decode("utf-8"))
                         break
-                    except:
-                        # Continue receiving
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        # Continue receiving partial JSON
                         if len(data) > 1024 * 1024:  # 1MB limit
-                            raise ValueError("Message too large")
+                            logger.exception(f"Message too large: {len(data)} bytes from {address}")
+                            raise ValueError(f"Message exceeds 1MB limit: {len(data)} bytes")
                         continue
 
                 # Parse command
@@ -429,8 +430,11 @@ class MuJoCoViewerServer:
             try:
                 error_response = {"success": False, "error": str(e)}
                 client_socket.send(json.dumps(error_response).encode("utf-8"))
-            except:
-                pass
+            except (OSError, BrokenPipeError) as send_error:
+                logger.exception(f"Failed to send error response to {address}: {send_error}")
+                # Client likely disconnected, safe to ignore
+            except Exception as send_error:
+                logger.exception(f"Unexpected error sending error response to {address}")
         finally:
             client_socket.close()
             logger.info(f"Client {address} disconnected")

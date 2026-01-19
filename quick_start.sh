@@ -1,32 +1,32 @@
 #!/bin/bash
 # MuJoCo MCP Remote Quick Start Script
 
-echo "🚀 MuJoCo MCP Remote 快速启动"
+echo "🚀 MuJoCo MCP Remote Quick Start"
 echo "================================"
 
-# 进入正确的目录
+# Enter correct directory
 cd "$(dirname "$0")"
 
-# 检查Python
-echo "📍 当前目录: $(pwd)"
-echo "🐍 Python路径: $(which python)"
-echo "🐍 Python版本: $(python --version)"
+# Check Python
+echo "📍 Current directory: $(pwd)"
+echo "🐍 Python path: $(which python)"
+echo "🐍 Python version: $(python --version)"
 
-# 运行启动脚本
+# Run startup script
 echo ""
-echo "🔧 启动系统..."
+echo "🔧 Starting system..."
 python start_mujoco_system.py
 
-# 如果失败，提供备用方案
+# If failed, provide alternative
 if [ $? -ne 0 ]; then
     echo ""
-    echo "❌ 自动启动失败，请手动执行以下步骤："
+    echo "❌ Automatic startup failed, please manually execute the following steps:"
     echo ""
-    echo "1. 启动Viewer Server:"
+    echo "1. Start Viewer Server:"
     echo "   python mujoco_viewer_server.py"
     echo ""
-    echo "2. 在Claude Desktop中测试:"
-    echo "   - 重启Claude Desktop"
-    echo "   - 输入: 'What MCP servers are available?'"
+    echo "2. Test in Claude Desktop:"
+    echo "   - Restart Claude Desktop"
+    echo "   - Input: 'What MCP servers are available?'"
     echo ""
 fi

@@ -4,14 +4,33 @@ Robot Controller for MuJoCo MCP
 Provides full robot control capabilities via MCP protocol
 """
 
-import numpy as np
-from typing import Dict, Any, List
-import mujoco
+import logging
 import time
+from typing import Any, Dict, List
+
+import mujoco
+import numpy as np
+
+logger = logging.getLogger("mujoco_mcp.robot_controller")
 
 
 class RobotController:
-    """Advanced robot control interface for MuJoCo"""
+    """Advanced robot control interface for MuJoCo.
+
+    Example:
+        >>> # Create controller and load robot
+        >>> controller = RobotController()
+        >>> robot_info = controller.load_robot(robot_type="arm", robot_id="robot1")
+        >>>
+        >>> # Set joint positions
+        >>> positions = [0.0, 0.5, -0.5, 0.0, 0.0, 0.0]
+        >>> controller.set_joint_positions("robot1", positions)
+        >>>
+        >>> # Get current state
+        >>> state = controller.get_robot_state("robot1")
+        >>> print(f"Joint positions: {state['joint_positions']}")
+        >>> print(f"Joint velocities: {state['joint_velocities']}")
+    """
 
     def __init__(self):
         self.models = {}
@@ -19,7 +38,19 @@ class RobotController:
         self.controllers = {}
 
     def load_robot(self, robot_type: str, robot_id: str = None) -> Dict[str, Any]:
-        """Load a robot model into the simulation"""
+        """Load a robot model into the simulation.
+
+        Args:
+            robot_type: Type of robot to load ('arm', 'gripper', 'mobile', 'humanoid').
+            robot_id: Optional unique identifier for the robot instance.
+
+        Returns:
+            Dictionary containing robot metadata (robot_id, robot_type, num_joints, etc.).
+
+        Raises:
+            ValueError: If robot_type is not recognized.
+            RuntimeError: If robot model fails to load from XML.
+        """
         if robot_id is None:
             robot_id = f"{robot_type}_{int(time.time())}"
 
@@ -32,48 +63,68 @@ class RobotController:
         }
 
         if robot_type not in robot_xmls:
-            return {"error": f"Unknown robot type: {robot_type}"}
+            valid_types = ", ".join(robot_xmls.keys())
+            raise ValueError(
+                f"Unknown robot type '{robot_type}'. Valid types: {valid_types}"
+            )
 
         xml = robot_xmls[robot_type]
 
         try:
             model = mujoco.MjModel.from_xml_string(xml)
             data = mujoco.MjData(model)
-
-            self.models[robot_id] = model
-            self.data[robot_id] = data
-            self.controllers[robot_id] = {
-                "type": robot_type,
-                "control_mode": "position",
-                "target_positions": np.zeros(model.nu),
-                "target_velocities": np.zeros(model.nu),
-                "target_torques": np.zeros(model.nu),
-            }
-
-            return {
-                "robot_id": robot_id,
-                "robot_type": robot_type,
-                "num_joints": model.nu,
-                "num_sensors": model.nsensor,
-                "joint_names": [model.joint(i).name for i in range(model.njnt)],
-                "actuator_names": [model.actuator(i).name for i in range(model.nu)],
-                "status": "loaded",
-            }
-
         except Exception as e:
-            return {"error": str(e)}
+            logger.exception(f"Failed to load {robot_type} robot model: {e}")
+            raise RuntimeError(
+                f"Failed to load robot model for type '{robot_type}': {e}"
+            ) from e
+
+        self.models[robot_id] = model
+        self.data[robot_id] = data
+        self.controllers[robot_id] = {
+            "type": robot_type,
+            "control_mode": "position",
+            "target_positions": np.zeros(model.nu),
+            "target_velocities": np.zeros(model.nu),
+            "target_torques": np.zeros(model.nu),
+        }
+
+        return {
+            "robot_id": robot_id,
+            "robot_type": robot_type,
+            "num_joints": model.nu,
+            "num_sensors": model.nsensor,
+            "joint_names": [model.joint(i).name for i in range(model.njnt)],
+            "actuator_names": [model.actuator(i).name for i in range(model.nu)],
+            "status": "loaded",
+        }
 
     def set_joint_positions(self, robot_id: str, positions: List[float]) -> Dict[str, Any]:
-        """Set target joint positions for the robot"""
+        """Set target joint positions for the robot.
+
+        Args:
+            robot_id: Unique identifier of the robot.
+            positions: Target joint positions. Length must match model.nu.
+
+        Returns:
+            Dictionary with robot_id, positions_set, control_mode, and status.
+
+        Raises:
+            KeyError: If robot_id is not found.
+            ValueError: If positions length doesn't match expected number of actuators.
+        """
         if robot_id not in self.models:
-            return {"error": f"Robot {robot_id} not found"}
+            raise KeyError(f"Robot '{robot_id}' not found in loaded robots")
 
         model = self.models[robot_id]
         data = self.data[robot_id]
         controller = self.controllers[robot_id]
 
         if len(positions) != model.nu:
-            return {"error": f"Expected {model.nu} positions, got {len(positions)}"}
+            raise ValueError(
+                f"Position array size mismatch for robot '{robot_id}': "
+                f"got {len(positions)}, expected {model.nu}"
+            )
 
         # Set target positions
         controller["target_positions"] = np.array(positions)
@@ -90,16 +141,31 @@ class RobotController:
         }
 
     def set_joint_velocities(self, robot_id: str, velocities: List[float]) -> Dict[str, Any]:
-        """Set target joint velocities for the robot"""
+        """Set target joint velocities for the robot.
+
+        Args:
+            robot_id: Unique identifier of the robot.
+            velocities: Target joint velocities. Length must match model.nu.
+
+        Returns:
+            Dictionary with robot_id, velocities_set, control_mode, and status.
+
+        Raises:
+            KeyError: If robot_id is not found.
+            ValueError: If velocities length doesn't match expected number of actuators.
+        """
         if robot_id not in self.models:
-            return {"error": f"Robot {robot_id} not found"}
+            raise KeyError(f"Robot '{robot_id}' not found in loaded robots")
 
         model = self.models[robot_id]
         data = self.data[robot_id]
         controller = self.controllers[robot_id]
 
         if len(velocities) != model.nu:
-            return {"error": f"Expected {model.nu} velocities, got {len(velocities)}"}
+            raise ValueError(
+                f"Velocity array size mismatch for robot '{robot_id}': "
+                f"got {len(velocities)}, expected {model.nu}"
+            )
 
         # Set target velocities
         controller["target_velocities"] = np.array(velocities)
@@ -121,16 +187,31 @@ class RobotController:
         }
 
     def set_joint_torques(self, robot_id: str, torques: List[float]) -> Dict[str, Any]:
-        """Set joint torques for direct force control"""
+        """Set joint torques for direct force control.
+
+        Args:
+            robot_id: Unique identifier of the robot.
+            torques: Target joint torques. Length must match model.nu.
+
+        Returns:
+            Dictionary with robot_id, torques_set, control_mode, and status.
+
+        Raises:
+            KeyError: If robot_id is not found.
+            ValueError: If torques length doesn't match expected number of actuators.
+        """
         if robot_id not in self.models:
-            return {"error": f"Robot {robot_id} not found"}
+            raise KeyError(f"Robot '{robot_id}' not found in loaded robots")
 
         model = self.models[robot_id]
         data = self.data[robot_id]
         controller = self.controllers[robot_id]
 
         if len(torques) != model.nu:
-            return {"error": f"Expected {model.nu} torques, got {len(torques)}"}
+            raise ValueError(
+                f"Torque array size mismatch for robot '{robot_id}': "
+                f"got {len(torques)}, expected {model.nu}"
+            )
 
         # Set torques directly
         controller["target_torques"] = np.array(torques)
@@ -146,9 +227,19 @@ class RobotController:
         }
 
     def get_robot_state(self, robot_id: str) -> Dict[str, Any]:
-        """Get complete robot state including positions, velocities, and sensors"""
+        """Get complete robot state including positions, velocities, and sensors.
+
+        Args:
+            robot_id: Unique identifier of the robot.
+
+        Returns:
+            Dictionary containing comprehensive robot state information.
+
+        Raises:
+            KeyError: If robot_id is not found.
+        """
         if robot_id not in self.models:
-            return {"error": f"Robot {robot_id} not found"}
+            raise KeyError(f"Robot '{robot_id}' not found in loaded robots")
 
         model = self.models[robot_id]
         data = self.data[robot_id]
@@ -194,9 +285,21 @@ class RobotController:
         }
 
     def step_robot(self, robot_id: str, steps: int = 1) -> Dict[str, Any]:
-        """Step the robot simulation forward"""
+        """Step the robot simulation forward.
+
+        Args:
+            robot_id: Unique identifier of the robot.
+            steps: Number of simulation steps to execute.
+
+        Returns:
+            Dictionary with robot_id, steps_completed, simulation_time, and status.
+
+        Raises:
+            KeyError: If robot_id is not found.
+            RuntimeError: If simulation step fails.
+        """
         if robot_id not in self.models:
-            return {"error": f"Robot {robot_id} not found"}
+            raise KeyError(f"Robot '{robot_id}' not found in loaded robots")
 
         model = self.models[robot_id]
         data = self.data[robot_id]
@@ -212,14 +315,27 @@ class RobotController:
                 "status": "success",
             }
         except Exception as e:
-            return {"error": str(e)}
+            logger.exception(f"Failed to step robot '{robot_id}': {e}")
+            raise RuntimeError(f"Simulation step failed for robot '{robot_id}': {e}") from e
 
     def execute_trajectory(
         self, robot_id: str, trajectory: List[List[float]], time_steps: int = 10
     ) -> Dict[str, Any]:
-        """Execute a trajectory of joint positions"""
+        """Execute a trajectory of joint positions.
+
+        Args:
+            robot_id: Unique identifier of the robot.
+            trajectory: List of waypoint positions to execute.
+            time_steps: Number of simulation steps between waypoints.
+
+        Returns:
+            Dictionary with trajectory execution results.
+
+        Raises:
+            KeyError: If robot_id is not found.
+        """
         if robot_id not in self.models:
-            return {"error": f"Robot {robot_id} not found"}
+            raise KeyError(f"Robot '{robot_id}' not found in loaded robots")
 
         results = []
         for waypoint in trajectory:
@@ -248,9 +364,19 @@ class RobotController:
         }
 
     def reset_robot(self, robot_id: str) -> Dict[str, Any]:
-        """Reset robot to initial configuration"""
+        """Reset robot to initial configuration.
+
+        Args:
+            robot_id: Unique identifier of the robot.
+
+        Returns:
+            Dictionary with robot_id, status, and simulation_time.
+
+        Raises:
+            KeyError: If robot_id is not found.
+        """
         if robot_id not in self.models:
-            return {"error": f"Robot {robot_id} not found"}
+            raise KeyError(f"Robot '{robot_id}' not found in loaded robots")
 
         model = self.models[robot_id]
         data = self.data[robot_id]

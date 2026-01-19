@@ -119,6 +119,14 @@ class MuJoCoServer:
         self.version = __version__
         self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations"
 
+    async def initialize(self):
+        """Initialize the server asynchronously.
+
+        This method is called before run() to perform any async initialization.
+        Currently a no-op but provides extension point for future initialization.
+        """
+        logger.info(f"Initializing {self.name} v{self.version}")
+
     def get_server_info(self) -> Dict[str, Any]:
         """Get server information for MCP compliance"""
         return {

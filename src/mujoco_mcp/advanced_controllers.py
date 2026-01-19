@@ -6,40 +6,108 @@ Implements PID controllers, trajectory planning, and optimization-based control
 
 import numpy as np
 import math
-from typing import Dict, Tuple, Callable
+from typing import Dict, Tuple, Callable, NewType
 from dataclasses import dataclass
 from scipy.optimize import minimize
 from scipy.interpolate import CubicSpline
 import time
 
+# Domain-specific types for type safety
+Gain = NewType("Gain", float)  # PID gain values (kp, ki, kd)
+OutputLimit = NewType("OutputLimit", float)  # Control output limits
 
-@dataclass
+
+@dataclass(frozen=True)
 class PIDConfig:
     """PID controller configuration"""
 
-    kp: float = 1.0  # Proportional gain
-    ki: float = 0.0  # Integral gain
-    kd: float = 0.0  # Derivative gain
-    max_output: float = 100.0  # Maximum output
-    min_output: float = -100.0  # Minimum output
-    windup_limit: float = 100.0  # Anti-windup limit
+    kp: Gain = 1.0  # Proportional gain
+    ki: Gain = 0.0  # Integral gain
+    kd: Gain = 0.0  # Derivative gain
+    max_output: OutputLimit = 100.0  # Maximum output
+    min_output: OutputLimit = -100.0  # Minimum output
+    windup_limit: OutputLimit = 100.0  # Anti-windup limit
+
+    def __post_init__(self):
+        """Validate PID configuration parameters."""
+        if self.kp < 0:
+            raise ValueError(f"Proportional gain must be non-negative, got {self.kp}")
+        if self.ki < 0:
+            raise ValueError(f"Integral gain must be non-negative, got {self.ki}")
+        if self.kd < 0:
+            raise ValueError(f"Derivative gain must be non-negative, got {self.kd}")
+        if self.min_output >= self.max_output:
+            raise ValueError(
+                f"min_output ({self.min_output}) must be less than "
+                f"max_output ({self.max_output})"
+            )
+        if self.windup_limit <= 0:
+            raise ValueError(f"windup_limit must be positive, got {self.windup_limit}")
 
 
 class PIDController:
-    """PID controller for joint position/velocity control"""
+    """PID controller for joint position/velocity control.
+
+    Example:
+        >>> # Create PID controller for position control
+        >>> config = PIDConfig(kp=10.0, ki=0.1, kd=1.0)
+        >>> controller = PIDController(config)
+        >>>
+        >>> # Control loop
+        >>> target_pos = 1.0
+        >>> current_pos = 0.0
+        >>> dt = 0.01
+        >>>
+        >>> for _ in range(100):
+        ...     control_output = controller.update(target_pos, current_pos, dt)
+        ...     # Apply control_output to actuator
+        ...     current_pos += control_output * dt  # Simplified dynamics
+    """
 
     def __init__(self, config: PIDConfig):
         self.config = config
         self.reset()
 
     def reset(self):
-        """Reset controller state"""
+        """Reset PID controller state to initial conditions.
+
+        Note:
+            Clears:
+            - Previous error (set to 0)
+            - Integral accumulator (set to 0)
+            - Previous time reference (set to None)
+
+            Call this before starting a new control sequence or after
+            discontinuities in the control loop.
+        """
         self.prev_error = 0.0
         self.integral = 0.0
         self.prev_time = None
 
     def update(self, target: float, current: float, dt: float | None = None) -> float:
-        """Update PID controller"""
+        """Compute PID control output for current timestep.
+
+        Args:
+            target: Desired setpoint value.
+            current: Current measured value.
+            dt: Time step in seconds (optional). If None, automatically computed
+               from wall clock time.
+
+        Returns:
+            Control output clamped to [min_output, max_output] range.
+
+        Note:
+            Implements the PID control law:
+                u(t) = Kp·e(t) + Ki·∫e(τ)dτ + Kd·de(t)/dt
+
+            where:
+            - e(t) = target - current (tracking error)
+            - Kp, Ki, Kd are the proportional, integral, derivative gains
+            - ∫e(τ)dτ is clamped to ±windup_limit for anti-windup
+            - Output u(t) is clamped to [min_output, max_output]
+
+            First call after reset() uses a default dt of 0.02s (50Hz).
+        """
         if dt is None:
             current_time = time.time()
             if self.prev_time is None:
@@ -91,7 +159,32 @@ class TrajectoryPlanner:
         end_vel: np.ndarray | None = None,
         frequency: float = 100.0,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Generate minimum jerk trajectory"""
+        """Generate smooth minimum jerk trajectory between two points.
+
+        Args:
+            start_pos: Initial position (ndarray of shape (n_dims,)).
+            end_pos: Final position (ndarray of shape (n_dims,)).
+            duration: Trajectory duration in seconds.
+            start_vel: Initial velocity (default: zeros). Shape (n_dims,).
+            end_vel: Final velocity (default: zeros). Shape (n_dims,).
+            frequency: Sampling frequency in Hz (default: 100.0).
+
+        Returns:
+            Tuple of (positions, velocities, accelerations), each with shape
+            (n_timesteps, n_dims) where n_timesteps = duration * frequency.
+
+        Note:
+            Generates trajectories that minimize the integral of jerk squared:
+                J = ∫₀ᵀ ||d³x/dt³||² dt
+
+            This produces smooth, natural-looking motions with continuous acceleration.
+            The resulting trajectory is a 5th-order polynomial satisfying:
+            - Position boundary conditions: x(0) = start_pos, x(T) = end_pos
+            - Velocity boundary conditions: ẋ(0) = start_vel, ẋ(T) = end_vel
+            - Acceleration boundary conditions: ẍ(0) = 0, ẍ(T) = 0
+
+            Used extensively in robotics for smooth point-to-point motions.
+        """
 
         if start_vel is None:
             start_vel = np.zeros_like(start_pos)

@@ -27,9 +27,27 @@ class TaskType(Enum):
     COLLISION_AVOIDANCE = "collision_avoidance"
 
 
+class RobotStatus(Enum):
+    """Status of a robot in the coordination system."""
+
+    IDLE = "idle"
+    EXECUTING = "executing"
+    STALE = "stale"
+    COLLISION_STOP = "collision_stop"
+
+
+class TaskStatus(Enum):
+    """Status of a coordinated task."""
+
+    PENDING = "pending"
+    ALLOCATED = "allocated"
+    EXECUTING = "executing"
+    COMPLETED = "completed"
+
+
 @dataclass
 class RobotState:
-    """Robot state information"""
+    """Robot state information (mutable to allow status updates)"""
 
     robot_id: str
     model_type: str
@@ -37,8 +55,24 @@ class RobotState:
     joint_velocities: np.ndarray
     end_effector_pos: np.ndarray | None = None
     end_effector_vel: np.ndarray | None = None
-    status: str = "idle"
+    status: RobotStatus = RobotStatus.IDLE
     last_update: float = field(default_factory=time.time)
+
+    def __post_init__(self):
+        """Validate robot state dimensions and make arrays immutable."""
+        if len(self.joint_positions) != len(self.joint_velocities):
+            raise ValueError(
+                f"joint_positions length ({len(self.joint_positions)}) must match "
+                f"joint_velocities length ({len(self.joint_velocities)})"
+            )
+
+        # Make numpy arrays immutable
+        self.joint_positions.flags.writeable = False
+        self.joint_velocities.flags.writeable = False
+        if self.end_effector_pos is not None:
+            self.end_effector_pos.flags.writeable = False
+        if self.end_effector_vel is not None:
+            self.end_effector_vel.flags.writeable = False
 
     def is_stale(self, timeout: float = 1.0) -> bool:
         """Check if state is stale"""
@@ -47,7 +81,7 @@ class RobotState:
 
 @dataclass
 class CoordinatedTask:
-    """Coordinated task definition"""
+    """Coordinated task definition (mutable to allow status updates)"""
 
     task_id: str
     task_type: TaskType
@@ -55,8 +89,15 @@ class CoordinatedTask:
     parameters: Dict[str, Any]
     priority: int = 1
     timeout: float = 30.0
-    status: str = "pending"
+    status: TaskStatus = TaskStatus.PENDING
     start_time: float | None = None
+
+    def __post_init__(self):
+        """Validate coordinated task parameters."""
+        if not self.robots:
+            raise ValueError("robots list cannot be empty")
+        if self.timeout <= 0:
+            raise ValueError(f"timeout must be positive, got {self.timeout}")
     completion_callback: Callable | None = None
 
 
@@ -147,7 +188,7 @@ class TaskAllocator:
                 # Check robot capabilities
                 if self._check_robot_capabilities(task):
                     self.pending_tasks.remove(task)
-                    task.status = "allocated"
+                    task.status = TaskStatus.ALLOCATED
                     task.start_time = time.time()
                     allocated_tasks.append(task)
 
@@ -324,7 +365,7 @@ class MultiRobotCoordinator:
         with self.state_lock:
             for _robot_id, state in self.robot_states.items():
                 if state.is_stale():
-                    state.status = "stale"
+                    state.status = RobotStatus.STALE
 
     def _process_tasks(self):
         """Process and allocate tasks"""
@@ -374,7 +415,7 @@ class MultiRobotCoordinator:
             times = np.array([0, 2.0])
 
             controller.set_trajectory(waypoints, times)
-            state.status = "executing"
+            state.status = RobotStatus.EXECUTING
 
     def _execute_formation_control(self, task: CoordinatedTask):
         """Execute formation control task"""
@@ -411,7 +452,7 @@ class MultiRobotCoordinator:
             times = np.array([0, 3.0])
 
             controller.set_trajectory(waypoints, times)
-            state.status = "executing"
+            state.status = RobotStatus.EXECUTING
 
     def _execute_sequential_tasks(self, task: CoordinatedTask):
         """Execute tasks in sequence"""
@@ -446,8 +487,8 @@ class MultiRobotCoordinator:
         state1 = self.robot_states[robot1_id]
         state2 = self.robot_states[robot2_id]
 
-        state1.status = "collision_stop"
-        state2.status = "collision_stop"
+        state1.status = RobotStatus.COLLISION_STOP
+        state2.status = RobotStatus.COLLISION_STOP
 
         # Reset controllers
         self.robots[robot1_id].reset_controllers()
@@ -458,7 +499,7 @@ class MultiRobotCoordinator:
         for robot_id, controller in self.robots.items():
             state = self.robot_states[robot_id]
 
-            if state.status == "executing":
+            if state.status == RobotStatus.EXECUTING:
                 # Get trajectory command
                 target_pos = controller.get_trajectory_command()
 
@@ -473,7 +514,7 @@ class MultiRobotCoordinator:
                         self.viewer_client.send_command(command)
                 else:
                     # Trajectory complete
-                    state.status = "idle"
+                    state.status = RobotStatus.IDLE
 
     # High-level task interface
     def cooperative_manipulation(
