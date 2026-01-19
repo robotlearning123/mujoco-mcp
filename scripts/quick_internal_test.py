@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-快速内测脚本 - 验证核心功能
+Quick internal test script - verify core functionality
 """
 
 import asyncio

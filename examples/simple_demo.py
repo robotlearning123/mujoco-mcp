@@ -48,7 +48,7 @@ EXAMPLE_MODEL_XML = """
             </body>
         </body>
 
-        <!-- 场景中的物体 -->
+        <!-- Objects in scene -->
         <body name="red_cube" pos="1 0 0.1">
             <joint type="free"/>
             <geom type="box" size="0.1 0.1 0.1" rgba="1 0 0 1"/>
@@ -76,21 +76,21 @@ EXAMPLE_MODEL_XML = """
 
 
 class MuJoCoSimulation:
-    """MuJoCo模拟类"""
+    """MuJoCo simulation class"""
 
     def __init__(self, model_xml: str):
-        """初始化MuJoCo模拟"""
-        logger.info("初始化MuJoCo模拟...")
+        """Initialize MuJoCo simulation"""
+        logger.info("Initializing MuJoCo simulation...")
         self.model = mujoco.MjModel.from_xml_string(model_xml)
         self.data = mujoco.MjData(self.model)
 
-        # 查找物体和机器人部件
+        # Find objects and robot parts
         self._find_bodies()
 
-        # 创建渲染上下文
+        # Create rendering context
         self.create_renderer()
 
-        logger.info("模拟初始化完成")
+        logger.info("Simulation initialization complete")
 
     def _find_bodies(self):
         """Find objects and robot parts in the scene"""
@@ -107,69 +107,69 @@ class MuJoCoSimulation:
                 if name.startswith("robot1_"):
                     self.robot_parts[name] = i
 
-        logger.info(f"找到物体: {list(self.body_names.keys())}")
+        logger.info(f"Found objects: {list(self.body_names.keys())}")
 
     def create_renderer(self):
-        """创建渲染上下文"""
+        """Create rendering context"""
         try:
-            # 创建一个离屏渲染上下文
+            # Create an offscreen rendering context
             self.renderer = mujoco.Renderer(self.model, 640, 480)
-            logger.info("渲染上下文创建成功")
+            logger.info("Rendering context created successfully")
         except Exception as e:
-            logger.exception(f"创建渲染上下文失败: {str(e)}")
+            logger.exception(f"Failed to create rendering context: {str(e)}")
             self.renderer = None
 
     def step(self, num_steps: int = 1):
-        """步进模拟"""
+        """Step simulation"""
         for _ in range(num_steps):
             mujoco.mj_step(self.model, self.data)
 
     def reset(self):
-        """重置模拟"""
+        """Reset simulation"""
         mujoco.mj_resetData(self.model, self.data)
-        logger.info("模拟已重置")
+        logger.info("Simulation reset")
 
     def render(self):
-        """渲染当前场景"""
+        """Render current scene"""
         if self.renderer:
             self.renderer.update_scene(self.data)
             return self.renderer.render()
         return None
 
     def set_joint_positions(self, positions: List[float]):
-        """设置关节位置"""
+        """Set joint positions"""
         for i, pos in enumerate(positions):
             if i < self.model.nq:
                 self.data.qpos[i] = pos
         mujoco.mj_forward(self.model, self.data)
 
     def get_joint_positions(self) -> List[float]:
-        """获取关节位置"""
+        """Get joint positions"""
         return self.data.qpos.copy()
 
     def apply_control(self, control: List[float]):
-        """应用控制信号"""
+        """Apply control signal"""
         for i, ctrl in enumerate(control):
             if i < self.model.nu:
                 self.data.ctrl[i] = ctrl
 
     def get_body_position(self, body_name: str) -> List[float] | None:
-        """获取刚体位置"""
+        """Get body position"""
         if body_name in self.body_names:
             body_id = self.body_names[body_name]
             return self.data.body(body_id).xpos.copy()
         return None
 
     def apply_force(self, body_name: str, force: List[float]):
-        """对刚体应用力"""
+        """Apply force to body"""
         if body_name in self.body_names:
             body_id = self.body_names[body_name]
             self.data.xfrc_applied[body_id, :3] = force
-            logger.info(f"对 {body_name} 施加力 {force}")
+            logger.info(f"Applying force {force} to {body_name}")
 
     def move_robot_arm(self, shoulder_angle: float, elbow_angle: float, wrist_angle: float):
-        """移动机器人手臂"""
-        # 找到相关关节的索引
+        """Move robot arm"""
+        # Find indices of relevant joints
         shoulder_idx = -1
         elbow_idx = -1
         wrist_idx = -1
@@ -183,7 +183,7 @@ class MuJoCoSimulation:
             elif name == "robot1_wrist_rot":
                 wrist_idx = self.model.joint(i).qposadr[0]
 
-        # 设置关节角度
+        # Set joint angles
         if shoulder_idx >= 0:
             self.data.qpos[shoulder_idx] = np.deg2rad(shoulder_angle)
         if elbow_idx >= 0:
@@ -191,35 +191,35 @@ class MuJoCoSimulation:
         if wrist_idx >= 0:
             self.data.qpos[wrist_idx] = np.deg2rad(wrist_angle)
 
-        # 更新模拟
+        # Update simulation
         mujoco.mj_forward(self.model, self.data)
         logger.info(
-            f"移动机器人手臂到 肩膀={shoulder_angle}°, 肘部={elbow_angle}°, 手腕={wrist_angle}°"
+            f"Moving robot arm to shoulder={shoulder_angle}°, elbow={elbow_angle}°, wrist={wrist_angle}°"
         )
 
     def move_to_target(self, target_pos: List[float], steps: int = 100):
-        """移动机器人手臂到目标位置"""
-        # 这是一个非常简化的运动规划器，真实情况下需要更复杂的逆运动学
+        """Move robot arm to target position"""
+        # This is a very simplified motion planner, real scenarios require more complex inverse kinematics
 
-        # 获取末端执行器位置
+        # Get end effector position
         wrist_pos = self.get_body_position("robot1_wrist")
         if wrist_pos is None:
-            logger.error("找不到机器人手腕")
+            logger.error("Cannot find robot wrist")
             return
 
-        # 计算到目标的方向向量
+        # Calculate direction vector to target
         direction = np.array(target_pos) - wrist_pos
         distance = np.linalg.norm(direction)
 
-        logger.info(f"开始移动到目标位置 {target_pos}, 距离 {distance:.2f}")
+        logger.info(f"Starting move to target position {target_pos}, distance {distance:.2f}")
 
-        # 逐步移动
+        # Move gradually
         for i in range(steps):
-            # 获取当前关节角度
+            # Get current joint angles
             qpos = self.get_joint_positions()
 
-            # 简单的基于梯度的控制
-            # 注意: 这不是真正的逆运动学，只是一个简化的演示
+            # Simple gradient-based control
+            # Note: This is not true inverse kinematics, just a simplified demonstration
             shoulder_idx = -1
             elbow_idx = -1
 
@@ -230,120 +230,120 @@ class MuJoCoSimulation:
                 elif name == "robot1_elbow":
                     elbow_idx = self.model.joint(j).qposadr[0]
 
-            # 使用简单的启发式方法调整关节角度
+            # Use simple heuristics to adjust joint angles
             wrist_pos = self.get_body_position("robot1_wrist")
             direction = np.array(target_pos) - wrist_pos
 
-            # 调整肩部角度
+            # Adjust shoulder angle
             if shoulder_idx >= 0:
                 qpos[shoulder_idx] += np.sign(direction[0]) * 0.01
 
-            # 调整肘部角度
+            # Adjust elbow angle
             if elbow_idx >= 0:
                 qpos[elbow_idx] += np.sign(direction[2]) * 0.01
 
-            # 更新位置
+            # Update position
             self.set_joint_positions(qpos)
 
-            # 步进模拟
+            # Step simulation
             self.step(5)
 
-            # 检查是否接近目标
+            # Check if close to target
             wrist_pos = self.get_body_position("robot1_wrist")
             distance = np.linalg.norm(np.array(target_pos) - wrist_pos)
 
             if distance < 0.2:
-                logger.info(f"已接近目标位置, 剩余距离 {distance:.2f}")
+                logger.info(f"Close to target position, remaining distance {distance:.2f}")
                 break
 
             if i % 10 == 0:
-                logger.info(f"移动中... 步骤 {i}, 剩余距离 {distance:.2f}")
+                logger.info(f"Moving... step {i}, remaining distance {distance:.2f}")
 
     def grasp_object(self, object_name: str):
-        """抓取物体(简化版)"""
-        # 获取物体位置
+        """Grasp object (simplified version)"""
+        # Get object position
         object_pos = self.get_body_position(object_name)
         if object_pos is None:
-            logger.error(f"找不到物体 {object_name}")
+            logger.error(f"Cannot find object {object_name}")
             return
 
-        logger.info(f"尝试抓取 {object_name} 在位置 {object_pos}")
+        logger.info(f"Attempting to grasp {object_name} at position {object_pos}")
 
-        # 移动到物体位置上方
+        # Move to above object position
         target_pos = object_pos.copy()
-        target_pos[2] += 0.2  # 稍微在物体上方
+        target_pos[2] += 0.2  # Slightly above object
 
         self.move_to_target(target_pos)
 
-        # 模拟抓取操作(在真实MuJoCo中，这通常涉及创建约束)
-        logger.info(f"已抓取 {object_name}")
+        # Simulate grasp operation (in real MuJoCo, this typically involves creating constraints)
+        logger.info(f"Grasped {object_name}")
 
 
 def run_demo():
-    """运行演示"""
-    logger.info("开始MuJoCo简化演示")
+    """Run demo"""
+    logger.info("Starting MuJoCo simplified demo")
 
-    # 创建模拟
+    # Create simulation
     sim = MuJoCoSimulation(EXAMPLE_MODEL_XML)
 
-    # 重置模拟
+    # Reset simulation
     sim.reset()
 
-    # 显示场景中的物体
+    # Display objects in scene
     for name in sim.body_names:
         pos = sim.get_body_position(name)
         if pos is not None:
-            logger.info(f"物体 {name}: 位置 {pos}")
+            logger.info(f"Object {name}: position {pos}")
 
-    # 步骤1: 移动机器人手臂
-    logger.info("步骤1: 移动机器人手臂")
+    # Step 1: Move robot arm
+    logger.info("Step 1: Move robot arm")
     sim.move_robot_arm(30, 45, 0)
-    sim.step(100)  # 步进模拟让动作生效
+    sim.step(100)  # Step simulation to apply motion
 
-    # 步骤2: 接近红色立方体
-    logger.info("步骤2: 移动到红色立方体")
+    # Step 2: Approach red cube
+    logger.info("Step 2: Move to red cube")
     red_cube_pos = sim.get_body_position("red_cube")
     if red_cube_pos is not None:
-        # 移动到立方体上方
+        # Move to above cube
         target_pos = red_cube_pos.copy()
-        target_pos[2] += 0.3  # 立方体上方0.3单位
+        target_pos[2] += 0.3  # 0.3 units above cube
         sim.move_to_target(target_pos)
 
-    # 步骤3: 模拟抓取
-    logger.info("步骤3: 抓取红色立方体")
+    # Step 3: Simulate grasp
+    logger.info("Step 3: Grasp red cube")
     sim.grasp_object("red_cube")
 
-    # 步骤4: 应用一些控制信号
-    logger.info("步骤4: 应用控制信号")
+    # Step 4: Apply some control signals
+    logger.info("Step 4: Apply control signals")
     for _i in range(5):
-        # 应用随机控制信号
+        # Apply random control signal
         control = np.random.uniform(-1, 1, sim.model.nu)
         sim.apply_control(control.tolist())
         sim.step(20)
-        logger.info(f"应用控制 {control}")
+        logger.info(f"Applying control {control}")
 
-    # 步骤5: 对绿色球施加力
-    logger.info("步骤5: 对绿色球施加力")
+    # Step 5: Apply force to green sphere
+    logger.info("Step 5: Apply force to green sphere")
     sim.apply_force("green_sphere", [10.0, 0.0, 5.0])
     for _ in range(5):
         sim.step(20)
         pos = sim.get_body_position("green_sphere")
-        logger.info(f"绿色球位置: {pos}")
+        logger.info(f"Green sphere position: {pos}")
 
-    logger.info("演示完成")
+    logger.info("Demo complete")
 
 
 def main():
-    """主函数"""
-    parser = argparse.ArgumentParser(description="MuJoCo简化演示")
-    parser.add_argument("--verbose", "-v", action="store_true", help="输出详细信息")
+    """Main function"""
+    parser = argparse.ArgumentParser(description="MuJoCo simplified demo")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Output detailed information")
     args = parser.parse_args()
 
-    # Setup logging级别
+    # Setup logging level
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # 运行演示
+    # Run demo
     run_demo()
 
 
@@ -351,8 +351,8 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n演示已终止")
+        print("\nDemo terminated")
     except Exception as e:
-        print(f"错误: {str(e)}")
+        print(f"Error: {str(e)}")
     finally:
-        print("演示已结束")
+        print("Demo ended")

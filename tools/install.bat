@@ -1,135 +1,135 @@
 @echo off
-:: MuJoCo-MCP 安装脚本 (Windows版)
-:: 此脚本帮助用户安装MuJoCo-MCP及其依赖项
+:: MuJoCo-MCP Installation Script (Windows)
+:: This script helps users install MuJoCo-MCP and its dependencies
 
-echo === MuJoCo-MCP 安装脚本 (Windows版) ===
+echo === MuJoCo-MCP Installation Script (Windows) ===
 echo.
-echo 此脚本将：
-echo 1. 检查Python环境
-echo 2. 安装MuJoCo依赖
-echo 3. 安装MCP (Model Context Protocol)
-echo 4. 以开发模式安装MuJoCo-MCP
+echo This script will:
+echo 1. Check Python environment
+echo 2. Install MuJoCo dependencies
+echo 3. Install MCP (Model Context Protocol)
+echo 4. Install MuJoCo-MCP in development mode
 echo.
 
-:: 确认是否继续
-set /p response=是否继续安装? [Y/n] 
+:: Confirm to continue
+set /p response=Continue with installation? [Y/n]
 if /i "%response%"=="n" goto :cancel
 if /i "%response%"=="no" goto :cancel
 
-:: 获取脚本所在目录的绝对路径
+:: Get absolute path of script directory
 set "SCRIPT_DIR=%~dp0"
 set "REPO_ROOT=%SCRIPT_DIR%.."
 
-echo === 检查Python环境 ===
-:: 检查Python是否已安装
+echo === Checking Python Environment ===
+:: Check if Python is installed
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo 错误: 未找到Python
-    echo 请安装Python 3.8或更高版本: https://www.python.org/downloads/
+    echo Error: Python not found
+    echo Please install Python 3.8 or higher: https://www.python.org/downloads/
     goto :end
 )
 
-:: 检查Python版本
+:: Check Python version
 for /f "tokens=2" %%a in ('python --version 2^>^&1') do set "python_version=%%a"
-echo 检测到Python版本: %python_version%
+echo Detected Python version: %python_version%
 
-:: 检查pip是否已安装
+:: Check if pip is installed
 python -m pip --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo 错误: 未找到pip
-    echo 请安装pip: https://pip.pypa.io/en/stable/installation/
+    echo Error: pip not found
+    echo Please install pip: https://pip.pypa.io/en/stable/installation/
     goto :end
 )
 
-echo === 创建虚拟环境 ===
-echo 推荐在虚拟环境中安装
+echo === Creating Virtual Environment ===
+echo Recommended to install in virtual environment
 
-:: 询问是否创建虚拟环境
-set /p create_venv=创建虚拟环境? [Y/n] 
+:: Ask if creating virtual environment
+set /p create_venv=Create virtual environment? [Y/n]
 if /i "%create_venv%"=="n" goto :skip_venv
 if /i "%create_venv%"=="no" goto :skip_venv
 
-:: 检查venv模块
+:: Check venv module
 python -c "import venv" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo 错误: Python venv模块未安装
-    echo 请先安装venv模块
+    echo Error: Python venv module not installed
+    echo Please install venv module first
     goto :end
 )
 
-:: 创建虚拟环境
-echo 在 %REPO_ROOT%\venv 创建虚拟环境...
+:: Create virtual environment
+echo Creating virtual environment at %REPO_ROOT%\venv...
 python -m venv "%REPO_ROOT%\venv"
 
-:: 激活虚拟环境
-echo 激活虚拟环境...
+:: Activate virtual environment
+echo Activating virtual environment...
 call "%REPO_ROOT%\venv\Scripts\activate.bat"
 
-echo 虚拟环境已创建并激活
+echo Virtual environment created and activated
 goto :venv_done
 
 :skip_venv
-echo 跳过创建虚拟环境
+echo Skipping virtual environment creation
 
 :venv_done
 
-echo === 升级pip和安装wheel ===
+echo === Upgrading pip and Installing wheel ===
 python -m pip install --upgrade pip wheel
 
-echo === 安装MuJoCo依赖 ===
-echo 安装MuJoCo...
+echo === Installing MuJoCo Dependencies ===
+echo Installing MuJoCo...
 python -m pip install mujoco>=2.3.0
 
-:: 检查MuJoCo是否安装成功
-python -c "import mujoco; print(f'MuJoCo {mujoco.__version__} 已安装')" >nul 2>&1
+:: Check if MuJoCo installed successfully
+python -c "import mujoco; print(f'MuJoCo {mujoco.__version__} installed')" >nul 2>&1
 if %errorlevel% equ 0 (
-    echo MuJoCo安装成功
+    echo MuJoCo installed successfully
 ) else (
-    echo 警告: MuJoCo安装可能有问题
-    echo 请参考MuJoCo文档: https://github.com/deepmind/mujoco
+    echo Warning: MuJoCo installation may have issues
+    echo Please refer to MuJoCo documentation: https://github.com/deepmind/mujoco
 )
 
-echo === 安装Model Context Protocol (MCP) ===
+echo === Installing Model Context Protocol (MCP) ===
 python -m pip install model-context-protocol>=0.1.0
 
-:: 检查MCP是否安装成功
-python -c "import mcp; print('MCP已安装')" >nul 2>&1
+:: Check if MCP installed successfully
+python -c "import mcp; print('MCP installed')" >nul 2>&1
 if %errorlevel% equ 0 (
-    echo MCP安装成功
+    echo MCP installed successfully
 ) else (
-    echo 警告: MCP安装可能有问题
+    echo Warning: MCP installation may have issues
 )
 
-echo === 安装MuJoCo-MCP ===
+echo === Installing MuJoCo-MCP ===
 cd "%REPO_ROOT%"
 python -m pip install -e .
 
-:: 检查MuJoCo-MCP是否安装成功
-python -c "import mujoco_mcp; print('MuJoCo-MCP已安装')" >nul 2>&1
+:: Check if MuJoCo-MCP installed successfully
+python -c "import mujoco_mcp; print('MuJoCo-MCP installed')" >nul 2>&1
 if %errorlevel% equ 0 (
-    echo MuJoCo-MCP安装成功
+    echo MuJoCo-MCP installed successfully
 ) else (
-    echo 警告: MuJoCo-MCP安装可能有问题
+    echo Warning: MuJoCo-MCP installation may have issues
 )
 
-echo === 安装可选依赖 ===
-:: 询问是否安装Anthropic API
-set /p install_anthropic=安装Anthropic API用于LLM示例? [Y/n] 
+echo === Installing Optional Dependencies ===
+:: Ask if installing Anthropic API
+set /p install_anthropic=Install Anthropic API for LLM examples? [Y/n]
 if /i "%install_anthropic%"=="n" goto :skip_anthropic
 if /i "%install_anthropic%"=="no" goto :skip_anthropic
 
 python -m pip install anthropic
-echo Anthropic API已安装
+echo Anthropic API installed
 goto :anthropic_done
 
 :skip_anthropic
-echo 跳过安装Anthropic API
+echo Skipping Anthropic API installation
 
 :anthropic_done
 
-echo === 运行验证 ===
-:: 询问是否运行验证脚本
-set /p run_verify=运行项目验证脚本? [Y/n] 
+echo === Running Verification ===
+:: Ask if running verification script
+set /p run_verify=Run project verification script? [Y/n]
 if /i "%run_verify%"=="n" goto :skip_verify
 if /i "%run_verify%"=="no" goto :skip_verify
 
@@ -137,29 +137,29 @@ python "%REPO_ROOT%\tools\project_verify.py"
 goto :verify_done
 
 :skip_verify
-echo 跳过项目验证
+echo Skipping project verification
 
 :verify_done
 
 echo.
-echo === 安装完成 ===
+echo === Installation Complete ===
 echo.
-echo 要开始使用MuJoCo-MCP，请尝试运行演示：
+echo To start using MuJoCo-MCP, try running the demo:
 echo python %REPO_ROOT%\examples\demo.py
 echo.
-echo 或者运行LLM集成示例：
+echo Or run the LLM integration example:
 echo python %REPO_ROOT%\examples\comprehensive_llm_example.py
 echo.
 
 if /i not "%create_venv%"=="n" if /i not "%create_venv%"=="no" (
-    echo 注意: 虚拟环境已激活。要在新的命令提示符中使用，请运行:
+    echo Note: Virtual environment is activated. To use in a new command prompt, run:
     echo call "%REPO_ROOT%\venv\Scripts\activate.bat"
 )
 
 goto :end
 
 :cancel
-echo 安装已取消
+echo Installation cancelled
 
 :end
 pause 

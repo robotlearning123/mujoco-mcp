@@ -4,13 +4,11 @@ Debug script to check MCP protocol version handling
 """
 
 import asyncio
-import json
 import sys
 from typing import Dict, Any, List
 
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
-import mcp.server.stdio
 import mcp.types as types
 
 # Create server instance
@@ -29,7 +27,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
 async def test_initialization():
     """Test MCP initialization to see protocol version"""
     print("Testing MCP server initialization...", file=sys.stderr)
-    
+
     # Initialize server capabilities
     server_options = InitializationOptions(
         server_name="test-mcp",
@@ -39,10 +37,10 @@ async def test_initialization():
             experimental_capabilities={}
         )
     )
-    
+
     print(f"Server options: {server_options}", file=sys.stderr)
     print(f"Capabilities: {server_options.capabilities}", file=sys.stderr)
-    
+
     # Try to inspect the server object
     print(f"Server attributes: {[attr for attr in dir(server) if not attr.startswith('_')]}", file=sys.stderr)
 
