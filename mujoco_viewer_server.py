@@ -5,11 +5,16 @@ Supports concurrent multi-model management
 Uses official mujoco.viewer.launch_passive() API
 Communicates with MCP server via Socket
 
-Fixed issues:
-1. Support for multiple concurrent connections
-2. Increased receive buffer size
-3. Improved error handling and timeout management
-4. Support for independent management of multiple models
+Key Features:
+1. Multiple concurrent client connections (daemon threads)
+2. Increased receive buffer size (65536 bytes)
+3. Socket timeout increased to 15 seconds for model replacement operations
+4. Structured error handling with three-tier classification:
+   - Expected parameter errors (KeyError, ValueError, TypeError)
+   - Expected runtime errors (RuntimeError, model loading failures)
+   - Unexpected errors (catch-all Exception with full logging)
+5. Independent management of multiple models
+6. Graceful handling of user interrupts (KeyboardInterrupt never suppressed)
 """
 
 import time
@@ -45,19 +50,36 @@ class ModelViewer:
         self.simulation_running = False
         self.created_time = time.time()
 
-        # Load model - supports file path or XML string
-        if os.path.exists(model_source):
-            # If it's a file path, use from_xml_path to load
-            # (so relative paths are resolved correctly)
-            self.model = mujoco.MjModel.from_xml_path(model_source)
-        else:
-            # Otherwise assume it's an XML string
-            self.model = mujoco.MjModel.from_xml_string(model_source)
+        # Load model - supports both file paths and XML strings
+        # File paths are loaded via MjModel.from_xml_path() which handles asset resolution
+        # XML strings are loaded directly via MjModel.from_xml_string()
+        try:
+            if os.path.exists(model_source):
+                logger.info(f"Loading model {model_id} from file: {model_source}")
+                self.model = mujoco.MjModel.from_xml_path(model_source)
+            else:
+                logger.info(f"Loading model {model_id} from XML string")
+                self.model = mujoco.MjModel.from_xml_string(model_source)
+        except FileNotFoundError as e:
+            logger.exception(f"Model file not found for {model_id}: {model_source}")
+            raise RuntimeError(f"Failed to load model {model_id}: file not found at {model_source}") from e
+        except Exception as e:
+            logger.exception(f"Failed to load MuJoCo model {model_id}: {e}")
+            raise RuntimeError(f"Failed to load model {model_id}: {e}") from e
 
-        self.data = mujoco.MjData(self.model)
+        # Create simulation data
+        try:
+            self.data = mujoco.MjData(self.model)
+        except Exception as e:
+            logger.exception(f"Failed to create MjData for model {model_id}: {e}")
+            raise RuntimeError(f"Failed to initialize simulation data for {model_id}: {e}") from e
 
         # Start viewer
-        self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
+        try:
+            self.viewer = mujoco.viewer.launch_passive(self.model, self.data)
+        except Exception as e:
+            logger.exception(f"Failed to launch viewer for model {model_id}: {e}")
+            raise RuntimeError(f"Failed to start viewer for {model_id}: {e}") from e
 
         # Start simulation loop
         self.simulation_running = True
@@ -107,13 +129,25 @@ class ModelViewer:
                     self.viewer.close()
                 elif hasattr(self.viewer, "_window") and self.viewer._window:
                     # For older MuJoCo versions, try to close the window directly
-                    with contextlib.suppress(builtins.BaseException):
+                    try:
                         self.viewer._window.close()
+                    except (AttributeError, RuntimeError) as e:
+                        logger.debug(f"Failed to close viewer window for {self.model_id}: {e}")
+
                 # Wait for simulation thread to finish
                 if hasattr(self, "sim_thread") and self.sim_thread.is_alive():
                     self.sim_thread.join(timeout=2.0)
-            except Exception as e:
+                    if self.sim_thread.is_alive():
+                        logger.warning(f"Simulation thread for {self.model_id} did not terminate within timeout")
+            except KeyboardInterrupt:
+                # Never suppress user interrupts
+                raise
+            except (AttributeError, RuntimeError, OSError) as e:
+                # Expected errors during cleanup
                 logger.warning(f"Error closing viewer for {self.model_id}: {e}")
+            except Exception as e:
+                # Unexpected errors should be logged as errors
+                logger.exception(f"Unexpected error closing viewer for {self.model_id}: {e}")
             finally:
                 self.viewer = None
         logger.info(f"Closed ModelViewer for {self.model_id}")
@@ -135,252 +169,275 @@ class MuJoCoViewerServer:
         # Client management
         self.client_threads = []
 
+        # Command handlers
+        self._command_handlers = {
+            "load_model": self._handle_load_model,
+            "start_viewer": self._handle_start_viewer,
+            "get_state": self._handle_get_state,
+            "set_joint_positions": self._handle_set_joint_positions,
+            "reset": self._handle_reset,
+            "close_model": self._handle_close_model,
+            "replace_model": self._handle_replace_model,
+            "list_models": self._handle_list_models,
+            "ping": self._handle_ping,
+            "get_diagnostics": self._handle_get_diagnostics,
+            "capture_render": self._handle_capture_render,
+            "close_viewer": self._handle_close_viewer,
+            "shutdown_server": self._handle_shutdown_server,
+        }
+
     def handle_command(self, command: Dict[str, Any]) -> Dict[str, Any]:
         """Handle command - Single Viewer mode"""
         cmd_type = command.get("type")
 
         try:
-            if cmd_type == "load_model":
-                model_id = command.get("model_id", str(uuid.uuid4()))
-                model_source = command.get("model_xml")  # Can be XML string or file path
+            handler = self._command_handlers.get(cmd_type)
+            if handler:
+                return handler(command)
+            logger.warning(f"Unknown command type received: {cmd_type}")
+            return {"success": False, "error": f"Unknown command: {cmd_type}"}
 
-                with self.viewer_lock:
-                    # If there's an existing viewer, close it
-                    if self.current_viewer:
-                        logger.info(f"Closing existing viewer for {self.current_model_id}")
-                        self.current_viewer.close()
-                        time.sleep(2.0)  # Give time for viewer to close completely
+        except (KeyError, ValueError, TypeError) as e:
+            # Missing or invalid parameter errors (e.g., missing required keys, wrong types)
+            logger.warning(f"Invalid command parameters for {cmd_type}: {e}")
+            return {"success": False, "error": f"Invalid parameters: {e}"}
+        except RuntimeError as e:
+            # Explicit runtime errors raised by command handlers (model loading, viewer operations)
+            logger.exception(f"Runtime error handling command {cmd_type}: {e}")
+            return {"success": False, "error": str(e)}
+        except Exception as e:
+            # Unexpected errors indicate bugs that need investigation
+            logger.exception(f"Unexpected error handling command {cmd_type}: {e}")
+            return {"success": False, "error": f"Internal server error: {str(e)}"}
 
-                    # Create new viewer
-                    logger.info(f"Creating new viewer for model {model_id}")
-                    self.current_viewer = ModelViewer(model_id, model_source)
-                    self.current_model_id = model_id
+    def _check_viewer_available(self, model_id: str | None) -> Dict[str, Any] | None:
+        """Check if viewer is available for the given model. Returns error dict or None if OK."""
+        if not self.current_viewer or (model_id and self.current_model_id != model_id):
+            return {
+                "success": False,
+                "error": f"Model {model_id} not found or no active viewer",
+            }
+        return None
 
-                return {
-                    "success": True,
-                    "model_id": model_id,
-                    "model_info": {
-                        "nq": self.current_viewer.model.nq,
-                        "nv": self.current_viewer.model.nv,
-                        "nbody": self.current_viewer.model.nbody,
-                    },
+    def _handle_load_model(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Load a new model, replacing any existing one."""
+        model_id = command.get("model_id", str(uuid.uuid4()))
+        model_source = command.get("model_xml")
+
+        with self.viewer_lock:
+            if self.current_viewer:
+                logger.info(f"Closing existing viewer for {self.current_model_id}")
+                self.current_viewer.close()
+                time.sleep(2.0)
+
+            logger.info(f"Creating new viewer for model {model_id}")
+            self.current_viewer = ModelViewer(model_id, model_source)
+            self.current_model_id = model_id
+
+        return {
+            "success": True,
+            "model_id": model_id,
+            "model_info": {
+                "nq": self.current_viewer.model.nq,
+                "nv": self.current_viewer.model.nv,
+                "nbody": self.current_viewer.model.nbody,
+            },
+        }
+
+    def _handle_start_viewer(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Compatible with old version - viewer already started with load_model."""
+        return {"success": True, "message": "Viewer already started"}
+
+    def _handle_get_state(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Get current simulation state."""
+        model_id = command.get("model_id")
+        error = self._check_viewer_available(model_id)
+        if error:
+            return error
+
+        state = self.current_viewer.get_state()
+        return {"success": True, **state}
+
+    def _handle_set_joint_positions(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Set joint positions."""
+        model_id = command.get("model_id")
+        positions = command.get("positions", [])
+
+        error = self._check_viewer_available(model_id)
+        if error:
+            return error
+
+        self.current_viewer.set_joint_positions(positions)
+        return {"success": True, "positions_set": positions}
+
+    def _handle_reset(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Reset simulation."""
+        model_id = command.get("model_id")
+        error = self._check_viewer_available(model_id)
+        if error:
+            return error
+
+        self.current_viewer.reset()
+        return {"success": True}
+
+    def _handle_close_model(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Close the current model."""
+        model_id = command.get("model_id")
+        with self.viewer_lock:
+            if self.current_viewer and (not model_id or self.current_model_id == model_id):
+                logger.info(f"Closing current model {self.current_model_id}")
+                self.current_viewer.close()
+                self.current_viewer = None
+                self.current_model_id = None
+        return {"success": True, "message": f"Model {model_id} closed successfully"}
+
+    def _handle_replace_model(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Replace current model with a new one."""
+        model_id = command.get("model_id", str(uuid.uuid4()))
+        model_source = command.get("model_xml")
+
+        with self.viewer_lock:
+            if self.current_viewer:
+                logger.info(f"Replacing existing model {self.current_model_id} with {model_id}")
+                self.current_viewer.close()
+                time.sleep(2.0)
+
+            self.current_viewer = ModelViewer(model_id, model_source)
+            self.current_model_id = model_id
+
+        return {
+            "success": True,
+            "model_id": model_id,
+            "message": f"Model {model_id} replaced successfully",
+            "model_info": {
+                "nq": self.current_viewer.model.nq,
+                "nv": self.current_viewer.model.nv,
+                "nbody": self.current_viewer.model.nbody,
+            },
+        }
+
+    def _handle_list_models(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """List all loaded models."""
+        models_info = {}
+        with self.viewer_lock:
+            if self.current_viewer and self.current_model_id:
+                models_info[self.current_model_id] = {
+                    "created_time": self.current_viewer.created_time,
+                    "viewer_running": self.current_viewer.viewer
+                    and self.current_viewer.viewer.is_running(),
+                }
+        return {"success": True, "models": models_info}
+
+    def _handle_ping(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Ping the server."""
+        with self.viewer_lock:
+            models_count = 1 if self.current_viewer else 0
+            current_model = self.current_model_id
+        return {
+            "success": True,
+            "pong": True,
+            "models_count": models_count,
+            "current_model": current_model,
+            "server_running": self.running,
+            "server_info": {
+                "version": "0.7.4",
+                "mode": "single_viewer",
+                "port": self.port,
+                "active_threads": len(self.client_threads),
+            },
+        }
+
+    def _handle_get_diagnostics(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Get diagnostic information."""
+        model_id = command.get("model_id")
+        models_count = 1 if self.current_viewer else 0
+        diagnostics = {
+            "success": True,
+            "server_status": {
+                "running": self.running,
+                "mode": "single_viewer",
+                "models_count": models_count,
+                "current_model": self.current_model_id,
+                "active_connections": len(self.client_threads),
+                "port": self.port,
+            },
+            "models": {},
+        }
+
+        with self.viewer_lock:
+            if self.current_viewer and self.current_model_id:
+                diagnostics["models"][self.current_model_id] = {
+                    "created_time": self.current_viewer.created_time,
+                    "viewer_running": self.current_viewer.viewer
+                    and self.current_viewer.viewer.is_running(),
+                    "simulation_running": self.current_viewer.simulation_running,
+                    "thread_alive": hasattr(self.current_viewer, "sim_thread")
+                    and self.current_viewer.sim_thread.is_alive(),
                 }
 
-            elif cmd_type == "start_viewer":
-                # Compatible with old version, but viewer is already started when load_model
-                return {"success": True, "message": "Viewer already started"}
+        if model_id and self.current_model_id == model_id:
+            diagnostics["requested_model"] = diagnostics["models"][model_id]
 
-            elif cmd_type == "get_state":
-                model_id = command.get("model_id")
-                if not self.current_viewer or (model_id and self.current_model_id != model_id):
-                    return {
-                        "success": False,
-                        "error": f"Model {model_id} not found or no active viewer",
-                    }
+        return diagnostics
 
-                state = self.current_viewer.get_state()
-                return {"success": True, **state}
+    def _handle_capture_render(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Capture current rendered image."""
+        model_id = command.get("model_id")
+        width = command.get("width", 640)
+        height = command.get("height", 480)
 
-            elif cmd_type == "set_joint_positions":
-                model_id = command.get("model_id")
-                positions = command.get("positions", [])
+        error = self._check_viewer_available(model_id)
+        if error:
+            return error
 
-                if not self.current_viewer or (model_id and self.current_model_id != model_id):
-                    return {
-                        "success": False,
-                        "error": f"Model {model_id} not found or no active viewer",
-                    }
+        try:
+            renderer = mujoco.Renderer(self.current_viewer.model, height, width)
+            renderer.update_scene(self.current_viewer.data)
+            pixels = renderer.render()
 
-                self.current_viewer.set_joint_positions(positions)
-                return {"success": True, "positions_set": positions}
+            import base64
+            from PIL import Image
+            import io
 
-            elif cmd_type == "reset":
-                model_id = command.get("model_id")
-                if not self.current_viewer or (model_id and self.current_model_id != model_id):
-                    return {
-                        "success": False,
-                        "error": f"Model {model_id} not found or no active viewer",
-                    }
+            image = Image.fromarray(pixels)
+            img_buffer = io.BytesIO()
+            image.save(img_buffer, format="PNG")
+            img_base64 = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
 
-                self.current_viewer.reset()
-                return {"success": True}
-
-            elif cmd_type == "close_model":
-                model_id = command.get("model_id")
-                with self.viewer_lock:
-                    if self.current_viewer and (not model_id or self.current_model_id == model_id):
-                        logger.info(f"Closing current model {self.current_model_id}")
-                        self.current_viewer.close()
-                        self.current_viewer = None
-                        self.current_model_id = None
-                return {"success": True, "message": f"Model {model_id} closed successfully"}
-
-            elif cmd_type == "replace_model":
-                model_id = command.get("model_id", str(uuid.uuid4()))
-                model_source = command.get("model_xml")  # Can be XML string or file path
-
-                with self.viewer_lock:
-                    # Close existing viewer if it exists
-                    if self.current_viewer:
-                        logger.info(
-                            f"Replacing existing model {self.current_model_id} with {model_id}"
-                        )
-                        self.current_viewer.close()
-                        time.sleep(2.0)  # Give time for viewer to close completely
-
-                    # Create new viewer
-                    self.current_viewer = ModelViewer(model_id, model_source)
-                    self.current_model_id = model_id
-
-                return {
-                    "success": True,
-                    "model_id": model_id,
-                    "message": f"Model {model_id} replaced successfully",
-                    "model_info": {
-                        "nq": self.current_viewer.model.nq,
-                        "nv": self.current_viewer.model.nv,
-                        "nbody": self.current_viewer.model.nbody,
-                    },
-                }
-
-            elif cmd_type == "list_models":
-                models_info = {}
-                with self.viewer_lock:
-                    if self.current_viewer and self.current_model_id:
-                        models_info[self.current_model_id] = {
-                            "created_time": self.current_viewer.created_time,
-                            "viewer_running": self.current_viewer.viewer
-                            and self.current_viewer.viewer.is_running(),
-                        }
-                return {"success": True, "models": models_info}
-
-            elif cmd_type == "ping":
-                models_count = 1 if self.current_viewer else 0
-                return {
-                    "success": True,
-                    "pong": True,
-                    "models_count": models_count,
-                    "current_model": self.current_model_id,
-                    "server_running": self.running,
-                    "server_info": {
-                        "version": "0.7.4",
-                        "mode": "single_viewer",
-                        "port": self.port,
-                        "active_threads": len(self.client_threads),
-                    },
-                }
-
-            elif cmd_type == "get_diagnostics":
-                model_id = command.get("model_id")
-                models_count = 1 if self.current_viewer else 0
-                diagnostics = {
-                    "success": True,
-                    "server_status": {
-                        "running": self.running,
-                        "mode": "single_viewer",
-                        "models_count": models_count,
-                        "current_model": self.current_model_id,
-                        "active_connections": len(self.client_threads),
-                        "port": self.port,
-                    },
-                    "models": {},
-                }
-
-                with self.viewer_lock:
-                    if self.current_viewer and self.current_model_id:
-                        diagnostics["models"][self.current_model_id] = {
-                            "created_time": self.current_viewer.created_time,
-                            "viewer_running": self.current_viewer.viewer
-                            and self.current_viewer.viewer.is_running(),
-                            "simulation_running": self.current_viewer.simulation_running,
-                            "thread_alive": hasattr(self.current_viewer, "sim_thread")
-                            and self.current_viewer.sim_thread.is_alive(),
-                        }
-
-                if model_id and self.current_model_id == model_id:
-                    diagnostics["requested_model"] = diagnostics["models"][model_id]
-
-                return diagnostics
-
-            elif cmd_type == "capture_render":
-                """Capture current rendered image"""
-                model_id = command.get("model_id")
-                width = command.get("width", 640)
-                height = command.get("height", 480)
-
-                if not self.current_viewer or (model_id and self.current_model_id != model_id):
-                    return {
-                        "success": False,
-                        "error": f"Model {model_id} not found or no active viewer",
-                    }
-
-                try:
-                    # Create renderer
-                    renderer = mujoco.Renderer(self.current_viewer.model, height, width)
-
-                    # Update scene
-                    renderer.update_scene(self.current_viewer.data)
-
-                    # Render image
-                    pixels = renderer.render()
-
-                    # Convert to base64
-                    import base64
-                    from PIL import Image
-                    import io
-
-                    # Create PIL image
-                    image = Image.fromarray(pixels)
-
-                    # Save to byte stream
-                    img_buffer = io.BytesIO()
-                    image.save(img_buffer, format="PNG")
-                    img_data = img_buffer.getvalue()
-
-                    # Convert to base64
-                    img_base64 = base64.b64encode(img_data).decode("utf-8")
-
-                    return {
-                        "success": True,
-                        "image_data": img_base64,
-                        "width": width,
-                        "height": height,
-                        "format": "png",
-                    }
-
-                except Exception as e:
-                    logger.exception(f"Failed to capture render: {e}")
-                    return {"success": False, "error": str(e)}
-
-            elif cmd_type == "close_viewer":
-                """Completely close viewer GUI window"""
-                with self.viewer_lock:
-                    if self.current_viewer:
-                        logger.info(f"Closing viewer GUI for model {self.current_model_id}")
-                        self.current_viewer.close()
-                        self.current_viewer = None
-                        self.current_model_id = None
-                        return {"success": True, "message": "Viewer GUI closed successfully"}
-                    else:
-                        return {"success": True, "message": "No viewer is currently open"}
-
-            elif cmd_type == "shutdown_server":
-                """Completely shutdown server"""
-                logger.info("Shutdown command received")
-                self.running = False
-                with self.viewer_lock:
-                    if self.current_viewer:
-                        self.current_viewer.close()
-                        self.current_viewer = None
-                        self.current_model_id = None
-                return {"success": True, "message": "Server shutdown initiated"}
-
-            else:
-                return {"success": False, "error": f"Unknown command: {cmd_type}"}
+            return {
+                "success": True,
+                "image_data": img_base64,
+                "width": width,
+                "height": height,
+                "format": "png",
+            }
 
         except Exception as e:
-            logger.exception(f"Error handling command {cmd_type}: {e}")
+            logger.exception(f"Failed to capture render: {e}")
             return {"success": False, "error": str(e)}
+
+    def _handle_close_viewer(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Completely close viewer GUI window."""
+        with self.viewer_lock:
+            if not self.current_viewer:
+                return {"success": True, "message": "No viewer is currently open"}
+
+            logger.info(f"Closing viewer GUI for model {self.current_model_id}")
+            self.current_viewer.close()
+            self.current_viewer = None
+            self.current_model_id = None
+            return {"success": True, "message": "Viewer GUI closed successfully"}
+
+    def _handle_shutdown_server(self, command: Dict[str, Any]) -> Dict[str, Any]:
+        """Completely shutdown server."""
+        logger.info("Shutdown command received")
+        self.running = False
+        with self.viewer_lock:
+            if self.current_viewer:
+                self.current_viewer.close()
+                self.current_viewer = None
+                self.current_model_id = None
+        return {"success": True, "message": "Server shutdown initiated"}
 
     def handle_client(self, client_socket: socket.socket, address):
         """Handle single client connection - in separate thread"""
@@ -407,10 +464,11 @@ class MuJoCoViewerServer:
                     try:
                         json.loads(data.decode("utf-8"))
                         break
-                    except:
-                        # Continue receiving
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        # Continue receiving partial JSON
                         if len(data) > 1024 * 1024:  # 1MB limit
-                            raise ValueError("Message too large")
+                            logger.exception(f"Message too large: {len(data)} bytes from {address}")
+                            raise ValueError(f"Message exceeds 1MB limit: {len(data)} bytes")
                         continue
 
                 # Parse command
@@ -424,13 +482,18 @@ class MuJoCoViewerServer:
                 response_json = json.dumps(response) + "\n"
                 client_socket.send(response_json.encode("utf-8"))
 
-        except Exception as e:
-            logger.exception(f"Error handling client {address}: {e}")
+        except (OSError, ConnectionError, json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
+            # Expected network/protocol/validation errors (includes message size limit violations)
+            logger.warning(f"Client communication error from {address}: {e}")
             try:
                 error_response = {"success": False, "error": str(e)}
                 client_socket.send(json.dumps(error_response).encode("utf-8"))
-            except:
-                pass
+            except (OSError, BrokenPipeError):
+                # Cannot send error response (client disconnected or network failure)
+                logger.debug(f"Could not send error response to {address}")
+        except Exception as e:
+            # Unexpected errors - log for investigation (daemon thread will terminate)
+            logger.exception(f"Unexpected error handling client {address}: {e}")
         finally:
             client_socket.close()
             logger.info(f"Client {address} disconnected")

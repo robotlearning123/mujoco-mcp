@@ -46,84 +46,84 @@ PENDULUM_XML = """
 
 
 def start_server():
-    """在单独的线程中启动MCP服务器"""
-    logger.info("正在启动MuJoCo MCP服务器...")
+    """Start MCP server in a separate thread"""
+    logger.info("Starting MuJoCo MCP server...")
     server_thread = threading.Thread(
         target=mujoco_mcp.start,
         kwargs={"host": "localhost", "port": 8000, "blocking": True},
         daemon=True,
     )
     server_thread.start()
-    time.sleep(1)  # 给服务器一些启动时间
+    time.sleep(1)  # Give server some startup time
     return server_thread
 
 
 def run_client():
-    """运行MCP客户端示例"""
-    logger.info("正在连接到MuJoCo MCP服务器...")
+    """Run MCP client example"""
+    logger.info("Connecting to MuJoCo MCP server...")
     client = MCPClient("http://localhost:8000")
 
-    # 启动模拟
-    logger.info("正在启动新的模拟...")
+    # Start simulation
+    logger.info("Starting new simulation...")
     result = client.call_tool("start_simulation", {"model_xml": PENDULUM_XML})
     sim_id = result["simulation_id"]
-    logger.info(f"模拟ID: {sim_id}")
+    logger.info(f"Simulation ID: {sim_id}")
 
-    # 获取模拟信息
+    # Get simulation info
     sim_info = client.get_resource("simulation_info", {"simulation_id": sim_id})
-    logger.info(f"模拟信息: {sim_info}")
+    logger.info(f"Simulation info: {sim_info}")
 
-    # 重置模拟
+    # Reset simulation
     client.call_tool("reset_simulation", {"simulation_id": sim_id})
 
-    # 进行控制循环
-    logger.info("开始控制循环, 运行50步...")
+    # Run control loop
+    logger.info("Starting control loop, running 50 steps...")
     for i in range(50):
-        # 获取关节位置和速度
+        # Get joint positions and velocities
         positions = client.get_resource("joint_positions", {"simulation_id": sim_id})
         velocities = client.get_resource("joint_velocities", {"simulation_id": sim_id})
 
-        # 应用简单的控制 - 向下拉动摆锤
-        control = [1.0 * (i % 10)]  # 每10步改变方向
+        # Apply simple control - pull pendulum down
+        control = [1.0 * (i % 10)]  # Change direction every 10 steps
         client.call_tool("apply_control", {"simulation_id": sim_id, "control": control})
 
-        # 获取传感器数据
+        # Get sensor data
         sensors = client.get_resource("sensor_data", {"simulation_id": sim_id})
 
-        # 打印状态
-        if i % 5 == 0:  # 每5步打印一次
-            logger.info(f"步骤 {i}: 位置={positions}, 速度={velocities}, 控制={control}")
-            logger.info(f"传感器: {sensors}")
+        # Print status
+        if i % 5 == 0:  # Print every 5 steps
+            logger.info(f"Step {i}: position={positions}, velocity={velocities}, control={control}")
+            logger.info(f"Sensors: {sensors}")
 
-        # 向前推进模拟
+        # Step simulation forward
         client.call_tool("step_simulation", {"simulation_id": sim_id, "num_steps": 1})
-        time.sleep(0.01)  # 稍微减慢循环以便观察
+        time.sleep(0.01)  # Slow down loop slightly for observation
 
-    # 清理
-    logger.info("正在Delete模拟...")
+    # Cleanup
+    logger.info("Deleting simulation...")
     client.call_tool("delete_simulation", {"simulation_id": sim_id})
-    logger.info("示例完成!")
+    logger.info("Example complete!")
 
 
 def main():
-    """主程序"""
-    logger.info("启动基本MuJoCo MCP示例")
+    """Main program"""
+    logger.info("Starting basic MuJoCo MCP example")
 
     server_thread = start_server()
 
     try:
         run_client()
     except KeyboardInterrupt:
-        logger.info("用户中断，正在关闭...")
+        logger.info("User interrupt, shutting down...")
     except Exception as e:
-        logger.exception(f"发生错误: {str(e)}")
+        logger.exception(f"Error occurred: {str(e)}")
     finally:
-        # 停止服务器
-        logger.info("正在停止服务器...")
+        # Stop server
+        logger.info("Stopping server...")
         mujoco_mcp.stop()
-        # 等待服务器线程结束
+        # Wait for server thread to end
         server_thread.join(timeout=2)
-        logger.info("程序退出")
+        logger.info("Program exiting")
 
 
 if __name__ == "__main__":

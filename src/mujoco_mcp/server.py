@@ -48,18 +48,15 @@ def load_model(model_string: str, name: str | None = None) -> Dict[str, Any]:
 @mcp.tool()
 def get_loaded_models() -> Dict[str, Any]:
     """Get list of all loaded models"""
-    models = []
-    for model_id, data in simulations.items():
-        models.append({
+    models = [
+        {
             "id": model_id,
             "name": data.get("name", model_id),
-            "created": data.get("created", False)
-        })
-    return {
-        "status": "success",
-        "count": len(models),
-        "models": models
-    }
+            "created": data.get("created", False),
+        }
+        for model_id, data in simulations.items()
+    ]
+    return {"status": "success", "count": len(models), "models": models}
 
 
 @mcp.tool()
@@ -118,6 +115,14 @@ class MuJoCoServer:
         self.name = "mujoco-mcp"
         self.version = __version__
         self.description = "MuJoCo Model Context Protocol Server - A physics simulation server that enables AI agents to control MuJoCo simulations"
+
+    async def initialize(self):
+        """Initialize the server asynchronously.
+
+        This method is called before run() to perform any async initialization.
+        Currently a no-op but provides extension point for future initialization.
+        """
+        logger.info(f"Initializing {self.name} v{self.version}")
 
     def get_server_info(self) -> Dict[str, Any]:
         """Get server information for MCP compliance"""

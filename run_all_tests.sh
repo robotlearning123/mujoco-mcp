@@ -30,35 +30,35 @@ echo "   - Security scan..."
 bandit -r src/ || true
 echo ""
 
-# 4. 运行单元测试
+# 4. Run unit tests
 echo "4. Running unit tests..."
 pytest tests/ -v --cov=src/mujoco_mcp --cov-report=term-missing || true
 echo ""
 
-# 5. 构建包
+# 5. Build package
 echo "5. Building package..."
 python -m build
 echo ""
 
-# 6. 本地安装测试
+# 6. Local installation test
 echo "6. Running local installation test..."
 chmod +x test_local_install.sh
 ./test_local_install.sh
 echo ""
 
-# 7. MCP 合规性测试 (Skipped: test_mcp_compliance.py not found)
+# 7. MCP compliance test (Skipped: test_mcp_compliance.py not found)
 echo "7. Skipping MCP compliance test..."
 echo ""
 
-# 8. 端到端测试 (Skipped: test_e2e_integration.py not found)
+# 8. E2E integration test (Skipped: test_e2e_integration.py not found)
 echo "8. Skipping E2E integration test..."
 echo ""
 
-# 9. 性能基准测试 (Skipped: test_performance_benchmark.py not found)
+# 9. Performance benchmark (Skipped: test_performance_benchmark.py not found)
 echo "9. Skipping performance benchmark..."
 echo ""
 
-# 10. 生成测试摘要
+# 10. Generate test summary
 echo "10. Generating test summary..."
 mkdir -p reports
 cat > reports/test_summary.md << EOF

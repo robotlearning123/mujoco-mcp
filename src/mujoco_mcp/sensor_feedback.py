@@ -6,13 +6,19 @@ Implements various sensor modalities and feedback control loops
 
 import numpy as np
 import time
-from typing import Dict, List, Any
+from typing import Dict, List, Any, NewType
 from dataclasses import dataclass
 from enum import Enum
 import threading
 import queue
 from abc import ABC, abstractmethod
 import logging
+
+logger = logging.getLogger(__name__)
+
+# Domain-specific types for type safety
+Quality = NewType("Quality", float)  # Sensor quality (0-1 range)
+Timestamp = NewType("Timestamp", float)  # Time in seconds since epoch
 
 
 class SensorType(Enum):
@@ -29,16 +35,26 @@ class SensorType(Enum):
     PROXIMITY = "proximity"
 
 
-@dataclass
+@dataclass(frozen=True)
 class SensorReading:
     """Sensor reading data structure"""
 
     sensor_id: str
     sensor_type: SensorType
-    timestamp: float
+    timestamp: Timestamp
     data: np.ndarray
     frame_id: str = "base_link"
-    quality: float = 1.0  # Sensor quality (0-1)
+    quality: Quality = 1.0  # Sensor quality (0-1)
+
+    def __post_init__(self):
+        """Validate sensor reading parameters and make data array immutable."""
+        if not 0.0 <= self.quality <= 1.0:
+            raise ValueError(f"quality must be in [0, 1], got {self.quality}")
+        if self.timestamp < 0:
+            raise ValueError(f"timestamp must be non-negative, got {self.timestamp}")
+
+        # Make numpy array immutable
+        self.data.flags.writeable = False
 
     def is_valid(self, max_age: float = 0.1) -> bool:
         """Check if sensor reading is valid and recent"""
@@ -272,6 +288,15 @@ class SensorFusion:
 
                 if total_weight > 0:
                     fused_data[sensor_type.value] = weighted_sum / total_weight
+                else:
+                    # All readings have zero weight (quality=0) - this indicates sensor failure
+                    logger.warning(
+                        f"Cannot fuse {sensor_type.value} sensors: all readings have zero quality"
+                    )
+                    raise ValueError(
+                        f"Sensor fusion failed for {sensor_type.value}: "
+                        f"all {len(readings)} readings have zero weight/quality"
+                    )
 
         return fused_data
 

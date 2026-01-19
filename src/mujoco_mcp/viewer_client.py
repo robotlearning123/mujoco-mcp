@@ -11,7 +11,7 @@ import time
 import subprocess
 import sys
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 logger = logging.getLogger("mujoco_mcp.viewer_client")
 
@@ -22,7 +22,7 @@ class MuJoCoViewerClient:
     def __init__(self, host: str = "localhost", port: int = 8888):
         self.host = host
         self.port = port
-        self.socket: Optional[socket.socket] = None
+        self.socket: socket.socket | None = None
         self.connected = False
         self.auto_start = True  # Auto-start viewer server
         self.reconnect_attempts = 3
@@ -68,14 +68,20 @@ class MuJoCoViewerClient:
         if self.socket is not None:
             try:
                 self.socket.close()
-            except Exception:
-                pass
+            except OSError as e:
+                # Socket close errors during cleanup (e.g., socket already closed, connection reset)
+                # These are common during abnormal disconnection and can be safely ignored
+                logger.debug(f"Socket close error during cleanup: {e}")
+            except Exception as e:
+                # Unexpected errors during cleanup that aren't socket-related
+                # These warrant investigation as they may indicate resource leaks
+                logger.warning(f"Unexpected error during socket cleanup: {e}")
             finally:
                 self.socket = None
         self.connected = False
 
     def disconnect(self):
-        """断开连接"""
+        """Disconnect from viewer server."""
         if self.socket:
             self.socket.close()
             self.socket = None
@@ -83,9 +89,21 @@ class MuJoCoViewerClient:
         logger.info("Disconnected from MuJoCo Viewer Server")
 
     def send_command(self, command: Dict[str, Any]) -> Dict[str, Any]:
-        """发送命令到viewer server并获取响应"""
+        """Send command to viewer server and get response.
+
+        Args:
+            command: Command dictionary with 'type' and other parameters.
+
+        Returns:
+            Response dictionary from viewer server.
+
+        Raises:
+            ConnectionError: If not connected to viewer server.
+            ValueError: If response is too large (>1MB), not valid JSON, or cannot be decoded as UTF-8.
+            OSError: If socket communication fails.
+        """
         if not self.connected or not self.socket:
-            return {"success": False, "error": "Not connected to viewer server"}
+            raise ConnectionError("Not connected to viewer server")
 
         MAX_RESPONSE_SIZE = 1024 * 1024  # 1MB limit
 
@@ -108,16 +126,28 @@ class MuJoCoViewerClient:
 
                 # Prevent excessive memory usage
                 if len(response_data) > MAX_RESPONSE_SIZE:
-                    raise ValueError("Response too large")
+                    logger.error(f"Response exceeds size limit: {len(response_data)} bytes")
+                    raise ValueError(
+                        f"Response too large: {len(response_data)} bytes (max {MAX_RESPONSE_SIZE})"
+                    )
 
             return json.loads(response_data.decode("utf-8").strip())
 
-        except Exception as e:
-            logger.exception(f"Failed to send command: {e}")
-            return {"success": False, "error": str(e)}
+        except OSError as e:
+            logger.exception(f"Socket communication error: {e}")
+            self.connected = False  # Mark as disconnected on socket error
+            raise OSError(f"Failed to communicate with viewer server: {e}") from e
+        except json.JSONDecodeError as e:
+            logger.exception(f"Invalid JSON response: {e}")
+            self.connected = False  # Connection is likely corrupted
+            raise ValueError(f"Server returned invalid JSON: {e}") from e
+        except UnicodeDecodeError as e:
+            logger.exception(f"Response decode error: {e}")
+            self.connected = False  # Connection is likely corrupted
+            raise ValueError(f"Failed to decode server response as UTF-8: {e}") from e
 
     def ping(self) -> bool:
-        """测试连接是否正常 - 增强版"""
+        """Test if connection is working - enhanced version with auto-reconnect."""
         # Ensure connection exists
         if not self.connected and not self.connect():
             return False
@@ -126,16 +156,19 @@ class MuJoCoViewerClient:
         try:
             response = self.send_command({"type": "ping"})
             return response.get("success", False)
-        except Exception:
-            # Connection lost, try to reconnect once
+        except (OSError, ConnectionError, ValueError) as e:
+            # Expected communication errors - try to reconnect once
+            logger.warning(f"Ping failed with {type(e).__name__}: {e}, attempting reconnect")
             self.connected = False
             if not self.connect():
+                logger.error("Reconnection attempt failed")
                 return False
 
             try:
                 response = self.send_command({"type": "ping"})
                 return response.get("success", False)
-            except Exception:
+            except (OSError, ConnectionError, ValueError) as e:
+                logger.error(f"Ping failed after reconnect: {e}")
                 return False
 
     def load_model(self, model_source: str, model_id: str = None) -> Dict[str, Any]:
@@ -169,87 +202,60 @@ class MuJoCoViewerClient:
         return self.send_command(cmd)
 
     def start_viewer(self) -> Dict[str, Any]:
-        """启动viewer GUI"""
+        """Start viewer GUI."""
         return self.send_command({"type": "start_viewer"})
 
     def get_state(self, model_id: str = None) -> Dict[str, Any]:
-        """获取仿真状态"""
+        """Get simulation state."""
         cmd = {"type": "get_state"}
         if model_id:
             cmd["model_id"] = model_id
         return self.send_command(cmd)
 
     def set_control(self, control: list) -> Dict[str, Any]:
-        """设置控制输入"""
+        """Set control inputs."""
         return self.send_command({"type": "set_control", "control": control})
 
     def set_joint_positions(self, positions: list, model_id: str = None) -> Dict[str, Any]:
-        """设置关节位置"""
+        """Set joint positions."""
         cmd = {"type": "set_joint_positions", "positions": positions}
         if model_id:
             cmd["model_id"] = model_id
         return self.send_command(cmd)
 
     def reset_simulation(self, model_id: str = None) -> Dict[str, Any]:
-        """重置仿真"""
+        """Reset simulation."""
         cmd = {"type": "reset"}
         if model_id:
             cmd["model_id"] = model_id
         return self.send_command(cmd)
 
     def close_viewer(self) -> Dict[str, Any]:
-        """关闭viewer GUI窗口"""
+        """Close viewer GUI window."""
         return self.send_command({"type": "close_viewer"})
 
     def shutdown_server(self) -> Dict[str, Any]:
-        """关闭整个viewer服务器"""
+        """Shutdown entire viewer server."""
         return self.send_command({"type": "shutdown_server"})
 
     def capture_render(
         self, model_id: str = None, width: int = 640, height: int = 480
     ) -> Dict[str, Any]:
-        """捕获当前渲染的图像"""
+        """Capture current rendered image."""
         cmd = {"type": "capture_render", "width": width, "height": height}
         if model_id:
             cmd["model_id"] = model_id
         return self.send_command(cmd)
 
     def _start_viewer_server(self) -> bool:
-        """尝试启动MuJoCo Viewer Server - 支持macOS mjpython"""
+        """Attempt to start MuJoCo Viewer Server - supports macOS mjpython."""
         try:
-            # 查找viewer server脚本
-            script_paths = [
-                "mujoco_viewer_server.py",
-                os.path.join(os.path.dirname(__file__), "..", "..", "mujoco_viewer_server.py"),
-                os.path.join(os.getcwd(), "mujoco_viewer_server.py"),
-            ]
-
-            viewer_script = None
-            for path in script_paths:
-                if os.path.exists(path):
-                    viewer_script = os.path.abspath(path)
-                    break
-
+            viewer_script = self._find_viewer_script()
             if not viewer_script:
                 logger.error("Could not find mujoco_viewer_server.py")
                 return False
 
-            # 检查是否需要使用mjpython (macOS)
-            python_executable = sys.executable
-            if sys.platform == "darwin":  # macOS
-                # 尝试找mjpython
-                mjpython_result = subprocess.run(
-                    ["which", "mjpython"], capture_output=True, text=True
-                )
-                if mjpython_result.returncode == 0:
-                    mjpython_path = mjpython_result.stdout.strip()
-                    if mjpython_path:
-                        python_executable = mjpython_path
-                        logger.info(f"Using mjpython for macOS: {mjpython_path}")
-                else:
-                    logger.warning("mjpython not found on macOS, viewer may not work properly")
-
-            # 启动进程
+            python_executable = self._get_python_executable()
             cmd = [python_executable, viewer_script, "--port", str(self.port)]
             logger.info(f"Starting viewer with command: {' '.join(cmd)}")
 
@@ -257,7 +263,7 @@ class MuJoCoViewerClient:
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                start_new_session=True,  # 独立进程组
+                start_new_session=True,  # Independent process group
             )
 
             logger.info(f"Started MuJoCo Viewer Server (PID: {process.pid})")
@@ -267,8 +273,37 @@ class MuJoCoViewerClient:
             logger.exception(f"Failed to start viewer server: {e}")
             return False
 
+    def _find_viewer_script(self) -> str | None:
+        """Find the viewer server script in common locations."""
+        script_paths = [
+            "mujoco_viewer_server.py",
+            os.path.join(os.path.dirname(__file__), "..", "..", "mujoco_viewer_server.py"),
+            os.path.join(os.getcwd(), "mujoco_viewer_server.py"),
+        ]
+
+        for path in script_paths:
+            if os.path.exists(path):
+                return os.path.abspath(path)
+        return None
+
+    def _get_python_executable(self) -> str:
+        """Get appropriate Python executable (mjpython on macOS if available)."""
+        if sys.platform != "darwin":
+            return sys.executable
+
+        mjpython_result = subprocess.run(
+            ["which", "mjpython"], capture_output=True, text=True
+        )
+        if mjpython_result.returncode == 0 and mjpython_result.stdout.strip():
+            mjpython_path = mjpython_result.stdout.strip()
+            logger.info(f"Using mjpython for macOS: {mjpython_path}")
+            return mjpython_path
+
+        logger.warning("mjpython not found on macOS, viewer may not work properly")
+        return sys.executable
+
     def get_diagnostics(self) -> Dict[str, Any]:
-        """获取连接诊断信息"""
+        """Get connection diagnostic information."""
         diagnostics = {
             "host": self.host,
             "port": self.port,
@@ -283,41 +318,58 @@ class MuJoCoViewerClient:
 
         return diagnostics
 
-    def _check_viewer_process(self) -> bool:
-        """检查viewer进程是否运行"""
+    def _check_viewer_process(self) -> bool | None:
+        """Check if viewer process is running.
+
+        Returns:
+            True if process confirmed running, False if confirmed not running,
+            None if unable to determine (tool unavailable or error).
+        """
         try:
-            # 使用lsof检查端口
+            # Check if port is in use with lsof command
             result = subprocess.run(
-                ["lsof", "-ti", f":{self.port}"], capture_output=True, text=True
+                ["lsof", "-ti", f":{self.port}"],
+                capture_output=True,
+                text=True,
+                timeout=5.0
             )
             return bool(result.stdout.strip())
-        except:
-            return False
+        except FileNotFoundError:
+            logger.warning("lsof command not available, cannot check viewer process")
+            return None  # Tool unavailable - unable to determine
+        except subprocess.TimeoutExpired:
+            logger.warning(f"lsof command timeout checking port {self.port}")
+            return None  # Timeout - unable to determine
+        except Exception as e:
+            logger.exception(
+                f"Unexpected error checking viewer process on port {self.port}: "
+                f"{type(e).__name__}: {e}"
+            )
+            return None  # Error - unable to determine
 
 
 class ViewerManager:
-    """管理多个viewer客户端连接"""
+    """Manage multiple viewer client connections."""
 
     def __init__(self):
         self.clients = {}  # model_id -> ViewerClient
         self.default_port = 8888
 
     def create_client(self, model_id: str, port: int | None = None) -> bool:
-        """为特定模型创建viewer客户端"""
-        if port is None:
-            port = self.default_port
+        """Create viewer client for specific model."""
+        actual_port = port if port is not None else self.default_port
 
-        client = MuJoCoViewerClient(port=port)
-        if client.connect():
-            self.clients[model_id] = client
-            logger.info(f"Created viewer client for model {model_id}")
-            return True
-        else:
+        client = MuJoCoViewerClient(port=actual_port)
+        if not client.connect():
             logger.error(f"Failed to create viewer client for model {model_id}")
             return False
 
+        self.clients[model_id] = client
+        logger.info(f"Created viewer client for model {model_id}")
+        return True
+
     def get_client(self, model_id: str) -> MuJoCoViewerClient | None:
-        """获取指定模型的viewer客户端"""
+        """Get viewer client for specified model."""
         return self.clients.get(model_id)
 
     def remove_client(self, model_id: str):
@@ -333,13 +385,13 @@ class ViewerManager:
             self.remove_client(model_id)
 
 
-# 全局viewer管理器实例
+# Global viewer manager instance
 viewer_manager = ViewerManager()
 
 
-# 诊断信息获取函数
+# Diagnostic information retrieval function
 def get_system_diagnostics() -> Dict[str, Any]:
-    """获取系统诊断信息"""
+    """Get system diagnostic information."""
     diagnostics = {
         "viewer_manager": {
             "active_clients": len(viewer_manager.clients),
@@ -356,20 +408,20 @@ def get_system_diagnostics() -> Dict[str, Any]:
 
 
 def get_viewer_client(model_id: str) -> MuJoCoViewerClient | None:
-    """获取指定模型的viewer客户端的便捷函数"""
+    """Convenience function to get viewer client for specified model."""
     return viewer_manager.get_client(model_id)
 
 
 def ensure_viewer_connection(model_id: str) -> bool:
-    """确保viewer连接存在的便捷函数 - 增强版"""
+    """Convenience function to ensure viewer connection exists - enhanced version."""
     client = viewer_manager.get_client(model_id)
     if client and client.connected and client.ping():
         return True
 
-    # 如果连接不存在或已断开，尝试重新连接
+    # If connection doesn't exist or is disconnected, try to reconnect
     logger.info(f"Creating new viewer connection for model {model_id}")
 
-    # 多次尝试
+    # Multiple attempts
     for attempt in range(3):
         if viewer_manager.create_client(model_id):
             return True
@@ -377,7 +429,7 @@ def ensure_viewer_connection(model_id: str) -> bool:
         if attempt < 2:
             time.sleep(2)
 
-    # 最后提供详细诊断
+    # Finally provide detailed diagnostics
     client = viewer_manager.get_client(model_id)
     if client:
         diagnostics = client.get_diagnostics()

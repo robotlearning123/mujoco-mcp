@@ -27,9 +27,27 @@ class TaskType(Enum):
     COLLISION_AVOIDANCE = "collision_avoidance"
 
 
+class RobotStatus(Enum):
+    """Status of a robot in the coordination system."""
+
+    IDLE = "idle"
+    EXECUTING = "executing"
+    STALE = "stale"
+    COLLISION_STOP = "collision_stop"
+
+
+class TaskStatus(Enum):
+    """Status of a coordinated task."""
+
+    PENDING = "pending"
+    ALLOCATED = "allocated"
+    EXECUTING = "executing"
+    COMPLETED = "completed"
+
+
 @dataclass
 class RobotState:
-    """Robot state information"""
+    """Robot state information (mutable to allow status updates)"""
 
     robot_id: str
     model_type: str
@@ -37,8 +55,19 @@ class RobotState:
     joint_velocities: np.ndarray
     end_effector_pos: np.ndarray | None = None
     end_effector_vel: np.ndarray | None = None
-    status: str = "idle"
+    status: RobotStatus = RobotStatus.IDLE
     last_update: float = field(default_factory=time.time)
+
+    def __post_init__(self):
+        """Validate robot state dimensions.
+
+        Note: Arrays are kept mutable to allow state updates via update_robot_state().
+        """
+        if len(self.joint_positions) != len(self.joint_velocities):
+            raise ValueError(
+                f"joint_positions length ({len(self.joint_positions)}) must match "
+                f"joint_velocities length ({len(self.joint_velocities)})"
+            )
 
     def is_stale(self, timeout: float = 1.0) -> bool:
         """Check if state is stale"""
@@ -47,7 +76,7 @@ class RobotState:
 
 @dataclass
 class CoordinatedTask:
-    """Coordinated task definition"""
+    """Coordinated task definition (mutable to allow status updates)"""
 
     task_id: str
     task_type: TaskType
@@ -55,9 +84,22 @@ class CoordinatedTask:
     parameters: Dict[str, Any]
     priority: int = 1
     timeout: float = 30.0
-    status: str = "pending"
+    status: TaskStatus = TaskStatus.PENDING
     start_time: float | None = None
     completion_callback: Callable | None = None
+
+    def __post_init__(self):
+        """Validate coordinated task parameters."""
+        if not self.robots:
+            raise ValueError("robots list cannot be empty")
+        # Check for empty robot IDs
+        empty_ids = [i for i, rid in enumerate(self.robots) if not rid or not rid.strip()]
+        if empty_ids:
+            raise ValueError(
+                f"robots list contains empty IDs at indices {empty_ids}: {self.robots}"
+            )
+        if self.timeout <= 0:
+            raise ValueError(f"timeout must be positive, got {self.timeout}")
 
 
 class CollisionChecker:
@@ -147,7 +189,7 @@ class TaskAllocator:
                 # Check robot capabilities
                 if self._check_robot_capabilities(task):
                     self.pending_tasks.remove(task)
-                    task.status = "allocated"
+                    task.status = TaskStatus.ALLOCATED
                     task.start_time = time.time()
                     allocated_tasks.append(task)
 
@@ -309,8 +351,16 @@ class MultiRobotCoordinator:
                 # Send control commands
                 self._send_control_commands()
 
+            except (ConnectionError, TimeoutError) as e:
+                # Network/communication errors - log and retry on next iteration
+                # These may recover if connection is restored
+                self.logger.warning(f"Transient communication error in coordination loop: {e}")
+                # Loop continues to retry
             except Exception as e:
-                self.logger.exception(f"Error in coordination loop: {e}")
+                # Unexpected errors (programming bugs, state corruption) - stop coordination
+                self.logger.exception(f"CRITICAL error in coordination loop: {e}")
+                self.running = False
+                raise  # Re-raise to notify caller of failure
 
             # Maintain control frequency
             elapsed = time.time() - start_time
@@ -324,7 +374,7 @@ class MultiRobotCoordinator:
         with self.state_lock:
             for _robot_id, state in self.robot_states.items():
                 if state.is_stale():
-                    state.status = "stale"
+                    state.status = RobotStatus.STALE
 
     def _process_tasks(self):
         """Process and allocate tasks"""
@@ -333,7 +383,7 @@ class MultiRobotCoordinator:
             available_robots = [
                 robot_id
                 for robot_id, state in self.robot_states.items()
-                if state.status in ["idle", "ready"]
+                if state.status == RobotStatus.IDLE
             ]
 
             # Allocate new tasks
@@ -374,7 +424,7 @@ class MultiRobotCoordinator:
             times = np.array([0, 2.0])
 
             controller.set_trajectory(waypoints, times)
-            state.status = "executing"
+            state.status = RobotStatus.EXECUTING
 
     def _execute_formation_control(self, task: CoordinatedTask):
         """Execute formation control task"""
@@ -411,15 +461,29 @@ class MultiRobotCoordinator:
             times = np.array([0, 3.0])
 
             controller.set_trajectory(waypoints, times)
-            state.status = "executing"
+            state.status = RobotStatus.EXECUTING
 
     def _execute_sequential_tasks(self, task: CoordinatedTask):
         """Execute tasks in sequence"""
-        # Implementation for sequential task execution
+        self.logger.error(
+            f"Sequential task execution not implemented for task {task.task_id}. "
+            f"Supported task types: COOPERATIVE_MANIPULATION, FORMATION_CONTROL"
+        )
+        raise NotImplementedError(
+            "Sequential task execution is not yet implemented. "
+            "Supported task types: COOPERATIVE_MANIPULATION, FORMATION_CONTROL"
+        )
 
     def _execute_parallel_tasks(self, task: CoordinatedTask):
         """Execute tasks in parallel"""
-        # Implementation for parallel task execution
+        self.logger.error(
+            f"Parallel task execution not implemented for task {task.task_id}. "
+            f"Supported task types: COOPERATIVE_MANIPULATION, FORMATION_CONTROL"
+        )
+        raise NotImplementedError(
+            "Parallel task execution is not yet implemented. "
+            "Supported task types: COOPERATIVE_MANIPULATION, FORMATION_CONTROL"
+        )
 
     def _check_collisions(self):
         """Check for potential collisions"""
@@ -446,8 +510,8 @@ class MultiRobotCoordinator:
         state1 = self.robot_states[robot1_id]
         state2 = self.robot_states[robot2_id]
 
-        state1.status = "collision_stop"
-        state2.status = "collision_stop"
+        state1.status = RobotStatus.COLLISION_STOP
+        state2.status = RobotStatus.COLLISION_STOP
 
         # Reset controllers
         self.robots[robot1_id].reset_controllers()
@@ -458,7 +522,7 @@ class MultiRobotCoordinator:
         for robot_id, controller in self.robots.items():
             state = self.robot_states[robot_id]
 
-            if state.status == "executing":
+            if state.status == RobotStatus.EXECUTING:
                 # Get trajectory command
                 target_pos = controller.get_trajectory_command()
 
@@ -473,7 +537,7 @@ class MultiRobotCoordinator:
                         self.viewer_client.send_command(command)
                 else:
                     # Trajectory complete
-                    state.status = "idle"
+                    state.status = RobotStatus.IDLE
 
     # High-level task interface
     def cooperative_manipulation(
@@ -507,7 +571,7 @@ class MultiRobotCoordinator:
         self.task_allocator.add_task(task)
         return task.task_id
 
-    def get_task_status(self, task_id: str) -> str | None:
+    def get_task_status(self, task_id: str) -> TaskStatus | None:
         """Get status of a task"""
         with self.task_lock:
             if task_id in self.task_allocator.active_tasks:
