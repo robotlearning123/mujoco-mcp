@@ -147,3 +147,4 @@ Thumbs.db
 # Generated reports
 reports/*
 !reports/README.md
+.ruff_cache/
